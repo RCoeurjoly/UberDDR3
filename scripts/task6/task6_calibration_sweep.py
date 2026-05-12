@@ -80,6 +80,12 @@ def run_command(
     )
 
 
+def devshell(args: argparse.Namespace, command: list[str]) -> list[str]:
+    if not args.nix_develop:
+        return command
+    return ["nix", "develop", str(ROOT), "--command", *command]
+
+
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -170,7 +176,7 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
 
     if args.clean:
         proc = run_command(
-            ["make", "-C", str(YPCB_DIR.relative_to(ROOT)), "clean"],
+            devshell(args, ["make", "-C", str(YPCB_DIR.relative_to(ROOT)), "clean"]),
             log_path=run_dir / "logs" / "make-clean.log",
             dry_run=args.dry_run,
         )
@@ -178,7 +184,7 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
             return ROWSTREAM_BIT, "clean-failed"
 
     pnr_pre_place = "" if args.lock_set == "none" else f"--pre-place {lock_py}"
-    command = [
+    command = devshell(args, [
         "make",
         "-C",
         str(YPCB_DIR.relative_to(ROOT)),
@@ -187,7 +193,7 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
         f"PNR_PRE_PLACE={pnr_pre_place}",
         f"PNR_ARGS=--seed {args.seed} --freq {args.freq}",
         f"SYNTH_XILINX_FLAGS={args.synth_xilinx_flags}",
-    ]
+    ])
     proc = run_command(command, log_path=run_dir / "logs" / "build.log", dry_run=args.dry_run)
     if proc.returncode != 0:
         return ROWSTREAM_BIT, "build-failed"
@@ -249,7 +255,7 @@ def with_board_lock(
 
 
 def read_raw_debug(args: argparse.Namespace, board_run: Path, log_name: str) -> dict[str, Any] | None:
-    command = [
+    command = devshell(args, [
         sys.executable,
         str(READ_JTAG),
         "--serial",
@@ -259,7 +265,7 @@ def read_raw_debug(args: argparse.Namespace, board_run: Path, log_name: str) -> 
         "--bits",
         str(args.bits),
         "--json-only",
-    ]
+    ])
     rc = with_board_lock(board_run, log_name, command, dry_run=args.dry_run)
     if rc != 0 or args.dry_run:
         return None
@@ -308,7 +314,7 @@ def program_and_poll(args: argparse.Namespace, run_dir: Path, bitstream: Path) -
         board_run = init_board_run(args, run_dir, bitstream)
     else:
         board_run = init_board_run(args, run_dir, bitstream)
-        program = [
+        program = devshell(args, [
             "openocd",
             "-f",
             args.openocd_interface,
@@ -324,7 +330,7 @@ def program_and_poll(args: argparse.Namespace, run_dir: Path, bitstream: Path) -
             f"pld load 0 {bitstream}",
             "-c",
             "exit",
-        ]
+        ])
         rc = with_board_lock(board_run, "program.log", program, dry_run=args.dry_run)
         if rc != 0:
             return str(board_run), {"program_status": "fail"}
@@ -442,6 +448,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--skip-program", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--poll-seconds", type=float, default=60.0)
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--ftdi-serial", default="210299BF3824")
