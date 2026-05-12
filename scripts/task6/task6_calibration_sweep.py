@@ -230,7 +230,7 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
         "ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit",
         f"V40_PRE_PLACE_BEL_LOCKS={lock_py}",
         f"PNR_PRE_PLACE={pnr_pre_place}",
-        f"PNR_ARGS=--seed {args.seed} --freq {args.freq}",
+        f"PNR_ARGS=--seed {args.seed} --freq {args.freq} {args.pnr_extra_args}".rstrip(),
         f"PNR_DEBUG=--write {routed_json}",
         f"SYNTH_XILINX_FLAGS={args.synth_xilinx_flags}",
     ])
@@ -510,6 +510,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--lock-set", choices=sorted(LOCK_SETS), required=True)
     parser.add_argument("--freq", type=int, default=25)
+    parser.add_argument("--pnr-extra-args", default="")
     parser.add_argument("--synth-xilinx-flags", default="-flatten -family xc7")
     parser.add_argument("--bitstream", type=Path)
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
