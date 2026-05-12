@@ -158,6 +158,8 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
     ]
     for scope in scopes:
         command.extend(["--scope", scope])
+    if args.allow_missing_locks or args.lock_set == "full":
+        command.append("--allow-missing")
     proc = run_command(command, log_path=run_dir / "logs" / "generate-locks.log", dry_run=args.dry_run)
     if proc.returncode != 0:
         raise SystemExit(f"lock generation failed, see {run_dir / 'logs' / 'generate-locks.log'}")
@@ -451,6 +453,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--skip-program", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--allow-missing-locks", action="store_true")
     parser.add_argument("--poll-seconds", type=float, default=60.0)
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--ftdi-serial", default="210299BF3824")
