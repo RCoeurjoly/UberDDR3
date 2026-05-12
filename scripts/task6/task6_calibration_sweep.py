@@ -29,6 +29,7 @@ BUILD_ARTIFACTS = (
     f"{ROWSTREAM_STEM}.fasm",
     f"{ROWSTREAM_STEM}.frames",
     f"{ROWSTREAM_STEM}_openxc7.bit",
+    "nextpnr-routed.json",
 )
 V40_LOCKS = (
     ROOT
@@ -196,6 +197,8 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
             return ROWSTREAM_BIT, "clean-failed"
 
     pnr_pre_place = "" if args.lock_set == "none" else f"--pre-place {lock_py}"
+    routed_json = run_dir / "build-artifacts" / "nextpnr-routed.json"
+    routed_json.parent.mkdir(parents=True, exist_ok=True)
     command = devshell(args, [
         "make",
         "-C",
@@ -204,6 +207,7 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
         f"V40_PRE_PLACE_BEL_LOCKS={lock_py}",
         f"PNR_PRE_PLACE={pnr_pre_place}",
         f"PNR_ARGS=--seed {args.seed} --freq {args.freq}",
+        f"PNR_DEBUG=--write {routed_json}",
         f"SYNTH_XILINX_FLAGS={args.synth_xilinx_flags}",
     ])
     proc = run_command(command, log_path=run_dir / "logs" / "build.log", dry_run=args.dry_run)
@@ -217,11 +221,14 @@ def archive_build_artifacts(run_dir: Path) -> dict[str, str]:
     archived: dict[str, str] = {}
     for name in BUILD_ARTIFACTS:
         source = YPCB_DIR / name
+        if name == "nextpnr-routed.json":
+            source = out_dir / name
         if not source.is_file():
             continue
         out_dir.mkdir(parents=True, exist_ok=True)
         destination = out_dir / name
-        shutil.copy2(source, destination)
+        if source.resolve() != destination.resolve():
+            shutil.copy2(source, destination)
         archived[name] = str(destination.relative_to(ROOT))
     return archived
 
