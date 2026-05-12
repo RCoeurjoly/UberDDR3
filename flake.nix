@@ -25,6 +25,18 @@
         openXC7Prjxray = openXC7Packages.prjxray;
         patchedPrjxrayPython = "${openXC7Prjxray}/usr/share/python3";
 
+        patchedPrjxrayDb = pkgs.runCommand "prjxray-db-kintex7-lioi3-tbytesrc-oclkm" { } ''
+          cp -R --no-preserve=mode,ownership ${prjxrayDb} $out
+
+          cat >> $out/kintex7/segbits_lioi3_tbytesrc.db <<'EOF'
+LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1 30_94 31_83 31_93
+EOF
+
+          cat >> $out/kintex7/segbits_lioi3_tbytesrc.origin_info.db <<'EOF'
+LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1 origin:037-iob-pips 30_94 31_83 31_93
+EOF
+        '';
+
         prjxrayPythonDeps = pkgs.python312.withPackages (ps: [
           ps.intervaltree
           ps.progressbar2
@@ -42,13 +54,15 @@
             openXC7Fasm
             openXC7Prjxray
             prjxrayPythonDeps
+            pkgs.gnumake
             pkgs.openfpgaloader
             pkgs.openocd
+            pkgs.pypy3
           ];
           shellHook = ''
             export NEXTPNR_XILINX_DIR="${openXC7Nextpnr}/share/nextpnr"
             export NEXTPNR_XILINX_PYTHON_DIR="${openXC7Nextpnr}/share/nextpnr/python"
-            export PRJXRAY_DB_DIR="${prjxrayDb}"
+            export PRJXRAY_DB_DIR="${patchedPrjxrayDb}"
             export PRJXRAY_PYTHON_DIR="${openXC7Prjxray}/usr/share/python3"
             export PYTHONPATH="${prjxrayPythonPath}''${PYTHONPATH:+:$PYTHONPATH}"
           '';
