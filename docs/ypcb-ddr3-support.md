@@ -183,6 +183,7 @@ Initial calibration-sweep record:
 | Date | Source commit | Seed | Lock set | Build | Program | Calib seen | Calib complete | Loader ready | State | Ack | Err | Notes |
 | --- | --- | ---: | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |
 | 2026-05-12 | `dea36618` | 16 | `full` metadata, supplied v44 control bitstream | supplied | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, `DONE_CALIBRATE`; table artifacts in `artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration/` |
+| 2026-05-12 | `26abee0` | 16 | `full` generated locks | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `f95e20be...`; 411 locks applied, 25 packed board-pin locks recorded as missing |
 
 ### Phase 4: Prove Memory Access
 
