@@ -187,6 +187,7 @@ Initial calibration-sweep record:
 | 2026-05-12 | `dbfae28` | 0 | `full` generated locks | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `017c7ccd...`; first seed mutation failed calibration, so the full lock set is not yet sufficient |
 | 2026-05-12 | `4291544` | 40 | `full` generated locks | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `4dd36aa2...`; seed 40 passes, matching the v40/v44 empirical signal |
 | 2026-05-13 | `9e3a7eb` | 0 | `full` + `ddr3_idelayctrl_soft` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `e00fc0db...`; locking only the two IDELAYCTRL RDY LUTs does not fix seed 0 |
+| 2026-05-13 | `32d18b5` | 0 | `full` + `ddr3_controller_soft` | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `e2ae478b...`; first positive result for seed 0, 626 locks applied |
 
 Routed placement comparison:
 
@@ -218,11 +219,13 @@ moves in all three seeds, and seed 0 also places the general soft logic in a
 much shorter Y range than the passing seed-40 build.
 
 Working conclusion: locking more IDELAY/IOSERDES/PAD resources is unlikely to
-fix seed 0. The next constraint experiment should target DDR3 soft logic and
-clock/control adjacency: first lock the small `ddr3_phy_inst.IDELAYCTRL_inst`
-RDY combine LUTs, then test a broader `uberddr3` or DDR3 controller/calibration
-soft-logic lock set. Keep this experimental lock group separate from the
-upstreamable board LOC and PHY primitive constraints.
+fix seed 0. The first follow-up experiment confirmed that locking only the small
+`ddr3_phy_inst.IDELAYCTRL_inst` RDY combine LUTs still failed with the same
+state-12 signature. The broader `ddr3_controller_soft` scope made seed 0 pass,
+so the reliability work should now shrink that scope toward the minimum
+calibration/control subset while sweeping additional seeds. Keep this
+experimental lock group separate from the upstreamable board LOC and PHY
+primitive constraints.
 
 ### Phase 4: Prove Memory Access
 
