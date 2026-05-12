@@ -152,6 +152,10 @@ module ddr3_phy #(
     end
                 
     assign o_controller_idelayctrl_rdy = idelayctrl_rdy && dci_locked;
+
+    // YPCB-00338-1P1 channel 0 exposes no DDR3 DM pins in the open board
+    // metadata. Do not instantiate DM OSERDES/OBUF cells for this target path.
+    assign o_ddr3_dm = {LANES{1'b0}};
     
 `ifdef DEBUG_DQS
     assign o_ddr3_debug_read_dqs_p = io_ddr3_dqs;
@@ -791,7 +795,7 @@ module ddr3_phy #(
         end
         
         // data mask: oserdes -> odelay -> obuf
-        for(gen_index = 0; gen_index < LANES; gen_index = gen_index + 1) begin
+        for(gen_index = 0; gen_index < 0; gen_index = gen_index + 1) begin
  
             
             if(ODELAY_SUPPORTED) begin

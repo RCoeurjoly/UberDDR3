@@ -3178,6 +3178,15 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                      end
                                    
        BURST_WRITE: if(!o_wb_stall_calib) begin // Test 1: Burst write (per byte write to test datamask feature), then burst read
+                            // YPCB bring-up: preserve the BIST_MODE=1 path that
+                            // reaches this state after alignment, but skip the
+                            // full-address-space BIST. The JTAG wrapper runs a
+                            // bounded user-port probe for data integrity.
+                            if(BIST_MODE == 1) begin
+                                train_delay <= 15;
+                                state_calibrate <= FINISH_READ;
+                            end
+                            else begin
                             calib_stb <= 1'b1; 
                             calib_aux <= 2; // write
                             if(TDQS == 0 && ECC_ENABLE == 0) begin //Test datamask by writing 1 byte at a time
@@ -3225,6 +3234,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                         state_calibrate_next <= BURST_READ;
                                     `endif
                                 end 
+                           end
                            end
                      end
                    
@@ -3854,7 +3864,17 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
     // Logic connected to debug port
 //    wire debug_trigger;
-    assign o_debug1 = {27'd0, state_calibrate[4:0]};
+    // YPCB bring-up debug packing:
+    // [4:0]   calibration state
+    // [9:5]   init/refresh ROM instruction address
+    // [10]    PHY IDELAYCTRL ready
+    // [11]    calibration request strobe
+    // [12]    calibration-side Wishbone stall
+    // [13]    uncalibrated Wishbone ack
+    // [19:14] correct BIST read count, saturated/truncated
+    // [25:20] wrong BIST read count, saturated/truncated
+    // [31:26] BIST check address counter low bits
+    assign o_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
