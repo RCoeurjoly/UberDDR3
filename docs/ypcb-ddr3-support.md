@@ -121,6 +121,63 @@ Acceptance gate: a placement-constraint experiment either reproduces a known
 passing calibration signature, or produces a written negative result showing
 that IOSERDES/BEL placement is not the current blocker.
 
+### Phase 3B: Evolutionary Calibration-Consistency Sweep
+
+Calibration consistency is the immediate engineering target. Treat the passing
+v40/v44-era placement as an empirical oracle, then mutate seeds and shrink the
+absolute constraints until the minimum useful lock set is clear.
+
+The current v40 lock oracle contains 437 packed-cell BEL locks:
+
+| Scope | Locks | Purpose |
+| --- | ---: | --- |
+| `ddr3_clocks` | 5 | PLL and global clock spine stability |
+| `ddr3_board_pins` | 25 | board-level DDR3 address/control/pin output buffers |
+| `uberddr3_phy` | 407 | IDELAY, IDELAYCTRL, ISERDES, OSERDES, I/O buffers, and PHY-local cells |
+
+Run the sweep in layers:
+
+| Lock set | Generator scopes | Question |
+| --- | --- | --- |
+| `none` | none | How often does unconstrained nextpnr calibrate? |
+| `clocks` | `ddr3_clocks` | Are clocking placements sufficient? |
+| `phy` | `uberddr3_phy` | Is the PHY by itself the stabilizer? |
+| `clocks-phy` | `ddr3_clocks`, `uberddr3_phy` | Current practical baseline, excluding board-pin locks |
+| `full` | all scopes | Can the captured placement make seed mostly irrelevant? |
+
+For each `(source commit, seed, lock set)` row, record:
+
+| Field | Meaning |
+| --- | --- |
+| `source_commit` | exact Git commit under test |
+| `seed` | nextpnr seed mutation |
+| `lock_set` | named lock-set label above |
+| `lock_scopes` | scopes passed to the lock generator |
+| `applied_locks`, `missing_locks` | parsed from nextpnr pre-place output |
+| `build_status` | bitstream build success/failure |
+| `program_status` | OpenOCD/openFPGALoader success/failure |
+| `calib_seen`, `calib_complete`, `state`, `debug1` | decoded DDR3 calibration signature |
+| `loader_ready`, `ack_count`, `err_count` | wrapper/probe readiness and liveness |
+| `bitstream_sha256` | artifact identity |
+| `notes` | manual classification such as `boot-clean`, `stuck-state-1`, or `route-fail` |
+
+Promotion rules:
+
+- A lock set is only useful if the same bitstream passes repeated
+  program/calibration cycles.
+- A seed-stable lock set must pass across a seed sweep, not just one lucky
+  build.
+- Prefer the smallest lock set with a high pass rate. If `full` passes but
+  `clocks-phy` fails, shrink within `uberddr3_phy` by type next
+  (`IDELAYCTRL`, `IDELAYE2`, `ISERDESE2`, `OSERDESE2`, I/O buffers).
+- Do not mix board LOC constraints and experimental BEL constraints in an
+  upstream patch. The sweep output should justify each group independently.
+
+The first automation target is a CSV/Markdown table generator that can build a
+single row, program the board, poll JTAG, and append a machine-readable JSONL
+record. Once one-row execution is reliable, sweep seeds `0..31` for
+`full`, `clocks-phy`, `phy`, `clocks`, and `none`.
+
 ### Phase 4: Prove Memory Access
 
 - Run a deterministic low-byte write/read command through the JTAG command
