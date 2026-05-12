@@ -54,6 +54,7 @@ EOF
             openXC7Fasm
             openXC7Prjxray
             prjxrayPythonDeps
+            pkgs.libftdi1
             pkgs.gnumake
             pkgs.openfpgaloader
             pkgs.openocd
@@ -65,6 +66,7 @@ EOF
             export PRJXRAY_DB_DIR="${patchedPrjxrayDb}"
             export PRJXRAY_PYTHON_DIR="${openXC7Prjxray}/usr/share/python3"
             export PYTHONPATH="${prjxrayPythonPath}''${PYTHONPATH:+:$PYTHONPATH}"
+            export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.libftdi1 ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           '';
         };
       });
