@@ -262,6 +262,29 @@ semantics, not DDR3 calibration or board access. The calibrated BIST-derived
 DDR3 path is therefore the stable acceptance baseline, while rowstream/dense
 packing remains the next debug surface.
 
+### Rowstream Read/Write Contract
+
+The rowstream loader exposes byte addresses to the host, but the low-byte DDR3
+read path has a one-command read-ahead semantic. A clean control bitstream was
+able to read the boot pattern correctly only when the host issued
+`OP_READ_LOWBYTE` at `stream_addr + 1` while reporting the public byte address
+as `stream_addr`.
+
+The remaining contract fix should be symmetric for low-byte writes: the host
+API should keep public byte address `N`, but issue both `OP_WRITE_LOWBYTE` and
+`OP_READ_LOWBYTE` to the controller at `N + 1`. The attempted RTL-side
+write-hold fix, including a registered loader-bus hold through
+`LOADER_WRITE_DRAIN`, built and routed but repeatedly broke DDR3 calibration on
+the YPCB board (`calib_seen=False`, `state=1`) with seeds 16 and 40. That makes
+it the wrong upstreamable fix: it perturbs an already fragile calibrated
+placement and does not address the observed one-address command pipeline.
+
+Until the host loader is patched, rowstream diagnostics must be interpreted as
+controller-issue-address tests, not public byte-address tests. The next HIL
+gate is to patch the LLM2FPGA rowstream loader so `write_lowbyte()` and
+`read_lowbyte()` both issue `stream_addr + 1`, then rerun the low-byte
+diagnostic on the known-calibrating v40/v44 physical-lock bitstream.
+
 ## Development Strategy
 
 Keep OpenXC7 as the acceptance toolchain. If the BIST flow regresses, compare
