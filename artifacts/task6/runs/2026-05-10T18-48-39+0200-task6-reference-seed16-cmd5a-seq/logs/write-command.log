@@ -1,0 +1,10 @@
+$ /usr/bin/python3 /home/roland/UberDDR3/scripts/task6/write_jtag_command_ftdi_bitbang.py --serial 210299BF3824 --tdo-bit 7 --byte 0x5a --update-mode idle --json-only
+{
+  "backend": "ftdi-mpsse",
+  "bits": 16,
+  "byte": "0x5a",
+  "command": "0xa15a",
+  "serial": "210299BF3824",
+  "update_mode": "idle",
+  "user_ir": "0x03"
+}

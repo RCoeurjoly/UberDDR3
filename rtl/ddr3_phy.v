@@ -50,12 +50,14 @@ module ddr3_phy #(
               //4 is the width of a single ddr3 command {cs_n, ras_n, cas_n, we_n} plus 3 (ck_en, odt, reset_n) plus bank bits plus row bits
               cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM
     )(
-        input wire i_controller_clk, i_ddr3_clk, i_ref_clk,
+        input wire i_controller_clk, i_ddr3_clk, i_ddr3_clk_n, i_ref_clk,
         input wire i_ddr3_clk_90, //required only when ODELAY_SUPPORTED is zero
         input wire i_rst_n,
         // Controller Interface
         input wire i_controller_reset,
         input wire[cmd_len*serdes_ratio-1:0] i_controller_cmd,
+        input wire[1:0] i_controller_cmd_phase,
+        input wire i_controller_ck_invert,
         input wire i_controller_dqs_tri_control, i_controller_dq_tri_control,
         input wire i_controller_toggle_dqs,
         input wire[wb_data_bits-1:0] i_controller_data,
@@ -70,6 +72,14 @@ module ddr3_phy #(
         output wire[LANES*8-1:0] o_controller_iserdes_dqs,
         output wire[LANES*8-1:0] o_controller_iserdes_bitslip_reference,
         output wire o_controller_idelayctrl_rdy,
+        output reg[LANES-1:0] o_controller_raw_dqs_level,
+        output reg[LANES-1:0] o_controller_raw_dqs_seen_high,
+        output reg[LANES-1:0] o_controller_raw_dqs_seen_low,
+        output reg[LANES-1:0] o_controller_raw_dqs_edge_seen,
+        output reg[LANES-1:0] o_controller_iserdes_o_dqs_level,
+        output reg[LANES-1:0] o_controller_iserdes_o_dqs_seen_high,
+        output reg[LANES-1:0] o_controller_iserdes_o_dqs_seen_low,
+        output reg[LANES-1:0] o_controller_iserdes_o_dqs_edge_seen,
         // DDR3 I/O Interface
         output wire[DUAL_RANK_DIMM:0] o_ddr3_clk_p,o_ddr3_clk_n,
         output wire o_ddr3_reset_n,
@@ -142,6 +152,9 @@ module ddr3_phy #(
     wire ddr3_clk_delayed;
     wire idelayctrl_rdy;
     wire dci_locked;
+    reg[LANES-1:0] raw_dqs_level_d;
+    wire[LANES-1:0] iserdes_o_dqs = {LANES{1'b0}};
+    reg[LANES-1:0] iserdes_o_dqs_level_d;
     reg[LANES*8-1:0] o_controller_iserdes_bitslip_reference_reg;
     reg[LANES - 1 : 0] shift_bitslip_index;
     
@@ -149,6 +162,16 @@ module ddr3_phy #(
     initial begin
         o_controller_iserdes_bitslip_reference_reg = {LANES{8'b0001_1110}};
         shift_bitslip_index = 0;
+        raw_dqs_level_d = 0;
+        o_controller_raw_dqs_level = 0;
+        o_controller_raw_dqs_seen_high = 0;
+        o_controller_raw_dqs_seen_low = 0;
+        o_controller_raw_dqs_edge_seen = 0;
+        iserdes_o_dqs_level_d = 0;
+        o_controller_iserdes_o_dqs_level = 0;
+        o_controller_iserdes_o_dqs_seen_high = 0;
+        o_controller_iserdes_o_dqs_seen_low = 0;
+        o_controller_iserdes_o_dqs_edge_seen = 0;
     end
                 
     assign o_controller_idelayctrl_rdy = idelayctrl_rdy && dci_locked;
@@ -167,11 +190,31 @@ module ddr3_phy #(
             sync_rst <= 1'b1;
             delay_before_release_reset <= SYNC_RESET_DELAY[$clog2(SYNC_RESET_DELAY):0];
             toggle_dqs_q <= 0;
+            raw_dqs_level_d <= 0;
+            o_controller_raw_dqs_level <= 0;
+            o_controller_raw_dqs_seen_high <= 0;
+            o_controller_raw_dqs_seen_low <= 0;
+            o_controller_raw_dqs_edge_seen <= 0;
+            iserdes_o_dqs_level_d <= 0;
+            o_controller_iserdes_o_dqs_level <= 0;
+            o_controller_iserdes_o_dqs_seen_high <= 0;
+            o_controller_iserdes_o_dqs_seen_low <= 0;
+            o_controller_iserdes_o_dqs_edge_seen <= 0;
         end
         else begin
             delay_before_release_reset <= (delay_before_release_reset == 0)? 0: delay_before_release_reset - 1;
             sync_rst <= !(delay_before_release_reset == 0);
             toggle_dqs_q <= i_controller_toggle_dqs;
+				raw_dqs_level_d <= idelay_dqs;
+				o_controller_raw_dqs_level <= idelay_dqs;
+				o_controller_raw_dqs_seen_high <= o_controller_raw_dqs_seen_high | idelay_dqs;
+				o_controller_raw_dqs_seen_low <= o_controller_raw_dqs_seen_low | ~idelay_dqs;
+				o_controller_raw_dqs_edge_seen <= o_controller_raw_dqs_edge_seen | (idelay_dqs ^ raw_dqs_level_d);
+				iserdes_o_dqs_level_d <= iserdes_o_dqs;
+				o_controller_iserdes_o_dqs_level <= iserdes_o_dqs;
+				o_controller_iserdes_o_dqs_seen_high <= o_controller_iserdes_o_dqs_seen_high | iserdes_o_dqs;
+				o_controller_iserdes_o_dqs_seen_low <= o_controller_iserdes_o_dqs_seen_low | ~iserdes_o_dqs;
+				o_controller_iserdes_o_dqs_edge_seen <= o_controller_iserdes_o_dqs_edge_seen | (iserdes_o_dqs ^ iserdes_o_dqs_level_d);
         end
     end
 
@@ -186,9 +229,9 @@ module ddr3_phy #(
             `else 
                 OSERDESE2_model #(
             `endif
-                .DATA_RATE_OQ("SDR"), // DDR, SDR
-                .DATA_RATE_TQ("SDR"), // DDR, SDR
-                .DATA_WIDTH(4), // Parallel data width (2-8,10,14)
+                .DATA_RATE_OQ("DDR"), // DDR, SDR
+                .DATA_RATE_TQ("BUF"), // DDR, SDR
+                .DATA_WIDTH(8), // Parallel data width (2-8,10,14)
                 .INIT_OQ(1'b0), // Initial value of OQ output (1'b0,1'b1)
                 .TRISTATE_WIDTH(1)
             )
@@ -198,10 +241,14 @@ module ddr3_phy #(
                 .CLK(i_ddr3_clk), // 1-bit input: High speed clock
                 .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                 // D1 - D8: 1-bit (each) input: Parallel data inputs (1-bit each)
-                .D1(i_controller_cmd[cmd_len*0 + gen_index]),
-                .D2(i_controller_cmd[cmd_len*1 + gen_index]),
-                .D3(i_controller_cmd[cmd_len*2 + gen_index]),
-                .D4(i_controller_cmd[cmd_len*3 + gen_index]),
+                .D1(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd0) & 2'b11) + gen_index]),
+                .D2(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd0) & 2'b11) + gen_index]),
+                .D3(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd1) & 2'b11) + gen_index]),
+                .D4(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd1) & 2'b11) + gen_index]),
+                .D5(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd2) & 2'b11) + gen_index]),
+                .D6(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd2) & 2'b11) + gen_index]),
+                .D7(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd3) & 2'b11) + gen_index]),
+                .D8(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd3) & 2'b11) + gen_index]),
                 .OCE(1'b1), // 1-bit input: Output data clock enable
                 .RST(sync_rst), // 1-bit input: Reset
                 // unused signals but were added here to make vivado happy
@@ -210,10 +257,6 @@ module ddr3_phy #(
                 .TBYTEOUT(), // 1-bit output: Byte group tristate
                 .TFB(), // 1-bit output: 3-state control
                 .TQ(), // 1-bit output: 3-state control
-                .D5(),
-                .D6(),
-                .D7(),
-                .D8(),
                 // SHIFTIN1 / SHIFTIN2: 1-bit (each) input: Data input expansion (1-bit each)
                 .SHIFTIN1(0),
                 .SHIFTIN2(0),
@@ -240,9 +283,9 @@ module ddr3_phy #(
             `else 
                 OSERDESE2_model #(
             `endif
-                .DATA_RATE_OQ("SDR"), // DDR, SDR
-                .DATA_RATE_TQ("SDR"), // DDR, SDR
-                .DATA_WIDTH(4), // Parallel data width (2-8,10,14)
+                .DATA_RATE_OQ("DDR"), // DDR, SDR
+                .DATA_RATE_TQ("BUF"), // DDR, SDR
+                .DATA_WIDTH(8), // Parallel data width (2-8,10,14)
                 .INIT_OQ(1'b0), // Initial value of OQ output (1'b0,1'b1)
                 .TRISTATE_WIDTH(1)
             )
@@ -252,10 +295,14 @@ module ddr3_phy #(
                 .CLK(i_ddr3_clk), // 1-bit input: High speed clock
                 .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                 // D1 - D8: 1-bit (each) input: Parallel data inputs (1-bit each)
-                .D1(i_controller_cmd[cmd_len*0 + CMD_ODT]),
-                .D2(i_controller_cmd[cmd_len*1 + CMD_ODT]),
-                .D3(i_controller_cmd[cmd_len*2 + CMD_ODT]),
-                .D4(i_controller_cmd[cmd_len*3 + CMD_ODT]),
+                .D1(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd0) & 2'b11) + CMD_ODT]),
+                .D2(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd0) & 2'b11) + CMD_ODT]),
+                .D3(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd1) & 2'b11) + CMD_ODT]),
+                .D4(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd1) & 2'b11) + CMD_ODT]),
+                .D5(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd2) & 2'b11) + CMD_ODT]),
+                .D6(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd2) & 2'b11) + CMD_ODT]),
+                .D7(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd3) & 2'b11) + CMD_ODT]),
+                .D8(i_controller_cmd[cmd_len*((i_controller_cmd_phase + 2'd3) & 2'b11) + CMD_ODT]),
                 .OCE(1'b1), // 1-bit input: Output data clock enable
                 .RST(sync_rst), // 1-bit input: Reset
                 // unused signals but were added here to make vivado happy
@@ -264,10 +311,6 @@ module ddr3_phy #(
                 .TBYTEOUT(), // 1-bit output: Byte group tristate
                 .TFB(), // 1-bit output: 3-state control
                 .TQ(), // 1-bit output: 3-state control
-                .D5(),
-                .D6(),
-                .D7(),
-                .D8(),
                 // SHIFTIN1 / SHIFTIN2: 1-bit (each) input: Data input expansion (1-bit each)
                 .SHIFTIN1(0),
                 .SHIFTIN2(0),
@@ -433,6 +476,49 @@ module ddr3_phy #(
         end
     end
     else begin //ODELAY is not supported
+        // Match LiteDRAM's A7DDRPHY no-ODELAY CK path: forward CK through an
+        // OSERDESE2 using DDR data 0,1,0,1,... on the same IO clocking path as
+        // the command/address serializers.
+        `ifndef SIM_MODEL
+            OSERDESE2 #(
+        `else
+            OSERDESE2_model #(
+        `endif
+            .DATA_RATE_OQ("DDR"),
+            .DATA_RATE_TQ("BUF"),
+            .DATA_WIDTH(8),
+            .INIT_OQ(1'b0),
+            .TRISTATE_WIDTH(1)
+        )
+        OSERDESE2_clk_no_odelay(
+            .OFB(),
+            .OQ(ddr3_clk),
+            .CLK(i_ddr3_clk),
+            .CLKDIV(i_controller_clk),
+            .D1(i_controller_ck_invert),
+            .D2(!i_controller_ck_invert),
+            .D3(i_controller_ck_invert),
+            .D4(!i_controller_ck_invert),
+            .D5(i_controller_ck_invert),
+            .D6(!i_controller_ck_invert),
+            .D7(i_controller_ck_invert),
+            .D8(!i_controller_ck_invert),
+            .OCE(1'b1),
+            .RST(sync_rst),
+            .SHIFTOUT1(),
+            .SHIFTOUT2(),
+            .TBYTEOUT(),
+            .TFB(),
+            .TQ(),
+            .SHIFTIN1(1'b0),
+            .SHIFTIN2(1'b0),
+            .T1(1'b0),
+            .T2(1'b0),
+            .T3(1'b0),
+            .T4(1'b0),
+            .TBYTEIN(1'b0),
+            .TCE(1'b0)
+        );
 
                 // if dual rank enabled, then there will be two clk
         if(DUAL_RANK_DIMM) begin
@@ -446,7 +532,7 @@ module ddr3_phy #(
             `endif
                 .O(o_ddr3_clk_p[1]), // Diff_p output (connect directly to top-level port)
                 .OB(o_ddr3_clk_n[1]), // Diff_n output (connect directly to top-level port)
-                .I(!i_ddr3_clk) // Buffer input
+                .I(ddr3_clk) // Buffer input
             );
             `ifndef SIM_MODEL
                 OBUFDS OBUFDS1_inst (
@@ -455,7 +541,7 @@ module ddr3_phy #(
             `endif
                 .O(o_ddr3_clk_p[0]), // Diff_p output (connect directly to top-level port)
                 .OB(o_ddr3_clk_n[0]), // Diff_n output (connect directly to top-level port)
-                .I(!i_ddr3_clk) // Buffer input
+                .I(ddr3_clk) // Buffer input
             );
             // End of OBUFDS_inst instantiation
         end
@@ -470,7 +556,7 @@ module ddr3_phy #(
             `endif
                 .O(o_ddr3_clk_p), // Diff_p output (connect directly to top-level port)
                 .OB(o_ddr3_clk_n), // Diff_n output (connect directly to top-level port)
-                .I(!i_ddr3_clk) // Buffer input
+                .I(ddr3_clk) // Buffer input
             );
         end
     end
@@ -770,7 +856,7 @@ module ddr3_phy #(
                 .CLKDIVP(), // 1-bit input: TBD
                 // Clocks: 1-bit (each) input: ISERDESE2 clock input ports
                 .CLK(i_ddr3_clk), // 1-bit input: High-speed clock
-                .CLKB(!i_ddr3_clk), // 1-bit input: High-speed secondary clock
+                .CLKB(i_ddr3_clk_n), // 1-bit input: High-speed secondary clock
                 .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                 .OCLK(), // 1-bit input: High speed output clock used when INTERFACE_TYPE="MEMORY"
                 // Dynamic Clock Inversions: 1-bit (each) input: Dynamic clock inversion pins to switch clock polarity
@@ -1098,7 +1184,7 @@ module ddr3_phy #(
                         .IO(io_ddr3_dqs[gen_index]), // Diff_p inout (connect directly to top-level port)
                         .IOB(io_ddr3_dqs_n[gen_index]), // Diff_n inout (connect directly to top-level port)
                         .I(odelay_dqs[gen_index]), // Buffer input
-                        .T(/*!dqs_tri_control[gen_index]*/oserdes_dqs_tri_control[gen_index]) // 3-state enable input, high=input, low=output
+                    .T(i_controller_dqs_tri_control) // 3-state enable input, high=input, low=output
                     ); // End of IOBUFDS_inst instantiation
                 end
                 
@@ -1123,7 +1209,7 @@ module ddr3_phy #(
                     .OFB(), // 1-bit output: Feedback path for data
                     .OQ(oserdes_dqs[gen_index]), // 1-bit output: Data path output
                     .TQ(oserdes_dqs_tri_control[gen_index]),
-                    .CLK(!i_ddr3_clk), // 1-bit input: High speed clock
+                    .CLK(i_ddr3_clk_n), // 1-bit input: High speed clock
                     .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                     // D1 - D8: 1-bit (each) input: Parallel data inputs (1-bit each)
                     .D1(1'b1 && (i_controller_toggle_dqs || toggle_dqs_q)), //the last part will still have half dqs series
@@ -1172,7 +1258,7 @@ module ddr3_phy #(
                     .IO(io_ddr3_dqs[gen_index]), // Diff_p inout (connect directly to top-level port)
                     .IOB(io_ddr3_dqs_n[gen_index]), // Diff_n inout (connect directly to top-level port)
                     .I(oserdes_dqs[gen_index]), // Buffer input
-                    .T(/*!dqs_tri_control[gen_index]*/oserdes_dqs_tri_control[gen_index]) // 3-state enable input, high=input, low=output
+                    .T(i_controller_dqs_tri_control) // 3-state enable input, high=input, low=output
                 ); // End of IOBUFDS_inst instantiation
                 
             end
@@ -1264,7 +1350,7 @@ module ddr3_phy #(
                 .CLKDIVP(), // 1-bit input: TBD
                 // Clocks: 1-bit (each) input: ISERDESE2 clock input ports
                 .CLK(i_ddr3_clk), // 1-bit input: High-speed clock
-                .CLKB(!i_ddr3_clk), // 1-bit input: High-speed secondary clock
+                .CLKB(i_ddr3_clk_n), // 1-bit input: High-speed secondary clock
                 .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                 .OCLK(), // 1-bit input: High speed output clock used when INTERFACE_TYPE="MEMORY"
                 // Dynamic Clock Inversions: 1-bit (each) input: Dynamic clock inversion pins to switch clock polarity
@@ -1359,7 +1445,7 @@ module ddr3_phy #(
                     .CLKDIVP(), // 1-bit input: TBD
                     // Clocks: 1-bit (each) input: ISERDESE2 clock input ports
                     .CLK(i_ddr3_clk), // 1-bit input: High-speed clock
-                    .CLKB(!i_ddr3_clk), // 1-bit input: High-speed secondary clock
+                    .CLKB(i_ddr3_clk_n), // 1-bit input: High-speed secondary clock
                     .CLKDIV(i_controller_clk), // 1-bit input: Divided clock
                     .OCLK(), // 1-bit input: High speed output clock used when INTERFACE_TYPE="MEMORY"
                     // Dynamic Clock Inversions: 1-bit (each) input: Dynamic clock inversion pins to switch clock polarity

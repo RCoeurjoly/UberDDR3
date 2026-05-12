@@ -53,6 +53,7 @@ module ddr3_top #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock (< 125MHz)
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 1, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter      BIST_ADDR_BITS = 0,
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC ) 
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms) (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)  (only change when you know what you are doing)
@@ -68,7 +69,7 @@ module ddr3_top #(
                 cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM
     ) 
     (
-        input wire i_controller_clk, i_ddr3_clk, i_ref_clk, //i_controller_clk = CONTROLLER_CLK_PERIOD, i_ddr3_clk = DDR3_CLK_PERIOD, i_ref_clk = 200MHz
+        input wire i_controller_clk, i_ddr3_clk, i_ddr3_clk_n, i_ref_clk, //i_controller_clk = CONTROLLER_CLK_PERIOD, i_ddr3_clk = DDR3_CLK_PERIOD, i_ref_clk = 200MHz
         input wire i_ddr3_clk_90, //required only when ODELAY_SUPPORTED is zero
         input wire i_rst_n,
         //
@@ -204,6 +205,8 @@ ddr3_top #(
     
     // Wire connections between controller and phy
     wire[cmd_len*serdes_ratio-1:0] cmd;
+    wire[1:0] cmd_phase;
+    wire ck_invert;
     wire dqs_tri_control, dq_tri_control;
     wire toggle_dqs;
     wire[wb_data_bits-1:0] data;
@@ -213,6 +216,14 @@ ddr3_top #(
     wire[BYTE_LANES*8-1:0] iserdes_dqs;
     wire[BYTE_LANES*8-1:0] iserdes_bitslip_reference;
     wire idelayctrl_rdy;
+    wire[BYTE_LANES-1:0] raw_dqs_level;
+    wire[BYTE_LANES-1:0] raw_dqs_seen_high;
+    wire[BYTE_LANES-1:0] raw_dqs_seen_low;
+    wire[BYTE_LANES-1:0] raw_dqs_edge_seen;
+    wire[BYTE_LANES-1:0] iserdes_o_dqs_level;
+    wire[BYTE_LANES-1:0] iserdes_o_dqs_seen_high;
+    wire[BYTE_LANES-1:0] iserdes_o_dqs_seen_low;
+    wire[BYTE_LANES-1:0] iserdes_o_dqs_edge_seen;
     wire[4:0] odelay_data_cntvaluein, odelay_dqs_cntvaluein;
     wire[4:0] idelay_data_cntvaluein, idelay_dqs_cntvaluein;
     wire[BYTE_LANES-1:0] odelay_data_ld, odelay_dqs_ld;
@@ -263,6 +274,7 @@ ddr3_top #(
             .DLL_OFF(DLL_OFF), // 1 = DLL off for low frequency ddr3 clock (< 125MHz)
             .WB_ERROR(WB_ERROR), // set to 1 to support Wishbone error (asserts at ECC double bit error)
             .BIST_MODE(BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+            .BIST_ADDR_BITS(BIST_ADDR_BITS),
             .DIC(DIC), //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)
             .RTT_NOM(RTT_NOM), //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
             .DUAL_RANK_DIMM(DUAL_RANK_DIMM), // enable dual rank DIMM (1 =  enable, 0 = disable)
@@ -305,7 +317,17 @@ ddr3_top #(
             .i_phy_iserdes_dqs(iserdes_dqs),
             .i_phy_iserdes_bitslip_reference(iserdes_bitslip_reference),
             .i_phy_idelayctrl_rdy(idelayctrl_rdy),
+            .i_phy_raw_dqs_level(raw_dqs_level),
+            .i_phy_raw_dqs_seen_high(raw_dqs_seen_high),
+            .i_phy_raw_dqs_seen_low(raw_dqs_seen_low),
+            .i_phy_raw_dqs_edge_seen(raw_dqs_edge_seen),
+            .i_phy_iserdes_o_dqs_level(iserdes_o_dqs_level),
+            .i_phy_iserdes_o_dqs_seen_high(iserdes_o_dqs_seen_high),
+            .i_phy_iserdes_o_dqs_seen_low(iserdes_o_dqs_seen_low),
+            .i_phy_iserdes_o_dqs_edge_seen(iserdes_o_dqs_edge_seen),
             .o_phy_cmd(cmd),
+            .o_phy_cmd_phase(cmd_phase),
+            .o_phy_ck_invert(ck_invert),
             .o_phy_dqs_tri_control(dqs_tri_control), 
             .o_phy_dq_tri_control(dq_tri_control),
             .o_phy_toggle_dqs(toggle_dqs),
@@ -345,12 +367,15 @@ ddr3_top #(
             ) ddr3_phy_inst (
                 .i_controller_clk(i_controller_clk), 
                 .i_ddr3_clk(i_ddr3_clk),
+                .i_ddr3_clk_n(i_ddr3_clk_n),
                 .i_ref_clk(i_ref_clk),
                 .i_ddr3_clk_90(i_ddr3_clk_90), 
                 .i_rst_n(i_rst_n),
                 // Controller Interface
                 .i_controller_reset(reset),
                 .i_controller_cmd(cmd),
+                .i_controller_cmd_phase(cmd_phase),
+                .i_controller_ck_invert(ck_invert),
                 .i_controller_dqs_tri_control(dqs_tri_control), 
                 .i_controller_dq_tri_control(dq_tri_control),
                 .i_controller_toggle_dqs(toggle_dqs),
@@ -370,6 +395,14 @@ ddr3_top #(
                 .o_controller_iserdes_dqs(iserdes_dqs),
                 .o_controller_iserdes_bitslip_reference(iserdes_bitslip_reference),
                 .o_controller_idelayctrl_rdy(idelayctrl_rdy),
+                .o_controller_raw_dqs_level(raw_dqs_level),
+                .o_controller_raw_dqs_seen_high(raw_dqs_seen_high),
+                .o_controller_raw_dqs_seen_low(raw_dqs_seen_low),
+                .o_controller_raw_dqs_edge_seen(raw_dqs_edge_seen),
+                .o_controller_iserdes_o_dqs_level(iserdes_o_dqs_level),
+                .o_controller_iserdes_o_dqs_seen_high(iserdes_o_dqs_seen_high),
+                .o_controller_iserdes_o_dqs_seen_low(iserdes_o_dqs_seen_low),
+                .o_controller_iserdes_o_dqs_edge_seen(iserdes_o_dqs_edge_seen),
                 // DDR3 I/O Interface
                 .o_ddr3_clk_p(o_ddr3_clk_p),
                 .o_ddr3_clk_n(o_ddr3_clk_n),

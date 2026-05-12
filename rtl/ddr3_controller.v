@@ -87,6 +87,7 @@ module ddr3_controller #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 2, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter BIST_ADDR_BITS = 0,
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )  (only change when you know what you are doing)
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)  (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
@@ -139,7 +140,17 @@ module ddr3_controller #(
         input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_dqs,
         input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_bitslip_reference,
         input wire i_phy_idelayctrl_rdy,
+        input wire[LANES-1:0] i_phy_raw_dqs_level,
+        input wire[LANES-1:0] i_phy_raw_dqs_seen_high,
+        input wire[LANES-1:0] i_phy_raw_dqs_seen_low,
+        input wire[LANES-1:0] i_phy_raw_dqs_edge_seen,
+        input wire[LANES-1:0] i_phy_iserdes_o_dqs_level,
+        input wire[LANES-1:0] i_phy_iserdes_o_dqs_seen_high,
+        input wire[LANES-1:0] i_phy_iserdes_o_dqs_seen_low,
+        input wire[LANES-1:0] i_phy_iserdes_o_dqs_edge_seen,
         output reg[cmd_len*serdes_ratio-1:0] o_phy_cmd,
+        output reg[1:0] o_phy_cmd_phase,
+        output reg o_phy_ck_invert,
         output reg o_phy_dqs_tri_control, o_phy_dq_tri_control,
         output wire o_phy_toggle_dqs,
         output reg[wb_data_bits-1:0] o_phy_data,
@@ -352,7 +363,7 @@ module ddr3_controller #(
     //plus 10 controller clocks for possible bus latency and the delay for receiving feedback DQ from IOBUF -> IDELAY -> ISERDES
     localparam ECC_INFORMATION_BITS = (ECC_ENABLE == 2)? max_information_bits(wb_data_bits) : max_information_bits(wb_data_bits/8);
     // Smaller wb_addr_bits for simulation so BIST will end faster
-    localparam wb_addr_bits_sim = MICRON_SIM? 8 : wb_addr_bits; 
+    localparam wb_addr_bits_sim = MICRON_SIM ? 8 : ((BIST_ADDR_BITS == 0) ? wb_addr_bits : BIST_ADDR_BITS);
     
     /*********************************************************************************************************************************************/
    
@@ -522,6 +533,8 @@ module ddr3_controller #(
     
     //commands to be sent to PHY (4 slots per controller clk cycle)
     reg[cmd_len-1:0] cmd_d[3:0];
+    reg[cmd_len*serdes_ratio-1:0] debug_mpr_mrs_cmd;
+    reg[cmd_len*serdes_ratio-1:0] debug_mpr_read_cmd;
     initial begin
         o_phy_bitslip = 0;
     end
@@ -550,6 +563,7 @@ module ddr3_controller #(
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
     reg[3:0] train_delay;
     reg[3:0] delay_before_read_data = 0;
+    reg[3:0] mpr_read_delay = READ_DELAY + 1;
     reg[$clog2(DELAY_BEFORE_WRITE_LEVEL_FEEDBACK):0] delay_before_write_level_feedback = 0;
     reg initial_dqs = 0;
     (* mark_debug = "true" *) reg[lanes_clog2-1:0] lane = 0;
@@ -680,6 +694,7 @@ module ddr3_controller #(
     
     // initial block for all regs
     initial begin
+        o_phy_ck_invert = 1'b0;
         for(index = 0; index < MAX_ADDED_READ_ACK_DELAY; index = index + 1) begin
             o_wb_ack_read_q[index] = 0;
         end
@@ -1658,6 +1673,21 @@ module ddr3_controller #(
         end
     endgenerate
 
+    always @(posedge i_controller_clk) begin
+        if(sync_rst_controller) begin
+            debug_mpr_mrs_cmd <= 0;
+            debug_mpr_read_cmd <= 0;
+        end
+        else begin
+            if(instruction_address == 5'd11 && delay_counter_is_zero) begin
+                debug_mpr_mrs_cmd <= {cmd_d[3], cmd_d[2], cmd_d[1], cmd_d[0]};
+            end
+            if(issue_read_command) begin
+                debug_mpr_read_cmd <= {cmd_d[3], cmd_d[2], cmd_d[1], cmd_d[0]};
+            end
+        end
+    end
+
     // DIAGRAM FOR ALL RELEVANT TIMING PARAMETERS:
     //
     //                          tRTP
@@ -2570,7 +2600,7 @@ module ddr3_controller #(
             MPR_READ: if(delay_before_read_data == 0) begin //align the incoming DQS during reads to the controller clock 
                              //issue_read_command = 1;
                              /* verilator lint_off WIDTH */
-                             delay_before_read_data <= READ_DELAY + 1 + 2 + 1 - 1; ///NOTE TO SELF: why these numbers? 1=issue command delay (OSERDES delay), 2 =  ISERDES delay 
+                                    delay_before_read_data <= mpr_read_delay;
                              /* verilator lint_on WIDTH */
                              state_calibrate <= COLLECT_DQS;
                              dqs_count_repeat <= 0;
@@ -3716,6 +3746,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                     wb2_phy_idelay_dqs_ld <= 0;
                     wb2_update <= 0;
                     wb2_write_lane <= 0;
+                    o_phy_cmd_phase <= 0;
                     o_wb2_ack <= 0;
                     o_wb2_stall <= 1;
                     o_wb2_data <= 0;
@@ -3788,6 +3819,138 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                                         end
                                         //added read pipe delay for lanes 0-to-3 (4 bits each lane the max is just 1 for each)
                                     end
+                                6: if(!wb2_we) begin
+                                        o_wb2_data <= dqs_store[31:0];
+                                    end
+                                7: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[31:0];
+                                    end
+                                8: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[63:32];
+                                    end
+                                9: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[95:64];
+                                    end
+                                10: if(!wb2_we) begin
+                                        o_wb2_data <= {28'd0, debug_mpr_mrs_cmd[99:96]};
+                                    end
+                                11: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[31:0];
+                                    end
+                                12: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[63:32];
+                                    end
+                                13: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[95:64];
+                                    end
+                                14: if(!wb2_we) begin
+                                        o_wb2_data <= {28'd0, debug_mpr_read_cmd[99:96]};
+                                    end
+                                15: if(!wb2_we) begin
+                                        o_wb2_data <= {{(WB2_DATA_BITS-4*LANES){1'b0}},
+                                                       i_phy_raw_dqs_edge_seen,
+                                                       i_phy_raw_dqs_seen_low,
+                                                       i_phy_raw_dqs_seen_high,
+                                                       i_phy_raw_dqs_level};
+                                    end
+                                16: begin
+                                        if(wb2_we) begin
+                                                mpr_read_delay <= wb2_data[3:0];
+                                        end
+                                        else begin
+                                                o_wb2_data <= {20'd0, dqs_count_repeat, 1'b0, mpr_read_delay};
+                                        end
+                                    end
+                                17: if(!wb2_we) begin
+                                        o_wb2_data <= {{(WB2_DATA_BITS-4*LANES){1'b0}},
+                                                       i_phy_iserdes_o_dqs_edge_seen,
+                                                       i_phy_iserdes_o_dqs_seen_low,
+                                                       i_phy_iserdes_o_dqs_seen_high,
+                                                       i_phy_iserdes_o_dqs_level};
+                                    end
+                                18: begin
+                                        if(wb2_we) begin
+                                                o_phy_cmd_phase <= wb2_data[1:0];
+                                                reset_from_wb2 <= wb2_data[2];
+                                                o_phy_ck_invert <= wb2_data[3];
+                                        end
+                                        else begin
+                                                o_wb2_data <= {28'd0, o_phy_ck_invert, 1'b0, o_phy_cmd_phase};
+                                        end
+                                    end
+                                19: if(!wb2_we) begin
+                                        o_wb2_data <= write_test_address_counter[31:0];
+                                    end
+                                20: if(!wb2_we) begin
+                                        o_wb2_data <= read_test_address_counter[31:0];
+                                    end
+                                21: if(!wb2_we) begin
+                                        o_wb2_data <= check_test_address_counter[31:0];
+                                    end
+                                22: if(!wb2_we) begin
+                                        o_wb2_data <= {27'd0, lane};
+                                    end
+                                23: if(!wb2_we) begin
+                                        o_wb2_data <= {8'd0, dqs_target_index_orig, dqs_target_index, dqs_start_index_stored, dqs_start_index};
+                                    end
+                                24: if(!wb2_we) begin
+                                        o_wb2_data <= {12'd0, idelay_dqs_cntvaluein[lane], idelay_data_cntvaluein[lane], odelay_dqs_cntvaluein[lane], odelay_data_cntvaluein[lane]};
+                                    end
+                                25: if(!wb2_we) begin
+                                        o_wb2_data <= i_phy_iserdes_dqs[31:0];
+                                    end
+                                26: if(!wb2_we) begin
+                                        o_wb2_data <= i_phy_iserdes_dqs[63:32];
+                                    end
+                                27: if(!wb2_we) begin
+                                        o_wb2_data <= i_phy_iserdes_bitslip_reference[31:0];
+                                    end
+                                28: if(!wb2_we) begin
+                                        o_wb2_data <= i_phy_iserdes_bitslip_reference[63:32];
+                                    end
+                                29: if(!wb2_we) begin
+                                        o_wb2_data <= {21'd0, o_phy_dq_tri_control, o_phy_dqs_tri_control,
+                                                       o_phy_toggle_dqs, o_phy_write_leveling_calib,
+                                                       issue_read_command, delay_before_read_data};
+                                    end
+                                30: if(!wb2_we) begin
+                                        o_wb2_data <= o_phy_cmd[31:0];
+                                    end
+                                31: if(!wb2_we) begin
+                                        o_wb2_data <= o_phy_cmd[63:32];
+                                    end
+                                32: begin
+                                        if(wb2_we) begin
+                                                mpr_read_delay <= wb2_data[3:0];
+                                        end
+                                        else begin
+                                                o_wb2_data <= {20'd0, dqs_count_repeat, 1'b0, mpr_read_delay};
+                                        end
+                                    end
+                                33: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[31:0];
+                                    end
+                                34: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[63:32];
+                                    end
+                                35: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_mrs_cmd[95:64];
+                                    end
+                                36: if(!wb2_we) begin
+                                        o_wb2_data <= {28'd0, debug_mpr_mrs_cmd[99:96]};
+                                    end
+                                37: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[31:0];
+                                    end
+                                38: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[63:32];
+                                    end
+                                39: if(!wb2_we) begin
+                                        o_wb2_data <= debug_mpr_read_cmd[95:64];
+                                    end
+                                40: if(!wb2_we) begin
+                                        o_wb2_data <= {28'd0, debug_mpr_read_cmd[99:96]};
+                                    end
             /*
                                 6: if(!wb2_we) begin
                                         o_wb2_data <= dqs_store[31:0]; //show last 4 sets of received 8-bit DQS during MPR (repeated 4 times, must have a value of 10'b01_01_01_01_00 somewhere)
@@ -3830,8 +3993,14 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                                         repeat_test <= wb2_data[0];
                                         reset_from_wb2 <= wb2_data[1];
                                     end
-                                18: if(!wb2_we) begin //0x30
-                                        o_wb2_data <= 32'h50; //lane 1
+                                18: begin
+                                        if(wb2_we) begin
+                                                o_phy_cmd_phase <= wb2_data[1:0];
+                                                reset_from_wb2 <= wb2_data[2];
+                                        end
+                                        else begin
+                                                o_wb2_data <= {30'd0, o_phy_cmd_phase};
+                                        end
                                     end
                         default: if(!wb2_we) begin //read 
                                     o_wb2_data <= {(WB2_DATA_BITS/2){2'b10}}; //return alternating 1s and 0s when address to be read is invalid 
