@@ -190,6 +190,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `32d18b5` | 0 | `full` + `ddr3_controller_soft` | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `e2ae478b...`; first positive result for seed 0, 626 locks applied |
 | 2026-05-13 | `3b22acd` | 1 | `full` + `ddr3_controller_soft` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000026cc`, bitstream `b8664062...`; controller soft locks alone are not seed-stable |
 | 2026-05-13 | `76d05d1` | 1 | `full` + all `uberddr3` soft locks | built | pass | false | false | true | 9 | 0 | 0 | `debug1=0x000006c9`, bitstream `a571580c...`; broader seed-16 soft locking still does not fix seed 1 |
+| 2026-05-13 | `635934c` | 1 | `full` + `ddr3_controller_soft`, nextpnr `--freq 50` | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `3750b5d1...`; timing-pressure knob rescues seed 1 |
 
 Routed placement comparison:
 
