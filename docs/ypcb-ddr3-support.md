@@ -187,6 +187,42 @@ Initial calibration-sweep record:
 | 2026-05-12 | `dbfae28` | 0 | `full` generated locks | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `017c7ccd...`; first seed mutation failed calibration, so the full lock set is not yet sufficient |
 | 2026-05-12 | `4291544` | 40 | `full` generated locks | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `4dd36aa2...`; seed 40 passes, matching the v40/v44 empirical signal |
 
+Routed placement comparison:
+
+To compare the passing seed-16/seed-40 placements against failing seed 0,
+build-only sweep rows were regenerated at `2f40194` with nextpnr `--write`
+enabled. The comparison command was:
+
+```sh
+python3 scripts/task6/compare_routed_placements.py \
+  --seed-json 16:artifacts/task6/calibration-sweeps/ypcb-placement-compare-routed/2026-05-13T00-02-01+0200-full-seed16/build-artifacts/nextpnr-routed.json \
+  --seed-json 40:artifacts/task6/calibration-sweeps/ypcb-placement-compare-routed/2026-05-13T00-08-16+0200-full-seed40/build-artifacts/nextpnr-routed.json \
+  --seed-json 0:artifacts/task6/calibration-sweeps/ypcb-placement-compare-routed/2026-05-13T00-14-34+0200-full-seed0/build-artifacts/nextpnr-routed.json \
+  --pass-seed 16 --pass-seed 40 --fail-seed 0
+```
+
+The key result is that the high-risk DDR3 physical primitives are not the
+remaining seed-sensitive group. Across all three seeds, the following placements
+are identical: 3/3 `IDELAYCTRL`, 72/72 `IDELAYE2`, 72/72 `ISERDESE2`, 97/97
+`OSERDESE2`, 109/109 `PAD`, 181/181 DDR3 input/output buffer cells, and the
+single PLL. Four of seven `BUFGCTRL` cells are identical across all seeds; the
+three moving BUFGs are the auto-inserted JTAG `drck`/`tck` buffers, not
+`ddr3_clk`, `ddr3_clk_90`, `ref_clk`, or `controller_clk`.
+
+No DDR3 controller, DDR3 PHY, JTAG, or `uberddr3`-named soft-logic cell has the
+pattern "seed 16 and seed 40 agree, seed 0 differs". The only pass-consensus
+versus fail-different cells are 245 unrelated soft-logic cells
+(`SLICE_LUTX`/`SLICE_FFX`/`SELMUX2_1`/`CARRY4`). The DDR3 controller soft logic
+moves in all three seeds, and seed 0 also places the general soft logic in a
+much shorter Y range than the passing seed-40 build.
+
+Working conclusion: locking more IDELAY/IOSERDES/PAD resources is unlikely to
+fix seed 0. The next constraint experiment should target DDR3 soft logic and
+clock/control adjacency: first lock the small `ddr3_phy_inst.IDELAYCTRL_inst`
+RDY combine LUTs, then test a broader `uberddr3` or DDR3 controller/calibration
+soft-logic lock set. Keep this experimental lock group separate from the
+upstreamable board LOC and PHY primitive constraints.
+
 ### Phase 4: Prove Memory Access
 
 - Run a deterministic low-byte write/read command through the JTAG command
