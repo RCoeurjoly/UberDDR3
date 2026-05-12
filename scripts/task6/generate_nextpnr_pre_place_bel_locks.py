@@ -48,6 +48,11 @@ def main() -> int:
         action="store_true",
         help="Remap LLM2FPGA v40 YPCB lock cell names to this repo's YPCB wrapper names.",
     )
+    parser.add_argument(
+        "--ypcb-top",
+        default="ypcb_00338_1p1_uberddr3_bist",
+        help="YPCB top module name used when remapping synthesized I/O buffer cells.",
+    )
     args = parser.parse_args()
 
     locks_doc = load_json(args.locks_json)
@@ -78,7 +83,7 @@ def main() -> int:
 
         def vector_port(port: str, index: str) -> str:
             suffix = "" if index == "0" else "_" + index
-            return f"$iopadmap$ypcb_00338_1p1_uberddr3_bist.{port}{suffix}"
+            return f"$iopadmap${args.ypcb_top}.{port}{suffix}"
 
         vector_match = re.fullmatch(
             r"ddram_(a|ba)\[(\d+)\]\$obuf\$\$intcell\$OBUF", name
@@ -101,7 +106,7 @@ def main() -> int:
                 "we_n": "ddr3_we_n",
             }
             if signal in signal_map:
-                return f"$iopadmap$ypcb_00338_1p1_uberddr3_bist.{signal_map[signal]}"
+                return f"$iopadmap${args.ypcb_top}.{signal_map[signal]}"
         return name
 
     locks = []

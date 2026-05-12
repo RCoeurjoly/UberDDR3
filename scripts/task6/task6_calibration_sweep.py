@@ -149,6 +149,8 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
         "--locks-json",
         str(V40_LOCKS),
         "--ypcb-wrapper-remap",
+        "--ypcb-top",
+        "ypcb_00338_1p1_uberddr3_rowstream_loader",
         "--skip-cell",
         "clk100_90_bufg",
         "--out-py",
