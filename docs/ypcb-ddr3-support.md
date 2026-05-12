@@ -178,6 +178,12 @@ single row, program the board, poll JTAG, and append a machine-readable JSONL
 record. Once one-row execution is reliable, sweep seeds `0..31` for
 `full`, `clocks-phy`, `phy`, `clocks`, and `none`.
 
+Initial calibration-sweep record:
+
+| Date | Source commit | Seed | Lock set | Build | Program | Calib seen | Calib complete | Loader ready | State | Ack | Err | Notes |
+| --- | --- | ---: | --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- |
+| 2026-05-12 | `dea36618` | 16 | `full` metadata, supplied v44 control bitstream | supplied | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, `DONE_CALIBRATE`; table artifacts in `artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration/` |
+
 ### Phase 4: Prove Memory Access
 
 - Run a deterministic low-byte write/read command through the JTAG command
