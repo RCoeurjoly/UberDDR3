@@ -49,6 +49,26 @@ LOCK_SETS: dict[str, tuple[str, ...]] = {
     "phy": ("uberddr3_phy",),
     "clocks-phy": ("ddr3_clocks", "uberddr3_phy"),
     "full": ("ddr3_clocks", "ddr3_board_pins", "uberddr3_phy"),
+    "full-idelayctrl-soft": (
+        "ddr3_clocks",
+        "ddr3_board_pins",
+        "uberddr3_phy",
+        "ddr3_idelayctrl_soft",
+    ),
+    "full-controller-soft": (
+        "ddr3_clocks",
+        "ddr3_board_pins",
+        "uberddr3_phy",
+        "ddr3_controller_soft",
+    ),
+    "full-uberddr3-soft": (
+        "ddr3_clocks",
+        "ddr3_board_pins",
+        "uberddr3_phy",
+        "ddr3_idelayctrl_soft",
+        "ddr3_controller_soft",
+        "uberddr3_soft",
+    ),
 }
 
 
@@ -157,6 +177,10 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
         str(LOCK_GENERATOR),
         "--locks-json",
         str(V40_LOCKS),
+    ]
+    for extra_locks in args.extra_locks_json:
+        command.extend(["--locks-json", str(extra_locks)])
+    command.extend([
         "--ypcb-wrapper-remap",
         "--ypcb-top",
         "ypcb_00338_1p1_uberddr3_rowstream_loader",
@@ -164,10 +188,10 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
         "clk100_90_bufg",
         "--out-py",
         str(out_py),
-    ]
+    ])
     for scope in scopes:
         command.extend(["--scope", scope])
-    if args.allow_missing_locks or args.lock_set == "full":
+    if args.allow_missing_locks or args.lock_set.startswith("full"):
         command.append("--allow-missing")
     proc = run_command(command, log_path=run_dir / "logs" / "generate-locks.log", dry_run=args.dry_run)
     if proc.returncode != 0:
@@ -494,6 +518,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--allow-missing-locks", action="store_true")
+    parser.add_argument("--extra-locks-json", action="append", default=[], type=Path)
     parser.add_argument("--poll-seconds", type=float, default=60.0)
     parser.add_argument("--poll-interval", type=float, default=2.0)
     parser.add_argument("--ftdi-serial", default="210299BF3824")
