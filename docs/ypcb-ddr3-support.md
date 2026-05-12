@@ -193,6 +193,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `635934c` | 1 | `full` + `ddr3_controller_soft`, nextpnr `--freq 50` | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `3750b5d1...`; timing-pressure knob rescues seed 1 |
 | 2026-05-13 | `6070b7a` | 0 | `full` + `ddr3_controller_soft`, nextpnr `--freq 50` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `9eba3b18...`; freq 50 is not a global recipe, seed 0 regresses |
 | 2026-05-13 | `284da13` | 1 | `full` + `ddr3_controller_soft`, nextpnr `--placer sa` | build-failed | - | - | - | - | - | - | - | SA placer failed post-placement validity after ~700s: `SLICE_X62Y397/A5FF` no-cell BEL |
+| 2026-05-13 | `ea37382` | 1 | `full` + `ddr3_controller_soft`, nextpnr `--router router1` | built | pass | false | false | true | 9 | 0 | 0 | `debug1=0x000006c9`, bitstream `eb33d8f6...`; router1 does not fix seed 1 |
 
 Routed placement comparison:
 
