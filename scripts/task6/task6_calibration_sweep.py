@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import shlex
+import shutil
 import subprocess
 import sys
 import time
@@ -22,6 +23,13 @@ READ_JTAG = ROOT / "scripts" / "task6" / "read_jtag_debug_ftdi_bitbang.py"
 LOCK_GENERATOR = ROOT / "scripts" / "task6" / "generate_nextpnr_pre_place_bel_locks.py"
 YPCB_DIR = ROOT / "example_demo" / "ypcb_00338_1p1"
 ROWSTREAM_BIT = YPCB_DIR / "ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit"
+ROWSTREAM_STEM = "ypcb_00338_1p1_uberddr3_rowstream_loader"
+BUILD_ARTIFACTS = (
+    f"{ROWSTREAM_STEM}.json",
+    f"{ROWSTREAM_STEM}.fasm",
+    f"{ROWSTREAM_STEM}.frames",
+    f"{ROWSTREAM_STEM}_openxc7.bit",
+)
 V40_LOCKS = (
     ROOT
     / "artifacts"
@@ -202,6 +210,20 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
     if proc.returncode != 0:
         return ROWSTREAM_BIT, "build-failed"
     return ROWSTREAM_BIT.resolve(), "built"
+
+
+def archive_build_artifacts(run_dir: Path) -> dict[str, str]:
+    out_dir = run_dir / "build-artifacts"
+    archived: dict[str, str] = {}
+    for name in BUILD_ARTIFACTS:
+        source = YPCB_DIR / name
+        if not source.is_file():
+            continue
+        out_dir.mkdir(parents=True, exist_ok=True)
+        destination = out_dir / name
+        shutil.copy2(source, destination)
+        archived[name] = str(destination.relative_to(ROOT))
+    return archived
 
 
 def init_board_run(args: argparse.Namespace, run_dir: Path, bitstream: Path) -> Path:
@@ -407,7 +429,16 @@ def run_row(args: argparse.Namespace) -> dict[str, Any]:
     board_run = ""
     debug: dict[str, Any] = {}
     if build_status in {"built", "supplied"}:
-        board_run, debug = program_and_poll(args, run_dir, bitstream)
+        if build_status == "built":
+            archived_artifacts = archive_build_artifacts(run_dir)
+        else:
+            archived_artifacts = {}
+        if args.build_only:
+            debug = {"program_status": "build-only"}
+        else:
+            board_run, debug = program_and_poll(args, run_dir, bitstream)
+    else:
+        archived_artifacts = {}
 
     row = {
         "created_at": datetime.now().astimezone().isoformat(),
@@ -419,6 +450,7 @@ def run_row(args: argparse.Namespace) -> dict[str, Any]:
         "board_run_dir": board_run,
         "bitstream": str(bitstream),
         "bitstream_sha256": sha256_file(bitstream),
+        "archived_artifacts": archived_artifacts,
         "build_status": build_status,
         "program_status": debug.get("program_status"),
         "calib_seen": debug.get("calib_seen"),
@@ -450,6 +482,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--synth-xilinx-flags", default="-flatten -family xc7")
     parser.add_argument("--bitstream", type=Path)
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
+    parser.add_argument("--build-only", action="store_true")
     parser.add_argument("--skip-program", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
