@@ -47,6 +47,15 @@ EOF
         prjxrayPythonPath =
           "${patchedPrjxrayPython}:${openXC7Fasm}/lib/python3.12/site-packages:${prjxrayPythonDeps}/${pkgs.python312.sitePackages}:${openXC7Prjxray}/usr/share/python3";
 
+        mkSource = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let
+              name = baseNameOf path;
+            in
+              name != "result";
+        };
+
         mkYpcbRowstreamBitstream = {
           seed,
           freq,
@@ -55,7 +64,7 @@ EOF
           pkgs.stdenvNoCC.mkDerivation {
             pname = "ypcb-rowstream-loader";
             version = "seed-${toString seed}-freq-${toString freq}";
-            src = ./.;
+            src = mkSource;
 
             buildInputs = [
               yosysPkg
