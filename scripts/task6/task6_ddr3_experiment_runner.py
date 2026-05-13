@@ -419,8 +419,6 @@ def run_experiment(args: argparse.Namespace) -> Path:
             return command
 
         command_addr = args.command_addr
-        if args.command_protocol == "rowstream192" and args.command_opcode == ROWSTREAM_OP_WRITE_LOWBYTE:
-            command_addr = args.command_addr + 1
         write_command = make_write_command(args.command_opcode, args.command_byte, command_addr)
         write_jtag_command_with_repeats(
             run_dir,
