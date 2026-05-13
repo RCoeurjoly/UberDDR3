@@ -30,6 +30,8 @@ PNR_ARGS ?= --seed 16 --freq 25
 PNR_DEBUG ?=
 SEED ?= 3
 FREQ ?= 25
+ROWSTREAM_ROUTED_JSON ?= ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+ROWSTREAM_BITSTREAM_OUT ?= ../../artifacts/manual-seed/seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_seed${SEED}_freq${FREQ}.bit
 PNR_PRE_PACK ?= --pre-pack ${DDR3_CLOCK_CONSTRAINTS}
 PNR_PRE_PLACE ?=
 JTAG_LINK ?= -c digilent_hs2
@@ -72,11 +74,15 @@ rowstream-v40-locked: ${ROWSTREAM_PROJECT}_openxc7.bit
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-json:
 	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
+	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON})
+	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT})
 	$(MAKE) clean
 	$(MAKE) rowstream-v40-locked \
 		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
 		PNR_ARGS="--seed ${SEED} --freq ${FREQ}" \
-		PNR_DEBUG="--write ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.json"
+		PNR_DEBUG="--write ${ROWSTREAM_ROUTED_JSON}"
+	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT}
+	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT} ${ROWSTREAM_ROUTED_JSON}
 
 .PHONY: program
 program: ${PROJECT}_openxc7.bit

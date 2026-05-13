@@ -13,6 +13,7 @@ calibration path while keeping changes upstreamable.
 ## Constraints and Priority Order
 
 1. **Clock/PHY physical locks are fixed first**:
+   - In this repo, `full` lock scope means: `ddr3_clocks + ddr3_board_pins + uberddr3_phy`.
    - `ddr3_clocks`
    - `ddr3_board_pins`
    - `uberddr3_phy`
@@ -70,6 +71,70 @@ calibration path while keeping changes upstreamable.
 6. When a candidate is stable:
    - run hardware-only validation on that candidate for several iterations.
    - then shift to phase-5 BIST memory command contract tests and 64-byte probe plan.
+
+## Maximalist-to-minimal protocol
+
+Yes. The recommended flow is:
+
+1. **Maximal lock first**: treat this as the oracle candidate and test all seeds.
+2. **Observe** pass/fail results and keep both outcomes for evidence.
+3. **Only if it passes all seeds** begin reducing lock scope.
+4. **If it fails any seed**, then physical clocks/PHY/board-pin locks are not enough; move to PNR knobs or additional deterministic constraints.
+
+Concrete seed-first command (build-only pass across 0–5, then 0–31 later):
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-maximality-check \
+  --seeds 0-5 \
+  --lock-sets full \
+  --freqs 25 \
+  --build-only
+```
+
+Concrete shrink command (only after full passes the declared seed set):
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-seed-stability \
+  --seeds 0-31 \
+  --lock-sets full-controller-soft,full,clocks-phy,phy,none \
+  --freqs 25 \
+  --extra-locks-json artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json \
+  --build-only
+```
+
+That shrinking order is implemented by the scorecard:
+`full-controller-soft -> full -> clocks-phy -> phy -> none`, and each row can be
+accepted only when it is stable for all tested seeds (not just one seed).
+
+## Rowstream Seed Build Runbook
+
+Use the pinned `rowstream-v40-json` target with explicit seed/freq outputs:
+
+```sh
+make -C example_demo/ypcb_00338_1p1 rowstream-v40-json SEED=3 FREQ=25
+make -C example_demo/ypcb_00338_1p1 rowstream-v40-json \
+  SEED=3 FREQ=25 \
+  ROWSTREAM_ROUTED_JSON=artifacts/manual-seed/seed3/rowstream_seed3_routed.json \
+  ROWSTREAM_BITSTREAM_OUT=artifacts/manual-seed/seed3/rowstream_seed3.bit
+```
+
+Defaults are deterministic when `ROWSTREAM_ROUTED_JSON` / `ROWSTREAM_BITSTREAM_OUT` are unset:
+
+- JSON: `artifacts/manual-seed/seed<SEED>/nextpnr-routed.seed<SEED>.freq<FREQ>.json`
+- Bitstream: `artifacts/manual-seed/seed<SEED>/ypcb_00338_1p1_uberddr3_rowstream_loader_seed<SEED>_freq<FREQ>.bit`
+
+Compare passing vs failing seed runs against each other and inspect lock deltas:
+
+```sh
+python3 scripts/task6/compare_routed_placements.py \
+  --seed-json 3:artifacts/manual-seed/seed3/nextpnr-routed.seed3.freq25.json \
+  --seed-json 0:artifacts/manual-seed/seed0/nextpnr-routed.seed0.freq25.json \
+  --pass-seed 3 --fail-seed 0
+```
+
+When you mutate a knob (seed, `--freq`, `--no-tmdriv`, `--placer`, `--router`, or lock scope), regenerate both JSON artifacts first and only then compare.
 
 ## Current Sweep Command (seed sweep + optional scoped locks)
 
