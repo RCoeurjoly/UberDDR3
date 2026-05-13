@@ -37,13 +37,31 @@ LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1 origin:037-iob-pips 30_94 31_83 31_93
 EOF
         '';
 
+        fickling = pkgs.python312Packages.buildPythonPackage rec {
+          pname = "fickling";
+          version = "0.1.11";
+          format = "wheel";
+
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/ed/3b/45b8233feb53dd9da16208b039507604844a07c8b5bb3c5a4e39c520f32d/fickling-0.1.11-py3-none-any.whl";
+            hash = "sha256-Gey3kdeB1HXoTtlR3CxKDIUhCOI3QW1RerCo3XcdQJg=";
+          };
+
+          doCheck = false;
+        };
+
+        graphtage = pkgs.python312Packages.graphtage.overridePythonAttrs (old: {
+          propagatedBuildInputs = (old.propagatedBuildInputs or [ ]) ++ [ fickling ];
+        });
+
+        graphtagePythonEnv = pkgs.python312.withPackages (ps: [ graphtage ]);
+
         prjxrayPythonDeps = pkgs.python312.withPackages (ps: [
           ps.intervaltree
           ps.progressbar2
           ps.pyjson5
           ps.pyyaml
           ps.simplejson
-          ps.graphtage
         ]);
         prjxrayPythonPath =
           "${patchedPrjxrayPython}:${openXC7Fasm}/lib/python3.12/site-packages:${prjxrayPythonDeps}/${pkgs.python312.sitePackages}:${openXC7Prjxray}/usr/share/python3";
@@ -155,7 +173,7 @@ EOF
             pkgs.openfpgaloader
             pkgs.openocd
             pkgs.pypy3
-            pkgs.python312Packages.graphtage
+            graphtagePythonEnv
           ];
           shellHook = ''
             export NEXTPNR_XILINX_DIR="${openXC7Nextpnr}/share/nextpnr"
