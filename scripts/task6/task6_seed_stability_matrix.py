@@ -79,6 +79,8 @@ def parse_sweep_row(stdout: str, fallback: dict[str, Any]) -> dict[str, Any]:
         row["freq"] = fallback.get("freq")
     if row.get("pnr_extra_args") is None:
         row["pnr_extra_args"] = fallback.get("pnr_extra_args")
+    if row.get("extra_lock_variants") is None:
+        row["extra_lock_variants"] = fallback.get("extra_lock_variants")
     return row
 
 
@@ -90,6 +92,7 @@ def make_rows_for_combo(
     freq: int,
     pnr_extra_args: str,
     synth_xilinx_flags: str,
+    extra_lock_jsons: list[Path],
     build_only: bool,
     notes: str,
     dry_run: bool,
@@ -114,12 +117,16 @@ def make_rows_for_combo(
         "--notes",
         notes,
     ]
+    for lock_json in extra_lock_jsons:
+        command.extend(["--extra-locks-json", str(lock_json)])
     if build_only and not dry_run:
         command.append("--build-only")
     if clean:
         command.append("--clean")
     else:
         command.append("--no-clean")
+    if dry_run:
+        command.append("--dry-run")
     if not nix_develop:
         command.append("--no-nix-develop")
 
@@ -137,6 +144,7 @@ def make_rows_for_combo(
         "lock_set": lock_set,
         "freq": freq,
         "pnr_extra_args": pnr_extra_args,
+        "extra_lock_variants": sorted({str(path) for path in extra_lock_jsons}),
         "sweep": sweep,
         "program_status": "build-only" if build_only else None,
         "build_status": None,
@@ -158,6 +166,7 @@ def summarise(
     lock_sets: list[str],
     freqs: list[int],
     pnr_extra_args_list: list[str],
+    extra_lock_variants: list[tuple[str, ...]],
     target_state: int,
     *,
     build_only: bool,
@@ -166,8 +175,9 @@ def summarise(
     expected_locks = set(lock_sets)
     expected_freqs = set(freqs)
     expected_pnr = {normalize_pnr_arg(v) for v in pnr_extra_args_list}
+    expected_variants = {",".join(variant) for variant in extra_lock_variants}
 
-    by_combo: dict[tuple[str, int, str], dict[str, int | list[int]]] = {}
+    by_combo: dict[tuple[str, int, str, str], dict[str, int | list[int]]] = {}
     for row in rows:
         if int(row.get("seed", -1)) not in expected_seeds:
             continue
@@ -177,11 +187,15 @@ def summarise(
             continue
         if normalize_pnr_arg(row.get("pnr_extra_args")) not in expected_pnr:
             continue
+        row_variant = ",".join(sorted(str(item) for item in row.get("extra_lock_variants", [])))
+        if expected_variants and row_variant not in expected_variants:
+            continue
 
         key = (
             row.get("lock_set", ""),
             int(row.get("freq", 25)),
             normalize_pnr_arg(row.get("pnr_extra_args")),
+            row_variant or "(none)",
         )
         entry = by_combo.setdefault(
             key,
@@ -198,6 +212,7 @@ def summarise(
         "lock_set",
         "freq",
         "pnr_extra_args",
+        "extra_lock_variants",
         "tested",
         "passed",
         "pass_rate",
@@ -206,7 +221,7 @@ def summarise(
         "pass_seeds",
     ]
     lines = ["| " + " | ".join(header) + " |", "| " + " | ".join("---" for _ in header) + " |"]
-    for (lock_set, freq, pnr_extra_args), value in sorted(by_combo.items()):
+    for (lock_set, freq, pnr_extra_args, extra_lock_variants), value in sorted(by_combo.items()):
         tested = int(value["tested"])
         passed = int(value["passed"])
         build_failed = int(value["build_failed"])
@@ -220,6 +235,7 @@ def summarise(
                     str(lock_set),
                     str(freq),
                     f"`{pnr_extra_args}`" if pnr_extra_args else "`(default)`",
+                    f"`{extra_lock_variants}`" if extra_lock_variants else "`(none)`",
                     str(tested),
                     str(passed),
                     pass_rate,
@@ -249,6 +265,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--build-only", action="store_true")
+    parser.add_argument(
+        "--extra-locks-json",
+        action="append",
+        default=[],
+        type=Path,
+        help="Optional pre-filtered lock JSON file passed as --extra-locks-json.",
+    )
     parser.add_argument("--notes", default="seed-stability-matrix")
     parser.add_argument("--target-state", type=int, default=23)
     parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
@@ -262,6 +285,13 @@ def main() -> int:
     lock_sets = parse_arg_list(args.lock_sets)
     freqs = [int(value) for value in parse_arg_list(args.freqs)]
     pnr_extra_args_list = [v.strip() for v in args.pnr_extra_args] if args.pnr_extra_args else [""]
+    if args.extra_locks_json:
+        extra_lock_paths = sorted(str(path) for path in set(args.extra_locks_json))
+        extra_lock_variants = [tuple(extra_lock_paths)]
+    else:
+        extra_lock_variants = [()]
+    if not extra_lock_variants:
+        extra_lock_variants = [()]
 
     rows: list[dict[str, Any]] = []
     for seed, lock_set, freq, pnr_extra_args in product(seeds, lock_sets, freqs, pnr_extra_args_list):
@@ -278,6 +308,7 @@ def main() -> int:
                 freq=freq,
                 pnr_extra_args=pnr_extra_args,
                 synth_xilinx_flags=args.synth_xilinx_flags,
+                extra_lock_jsons=args.extra_locks_json,
                 build_only=args.build_only,
                 notes=notes,
                 dry_run=args.dry_run,
@@ -294,6 +325,7 @@ def main() -> int:
         lock_sets=lock_sets,
         freqs=freqs,
         pnr_extra_args_list=pnr_extra_args_list,
+        extra_lock_variants=extra_lock_variants,
         target_state=args.target_state,
         build_only=args.build_only,
     )

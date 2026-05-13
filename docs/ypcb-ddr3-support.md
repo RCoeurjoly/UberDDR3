@@ -303,6 +303,7 @@ python3 scripts/task6/task6_seed_stability_matrix.py \
   --freqs 25,50 \
   --pnr-extra-args "" \
   --pnr-extra-args "--no-tmdriv" \
+  # add one --extra-locks-json path per scoped lock payload when minimizing soft locks
   --build-only
 ```
 

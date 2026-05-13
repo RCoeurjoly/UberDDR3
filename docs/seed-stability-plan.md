@@ -45,9 +45,29 @@ calibration path while keeping changes upstreamable.
 4. If no candidate is stable for all seeds:
    - broaden search with additional pnr knobs.
    - reduce/remove fewer constraints only after knobs are exhausted.
-5. When a candidate is stable:
+5. Before changing lock preset breadth, run scoped lock experiments:
+   - generate scoped soft-lock JSON once (for example from a routed nextpnr JSON) and pass it with
+     `--extra-locks-json`.
+   - keep `--lock-sets` fixed (`none` or one baseline preset) so the scorecard compares only
+     lock payload deltas.
+   - prefer monotonic reduction from broad scopes toward narrower scope subsets.
+6. When a candidate is stable:
    - run hardware-only validation on that candidate for several iterations.
    - then shift to phase-5 BIST memory command contract tests and 64-byte probe plan.
+
+## Current Sweep Command (seed sweep + optional scoped locks)
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-seed-stability \
+  --seeds 0-5 \
+  --lock-sets full-controller-soft \
+  --freqs 25 \
+  --extra-locks-json artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json \
+  --build-only
+```
+
+If you need a no-lock delta run, omit `--extra-locks-json` and keep the same command.
 
 ## Current Status (snapshot)
 
