@@ -18,6 +18,13 @@ SOFT_TYPES = {
 }
 
 
+def attr_string(cell: dict[str, Any], name: str) -> str | None:
+    value = cell.get("attributes", {}).get(name)
+    if value in (None, ""):
+        return None
+    return str(value)
+
+
 def load_top_cells(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     modules = data["modules"]
@@ -43,14 +50,38 @@ def cell_scope(name: str, cell_type: str) -> str | None:
     return None
 
 
+def placement_root_names(cells: dict[str, Any], start_names: dict[str, str]) -> dict[str, str]:
+    roots: dict[str, str] = {}
+    for start_name, scope in start_names.items():
+        name = start_name
+        seen: set[str] = set()
+        while name not in seen:
+            seen.add(name)
+            cell = cells.get(name)
+            if cell is None:
+                break
+            parent = attr_string(cell, "CONSTR_PARENT")
+            if not parent or parent not in cells:
+                roots[name] = scope
+                break
+            name = parent
+    return roots
+
+
 def extract_locks(routed_json: Path) -> dict[str, Any]:
+    cells = load_top_cells(routed_json)
+    start_names: dict[str, str] = {}
+    for name, cell in cells.items():
+        scope = cell_scope(name, cell.get("type", ""))
+        if scope is not None:
+            start_names[name] = scope
+
+    scoped_names = placement_root_names(cells, start_names)
     locks: list[dict[str, str]] = []
     skipped_missing_bel: list[dict[str, str]] = []
-    for name, cell in sorted(load_top_cells(routed_json).items()):
+    for name, scope in sorted(scoped_names.items()):
+        cell = cells[name]
         cell_type = cell.get("type", "")
-        scope = cell_scope(name, cell_type)
-        if scope is None:
-            continue
         bel = cell.get("attributes", {}).get("NEXTPNR_BEL")
         if not bel:
             skipped_missing_bel.append({"cell": name, "type": cell_type, "scope": scope})
