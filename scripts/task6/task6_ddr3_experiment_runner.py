@@ -129,6 +129,18 @@ def with_lock(run_dir: Path, log_name: str, command: list[str]) -> None:
     if proc.returncode != 0:
         raise SystemExit(proc.stdout)
 
+def write_jtag_command_with_repeats(
+    run_dir: Path,
+    log_name: str,
+    command: list[str],
+    repeat_count: int,
+) -> None:
+    with_lock(run_dir, log_name, command)
+    for repeat_index in range(1, repeat_count):
+        stem = Path(log_name).stem
+        suffix = Path(log_name).suffix
+        with_lock(run_dir, f"{stem}-repeat-{repeat_index}{suffix}", command)
+
 
 def extract_read_json(log_text: str) -> dict[str, Any]:
     start = log_text.find("{")
@@ -377,39 +389,57 @@ def run_experiment(args: argparse.Namespace) -> Path:
         ]
     with_lock(run_dir, "program.log", program_argv)
     if args.command_byte is not None:
-        write_command = [
-            sys.executable,
-            str(WRITE_JTAG),
-            "--serial",
-            args.ftdi_serial,
-            "--tdo-bit",
-            str(args.tdo_bit),
-            "--byte",
-            f"0x{args.command_byte:02x}",
-            "--addr",
-            f"0x{args.command_addr:x}",
-            "--update-mode",
-            args.command_update_mode,
-            "--json-only",
-        ]
-        if args.command_protocol == "rowstream192":
-            write_command.extend(
-                [
-                    "--bits",
-                    str(ROWSTREAM_COMMAND_BITS),
-                    "--opcode",
-                    f"0x{args.command_opcode:02x}",
-                    "--chunk",
-                    str(args.command_chunk),
-                ]
-            )
-        with_lock(
+        def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
+            command = [
+                sys.executable,
+                str(WRITE_JTAG),
+                "--serial",
+                args.ftdi_serial,
+                "--tdo-bit",
+                str(args.tdo_bit),
+                "--byte",
+                f"0x{byte_value:02x}",
+                "--addr",
+                f"0x{address:x}",
+                "--update-mode",
+                args.command_update_mode,
+                "--json-only",
+            ]
+            if args.command_protocol == "rowstream192":
+                command.extend(
+                    [
+                        "--bits",
+                        str(ROWSTREAM_COMMAND_BITS),
+                        "--opcode",
+                        f"0x{opcode:02x}",
+                        "--chunk",
+                        str(args.command_chunk),
+                    ]
+                )
+            return command
+
+        command_addr = args.command_addr
+        if args.command_protocol == "rowstream192" and args.command_opcode == ROWSTREAM_OP_WRITE_LOWBYTE:
+            command_addr = args.command_addr + 1
+        write_command = make_write_command(args.command_opcode, args.command_byte, command_addr)
+        write_jtag_command_with_repeats(
             run_dir,
             "write-command.log",
             write_command,
+            args.command_repeats,
         )
-        for repeat_index in range(1, args.command_repeats):
-            with_lock(run_dir, f"write-command-repeat-{repeat_index}.log", write_command)
+        if (
+            args.rowstream_readback_after_write
+            and args.command_protocol == "rowstream192"
+            and args.command_opcode == ROWSTREAM_OP_WRITE_LOWBYTE
+        ):
+            read_command = make_write_command(ROWSTREAM_OP_READ_LOWBYTE, 0x00, command_addr)
+            write_jtag_command_with_repeats(
+                run_dir,
+                "read-command.log",
+                read_command,
+                args.command_repeats,
+            )
         if args.post_command_delay > 0:
             time.sleep(args.post_command_delay)
     with_lock(
@@ -490,6 +520,11 @@ def parse_args() -> argparse.Namespace:
         help="repeat USER2 writes; rowstream RTL accepts every other command event",
     )
     parser.add_argument(
+        "--rowstream-readback-after-write",
+        action="store_true",
+        help="after a rowstream low-byte write command, issue a low-byte read command",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -520,6 +555,8 @@ def main() -> int:
         raise SystemExit("--command-chunk must fit in 2 bits")
     if args.command_repeats < 1:
         raise SystemExit("--command-repeats must be positive")
+    if args.rowstream_readback_after_write and args.command_protocol != "rowstream192":
+        raise SystemExit("--rowstream-readback-after-write requires --command-protocol rowstream192")
     if args.expected_byte is None:
         args.expected_byte = args.command_byte if args.command_byte is not None else 0xA5
     run_dir = run_experiment(args)
