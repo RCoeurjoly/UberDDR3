@@ -51,6 +51,22 @@ calibration path while keeping changes upstreamable.
    - keep `--lock-sets` fixed (`none` or one baseline preset) so the scorecard compares only
      lock payload deltas.
    - prefer monotonic reduction from broad scopes toward narrower scope subsets.
+
+   Example helper flow:
+
+   ```sh
+   python3 scripts/task6/extract_nextpnr_soft_bel_locks.py \
+     --routed-json artifacts/task6/baselines/.../nextpnr-routed.json \
+     --out-json artifacts/task6/baselines/ypcb-controller-soft-locks.json
+
+   python3 scripts/task6/task6_lock_subset_generator.py \
+     --locks-json artifacts/task6/baselines/ypcb-controller-soft-locks.json \
+     --out-dir artifacts/task6/lock-subsets/$(date +%Y%m%dT%H%M%S) \
+     --split-by-scope --split-by-type
+   ```
+
+   Then run matrix passes with one `--extra-locks-manifest` payload and one
+   scoped variant row each at a time.
 6. When a candidate is stable:
    - run hardware-only validation on that candidate for several iterations.
    - then shift to phase-5 BIST memory command contract tests and 64-byte probe plan.

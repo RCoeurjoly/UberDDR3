@@ -296,6 +296,12 @@ Progress plan from this point:
 Use this matrix run command for deterministic seed exploration:
 
 ```sh
+# Build scoped lock variants from an extracted soft BEL payload:
+python3 scripts/task6/task6_lock_subset_generator.py \
+  --locks-json artifacts/task6/baselines/ypcb-controller-soft-locks.json \
+  --out-dir artifacts/task6/lock-subsets/<timestamp> \
+  --split-by-scope --split-by-type
+
 python3 scripts/task6/task6_seed_stability_matrix.py \
   --sweep ypcb-rowstream-seed-stability \
   --seeds 0-5 \
@@ -303,7 +309,7 @@ python3 scripts/task6/task6_seed_stability_matrix.py \
   --freqs 25,50 \
   --pnr-extra-args "" \
   --pnr-extra-args "--no-tmdriv" \
-  # add one --extra-locks-json path per scoped lock payload when minimizing soft locks
+  --extra-locks-manifest artifacts/task6/lock-subsets/<timestamp>/task6-lock-variants.json \
   --build-only
 ```
 
