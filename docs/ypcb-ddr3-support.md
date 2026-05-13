@@ -204,6 +204,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `e87dec3` | 2 | `full` + one constrained CARRY root from seed-1/freq-50 oracle | build-failed | - | - | - | - | - | - | - | 412 locks applied; one `CARRY4` root (`SLICE_X20Y100/CARRY4`) is enough to trigger heap placer `unordered_map::at` |
 | 2026-05-13 | `5e8a3a1` | 2 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle, nextpnr `--router router1` | built | pass | false | false | true | 24 | 0 | 0 | `debug1=0x000006d8`, bitstream `30b73711...`; router1 changes the failure state but does not calibrate |
 | 2026-05-13 | `da776a7` | 2 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle, nextpnr `--freq 50 --router router1` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `262888f3...`; combined router/timing knob still misses |
+| 2026-05-13 | `914058e` | 3 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `1c143204...`; seed 3 passes, so seed 2 is not representative of the whole neighborhood |
 
 Routed placement comparison:
 
