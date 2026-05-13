@@ -206,6 +206,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `da776a7` | 2 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle, nextpnr `--freq 50 --router router1` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `262888f3...`; combined router/timing knob still misses |
 | 2026-05-13 | `914058e` | 3 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `1c143204...`; seed 3 passes, so seed 2 is not representative of the whole neighborhood |
 | 2026-05-13 | `ca2ef87` | 4 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000026cc`, bitstream `3d6f90e8...`; seed 4 misses like seed 2 |
+| 2026-05-13 | `6aa1d9a` | 5 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000026cc`, bitstream `e9466ea0...`; sampled pass rate is 3/6 for seeds 0..5 |
 
 Routed placement comparison:
 
