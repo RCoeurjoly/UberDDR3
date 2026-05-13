@@ -345,7 +345,7 @@ The HIL path is confirmed working: OpenOCD programs the board, USER1/USER2 JTAG
 readback and command writes work, reset is released, counters advance, and
 `IDELAYCTRL` reports ready.
 
-As of 2026-05-12, the local repo reproduces the known-good BIST-derived DDR3
+As of 2026-05-13, the local repo reproduces the known-good BIST-derived DDR3
 integrity result on the connected board:
 
 ```text
@@ -364,7 +364,8 @@ Wishbone errors: 0
 calibration: complete and seen
 ```
 
-The final validator window read back `0xe1,0xe2,0xe3,0xe4` at stream base 60,
+The 2026-05-13 revalidation again passed all 16 windows. The final validator
+window read back `0xe1,0xe2,0xe3,0xe4` at stream base 60,
 matching the expected pattern. The JSON artifact is written to
 `artifacts/task6/ypcb-uberddr3-lowbyte-stream-v40-locked-latest.json`.
 
