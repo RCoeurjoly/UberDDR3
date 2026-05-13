@@ -1,0 +1,1505 @@
+{
+  "format": "task6.nextpnr-ddr3-soft-bel-locks.v1",
+  "lock_count": 248,
+  "locks": [
+    {
+      "bel": "SLICE_X16Y88/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.bitslip_counter[1]$LUT$2212",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y88/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.bitslip_counter[2]$LUT$2216",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y102/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[10]$LUT$2030",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y102/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[11]$LUT$2034",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y103/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[12]$LUT$2038",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y103/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[13]$LUT$2042",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y103/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[14]$LUT$2046",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y103/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[15]$LUT$2050",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y104/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[16]$LUT$2054",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y104/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[17]$LUT$2058",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y104/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[18]$LUT$2062",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y104/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[19]$LUT$2066",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y105/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[20]$LUT$2070",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y105/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[21]$LUT$2074",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y105/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[22]$LUT$2078",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y105/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[23]$LUT$2082",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y106/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[24]$LUT$2086",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y100/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[2]$LUT$1998",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y100/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[3]$LUT$2002",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y101/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[4]$LUT$2006",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y101/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[5]$LUT$2010",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y101/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[6]$LUT$2014",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y101/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[7]$LUT$2018",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y102/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[8]$LUT$2022",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y102/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_addr[9]$LUT$2026",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y94/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[101]$LUT$2430",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y94/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[103]$LUT$2438",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y93/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[105]$LUT$2414",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y94/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[108]$LUT$2426",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y93/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[114]$LUT$2418",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y94/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[118]$LUT$2434",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y93/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.calib_data_randomized[123]$LUT$2422",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y86/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[10]$LUT$2680",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y86/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[11]$LUT$2684",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y87/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[12]$LUT$2688",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y87/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[13]$LUT$2692",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y87/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[14]$LUT$2696",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y87/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[15]$LUT$2700",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y88/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[16]$LUT$2704",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y88/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[17]$LUT$2708",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y88/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[18]$LUT$2712",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y88/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[19]$LUT$2716",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y89/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[20]$LUT$2720",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y89/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[21]$LUT$2724",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y89/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[22]$LUT$2728",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y89/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[23]$LUT$2732",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y90/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[24]$LUT$2736",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y85/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[6]$LUT$2664",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y85/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[7]$LUT$2668",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y86/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[8]$LUT$2672",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y86/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.check_test_address_counter[9]$LUT$2676",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y91/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.correct_read_data[6]$LUT$2604",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y91/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.correct_read_data[7]$LUT$2608",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y114/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[0][0]$LUT$2794",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y114/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[0][0]$LUT$2796",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y114/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[0][1]$LUT$2798",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y114/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[0][2]$LUT$2800",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y115/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[1][0]$LUT$2806",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y115/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[1][0]$LUT$2808",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y115/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[1][1]$LUT$2810",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y115/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[1][2]$LUT$2812",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y112/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[2][0]$LUT$2818",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y112/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[2][0]$LUT$2820",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y112/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[2][1]$LUT$2822",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y112/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[2][2]$LUT$2824",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y120/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[3][0]$LUT$2830",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y120/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[3][0]$LUT$2832",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y120/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[3][1]$LUT$2834",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y120/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[3][2]$LUT$2836",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y117/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[4][0]$LUT$2842",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y117/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[4][0]$LUT$2844",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y117/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[4][1]$LUT$2846",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y117/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[4][2]$LUT$2848",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y118/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[5][0]$LUT$2854",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y118/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[5][0]$LUT$2856",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y118/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[5][1]$LUT$2858",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y118/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[5][2]$LUT$2860",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y116/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[6][0]$LUT$2866",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y116/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[6][0]$LUT$2868",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y116/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[6][1]$LUT$2870",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y116/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[6][2]$LUT$2872",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y119/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[7][0]$LUT$2878",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y119/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[7][0]$LUT$2880",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y119/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[7][1]$LUT$2882",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y119/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_precharge_counter_q[7][2]$LUT$2884",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y120/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[0][0]$LUT$2890",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y120/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[0][0]$LUT$2892",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y120/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[0][1]$LUT$2894",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y120/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[0][2]$LUT$2896",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y121/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[1][0]$LUT$2902",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y121/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[1][0]$LUT$2904",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y121/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[1][1]$LUT$2906",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y121/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[1][2]$LUT$2908",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y116/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[2][0]$LUT$2914",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y116/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[2][0]$LUT$2916",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y116/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[2][1]$LUT$2918",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y116/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[2][2]$LUT$2920",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y112/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[3][0]$LUT$2926",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y112/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[3][0]$LUT$2928",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y112/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[3][1]$LUT$2930",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y112/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[3][2]$LUT$2932",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y119/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[4][0]$LUT$2938",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y119/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[4][0]$LUT$2940",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y119/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[4][1]$LUT$2942",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y119/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[4][2]$LUT$2944",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y120/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[5][0]$LUT$2950",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y120/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[5][0]$LUT$2952",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y120/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[5][1]$LUT$2954",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y120/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[5][2]$LUT$2956",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y122/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[6][0]$LUT$2962",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y122/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[6][0]$LUT$2964",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y122/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[6][1]$LUT$2966",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y122/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[6][2]$LUT$2968",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y119/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[7][0]$LUT$2974",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y119/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[7][0]$LUT$2976",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y119/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[7][1]$LUT$2978",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y119/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_counter_q[7][2]$LUT$2980",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y104/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_data[0]$LUT$3020",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y104/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_data[0]$LUT$3022",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y104/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_data[1]$LUT$3024",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y104/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_data[2]$LUT$3026",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y104/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_before_read_data[3]$LUT$3028",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y77/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[0]$LUT$3100",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y77/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[0]$LUT$3102",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y79/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[10]$LUT$3122",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y79/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[11]$LUT$3124",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y80/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[12]$LUT$3126",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y80/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[13]$LUT$3128",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y77/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[1]$LUT$3104",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y77/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[2]$LUT$3106",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y77/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[3]$LUT$3108",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y78/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[4]$LUT$3110",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y78/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[5]$LUT$3112",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y78/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[6]$LUT$3114",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y78/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[7]$LUT$3116",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y79/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[8]$LUT$3118",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X8Y79/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.delay_counter[9]$LUT$3120",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y109/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_count_repeat[1]$LUT$2168",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y109/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_count_repeat[2]$LUT$2172",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y107/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index[1]$LUT$2182",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y107/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index[2]$LUT$2186",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y107/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index[3]$LUT$2190",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y108/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index[4]$LUT$2194",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y108/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index[5]$LUT$2198",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y91/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[1]$LUT$2554",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y86/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[2]$LUT$2524",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y91/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[2]$LUT$2558",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y86/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[3]$LUT$2528",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y91/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[3]$LUT$2562",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y86/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[4]$LUT$2532",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y92/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[4]$LUT$2566",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y87/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[5]$LUT$2536",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X30Y92/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_start_index_stored[5]$LUT$2570",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y78/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[1]$LUT$3030",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y78/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[1]$LUT$3032",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y78/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[2]$LUT$3034",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y78/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[3]$LUT$3036",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y78/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[4]$LUT$3038",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y79/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.dqs_target_index_orig[5]$LUT$3040",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y105/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.lane[1]$LUT$2228",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X14Y105/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.lane[2]$LUT$2232",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y104/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[10]$LUT$2340",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y104/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[11]$LUT$2344",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y105/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[12]$LUT$2348",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y105/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[13]$LUT$2352",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y105/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[14]$LUT$2356",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y105/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[15]$LUT$2360",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y106/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[16]$LUT$2364",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y106/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[17]$LUT$2368",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y106/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[18]$LUT$2372",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y106/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[19]$LUT$2376",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y102/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[1]$LUT$2304",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y107/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[20]$LUT$2380",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y107/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[21]$LUT$2384",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y107/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[22]$LUT$2388",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y107/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[23]$LUT$2392",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y108/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[24]$LUT$2396",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y102/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[2]$LUT$2308",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y102/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[3]$LUT$2312",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y103/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[4]$LUT$2316",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y103/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[5]$LUT$2320",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y103/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[6]$LUT$2324",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y103/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[7]$LUT$2328",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y104/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[8]$LUT$2332",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X18Y104/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.read_test_address_counter[9]$LUT$2336",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X24Y92/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.shift_read_pipe[1]$LUT$2998",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y86/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.train_delay[0]$LUT$3010",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y86/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.train_delay[0]$LUT$3012",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y86/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.train_delay[1]$LUT$3014",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y86/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.train_delay[2]$LUT$3016",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y86/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.train_delay[3]$LUT$3018",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y95/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_ack_index_q[0]$LUT$2986",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y95/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_ack_index_q[0]$LUT$2988",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y95/B5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_ack_index_q[1]$LUT$2990",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y95/C5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_ack_index_q[2]$LUT$2992",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X26Y95/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_ack_index_q[3]$LUT$2994",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y95/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[10]$LUT$2450",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y95/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[11]$LUT$2454",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y96/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[12]$LUT$2458",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y96/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[13]$LUT$2462",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y96/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[14]$LUT$2466",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y96/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[15]$LUT$2470",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y97/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[16]$LUT$2474",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y97/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[17]$LUT$2478",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y97/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[18]$LUT$2482",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y97/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[19]$LUT$2486",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y98/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[20]$LUT$2490",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y98/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[21]$LUT$2494",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y98/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[22]$LUT$2498",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y98/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[23]$LUT$2502",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y99/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[24]$LUT$2506",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y95/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[8]$LUT$2442",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X16Y95/B6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.write_test_address_counter[9]$LUT$2446",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y88/C6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.wrong_read_data[6]$LUT$2634",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y88/D6LUT",
+      "cell": "bist_top.uberddr3.ddr3_controller_inst.wrong_read_data[7]$LUT$2638",
+      "scope": "ddr3_controller_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X1Y75/A5LUT",
+      "cell": "bist_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_1",
+      "scope": "ddr3_idelayctrl_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y94/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_2",
+      "scope": "ddr3_idelayctrl_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y111/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[10]$LUT$1922",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y111/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[11]$LUT$1926",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y112/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[12]$LUT$1930",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y112/B6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[13]$LUT$1934",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y112/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[14]$LUT$1938",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y112/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[15]$LUT$1942",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y113/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[16]$LUT$1946",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y113/B6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[17]$LUT$1950",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y113/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[18]$LUT$1954",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y113/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[19]$LUT$1958",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y114/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[20]$LUT$1962",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y114/B6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[21]$LUT$1966",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y114/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[22]$LUT$1970",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y114/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[23]$LUT$1974",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y115/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[24]$LUT$1978",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y109/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[2]$LUT$1890",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y109/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[3]$LUT$1894",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y110/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[4]$LUT$1898",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y110/B6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[5]$LUT$1902",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y110/C6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[6]$LUT$1906",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y110/D6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[7]$LUT$1910",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y111/A6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[8]$LUT$1914",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X20Y111/B6LUT",
+      "cell": "bist_top.uberddr3.i_wb_addr[9]$LUT$1918",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y72/B6LUT",
+      "cell": "bist_top.uberddr3.idelay_data_cntvaluein[1]$LUT$2106",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y72/C6LUT",
+      "cell": "bist_top.uberddr3.idelay_data_cntvaluein[2]$LUT$2110",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y72/D6LUT",
+      "cell": "bist_top.uberddr3.idelay_data_cntvaluein[3]$LUT$2114",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y73/A6LUT",
+      "cell": "bist_top.uberddr3.idelay_data_cntvaluein[4]$LUT$2118",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y69/B6LUT",
+      "cell": "bist_top.uberddr3.idelay_dqs_cntvaluein[1]$LUT$2138",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y69/C6LUT",
+      "cell": "bist_top.uberddr3.idelay_dqs_cntvaluein[2]$LUT$2142",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y69/D6LUT",
+      "cell": "bist_top.uberddr3.idelay_dqs_cntvaluein[3]$LUT$2146",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X28Y70/A6LUT",
+      "cell": "bist_top.uberddr3.idelay_dqs_cntvaluein[4]$LUT$2150",
+      "scope": "uberddr3_soft",
+      "type": "SLICE_LUTX"
+    }
+  ],
+  "scope_counts": {
+    "ddr3_controller_soft": 215,
+    "ddr3_idelayctrl_soft": 2,
+    "uberddr3_soft": 31
+  },
+  "skipped_missing_bel": [],
+  "skipped_missing_bel_count": 0,
+  "source_routed_json": "artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration/2026-05-13T01-12-17+0200-full-controller-soft-seed1/build-artifacts/nextpnr-routed.json",
+  "type_counts": {
+    "SLICE_LUTX": 248
+  }
+}
