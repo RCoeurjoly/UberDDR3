@@ -44,6 +44,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--addr", dest="addr_value", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--bits", type=int, default=16)
     parser.add_argument("--magic-nibble", type=lambda value: int(value, 0), default=0xA)
+    parser.add_argument("--loader-magic", type=lambda value: int(value, 0), default=0x33445244)
+    parser.add_argument("--opcode", type=lambda value: int(value, 0), default=0x03)
+    parser.add_argument("--chunk", type=lambda value: int(value, 0), default=0)
     parser.add_argument(
         "--update-mode",
         choices=("idle", "stop-at-update"),
@@ -65,11 +68,25 @@ def main() -> int:
         raise SystemExit("--addr must fit in 8 bits")
     if args.magic_nibble < 0 or args.magic_nibble > 0xF:
         raise SystemExit("--magic-nibble must fit in 4 bits")
+    if args.loader_magic < 0 or args.loader_magic > 0xFFFFFFFF:
+        raise SystemExit("--loader-magic must fit in 32 bits")
+    if args.opcode < 0 or args.opcode > 0xFF:
+        raise SystemExit("--opcode must fit in 8 bits")
+    if args.chunk < 0 or args.chunk > 0x3:
+        raise SystemExit("--chunk must fit in 2 bits")
 
     if args.bits == 16:
         command = (args.magic_nibble << 12) | (1 << 8) | args.byte_value
     else:
-        command = (args.magic_nibble << 20) | (1 << 16) | (args.addr_value << 8) | args.byte_value
+        if args.bits < 72:
+            raise SystemExit("--bits must be 16 or at least 72 for rowstream loader commands")
+        command = (
+            args.loader_magic
+            | (args.opcode << 32)
+            | (args.chunk << 40)
+            | (args.addr_value << 48)
+            | (args.byte_value << 64)
+        )
     if args.backend == "mpsse":
         client = FtdiMpsseJtag(
             serial=args.serial,
@@ -100,7 +117,10 @@ def main() -> int:
         "bits": args.bits,
         "addr": f"0x{args.addr_value:02x}",
         "byte": f"0x{args.byte_value:02x}",
+        "chunk": args.chunk,
         "command": f"0x{command:0{args.bits // 4}x}",
+        "loader_magic": f"0x{args.loader_magic:08x}",
+        "opcode": f"0x{args.opcode:02x}",
         "update_mode": args.update_mode,
     }
     if not args.json_only:
