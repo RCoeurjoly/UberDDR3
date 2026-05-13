@@ -64,8 +64,8 @@ def main() -> int:
     args = parse_args()
     if args.byte_value < 0 or args.byte_value > 0xFF:
         raise SystemExit("--byte must fit in 8 bits")
-    if args.addr_value < 0 or args.addr_value > 0xFF:
-        raise SystemExit("--addr must fit in 8 bits")
+    if args.addr_value < 0:
+        raise SystemExit("--addr must be non-negative")
     if args.magic_nibble < 0 or args.magic_nibble > 0xF:
         raise SystemExit("--magic-nibble must fit in 4 bits")
     if args.loader_magic < 0 or args.loader_magic > 0xFFFFFFFF:
@@ -76,10 +76,14 @@ def main() -> int:
         raise SystemExit("--chunk must fit in 2 bits")
 
     if args.bits == 16:
+        if args.addr_value > 0xFF:
+            raise SystemExit("--addr must fit in 8 bits for 16-bit commands")
         command = (args.magic_nibble << 12) | (1 << 8) | args.byte_value
     else:
         if args.bits < 72:
             raise SystemExit("--bits must be 16 or at least 72 for rowstream loader commands")
+        if args.addr_value > 0xFFFFFFFF:
+            raise SystemExit("--addr must fit in 32 bits for rowstream loader commands")
         command = (
             args.loader_magic
             | (args.opcode << 32)
@@ -115,7 +119,7 @@ def main() -> int:
         "serial": args.serial,
         "user_ir": f"0x{args.user_ir:02x}",
         "bits": args.bits,
-        "addr": f"0x{args.addr_value:02x}",
+        "addr": f"0x{args.addr_value:08x}" if args.bits != 16 else f"0x{args.addr_value:02x}",
         "byte": f"0x{args.byte_value:02x}",
         "chunk": args.chunk,
         "command": f"0x{command:0{args.bits // 4}x}",
