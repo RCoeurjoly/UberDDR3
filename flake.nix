@@ -43,6 +43,7 @@ EOF
           ps.pyjson5
           ps.pyyaml
           ps.simplejson
+          ps.graphtage
         ]);
         prjxrayPythonPath =
           "${patchedPrjxrayPython}:${openXC7Fasm}/lib/python3.12/site-packages:${prjxrayPythonDeps}/${pkgs.python312.sitePackages}:${openXC7Prjxray}/usr/share/python3";
@@ -154,6 +155,7 @@ EOF
             pkgs.openfpgaloader
             pkgs.openocd
             pkgs.pypy3
+            pkgs.python312Packages.graphtage
           ];
           shellHook = ''
             export NEXTPNR_XILINX_DIR="${openXC7Nextpnr}/share/nextpnr"
