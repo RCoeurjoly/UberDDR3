@@ -430,6 +430,34 @@ gate is to patch the LLM2FPGA rowstream loader so `write_lowbyte()` and
 `read_lowbyte()` both issue `stream_addr + 1`, then rerun the low-byte
 diagnostic on the known-calibrating v40/v44 physical-lock bitstream.
 
+## Active Rowstream Execution Plan
+
+Current priority is to finish the host-side rowstream contract validation and use
+it as the control path for seed/placement experiments.
+
+1. Use a known-calibrating rowstream control bitstream (currently the seed-3 rowstream
+   artifact from the v40/v44 lock family) as the baseline.
+2. Run deterministic host-command loops using:
+   - `--command-protocol rowstream192`
+   - `--rowstream-lowbyte-addr-offset 1`
+   - `--rowstream-readback-after-write`
+   - `--rowstream-poll-timeout 4`
+   - `--rowstream-min-ack-delta 1`
+3. For each run, capture:
+   - `decoded.loader_state`
+   - `decoded.loader_ready`
+   - `decoded.ack_count`
+   - `decoded.loader_error`
+   - `decoded.read_byte`
+   - `decoded.command_count`
+   - `decoded.active_addr`
+4. Compare passing seed-16/seed-40/seed-0 artifacts using BEL locks and lock
+   deltas; keep the table in `artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration`
+   as the migration point if seed-0 remains the outlier.
+5. If rowstream low-byte readback still returns boot data with clean acks, treat
+   it as remaining command contract or rowstream-state semantics and do not touch
+   BIST calibration-path timing until the contract is resolved.
+
 ## Development Strategy
 
 Keep OpenXC7 as the acceptance toolchain. If the BIST flow regresses, compare

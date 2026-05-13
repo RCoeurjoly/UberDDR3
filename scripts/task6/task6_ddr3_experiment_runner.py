@@ -50,6 +50,7 @@ ROWSTREAM_DEBUG_VERSIONS = {44, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
+ROWSTREAM_DEFAULT_LOWBYTE_ADDR_OFFSET = 1
 
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -129,6 +130,34 @@ def with_lock(run_dir: Path, log_name: str, command: list[str]) -> None:
     if proc.returncode != 0:
         raise SystemExit(proc.stdout)
 
+
+def read_jtag_debug_once(run_dir: Path, log_name: str, args: argparse.Namespace) -> dict[str, Any]:
+    with_lock(
+        run_dir,
+        log_name,
+        [
+            sys.executable,
+            str(READ_JTAG),
+            "--serial",
+            args.ftdi_serial,
+            "--tdo-bit",
+            str(args.tdo_bit),
+            "--bits",
+            str(args.bits),
+            "--json-only",
+        ],
+    )
+    log_text = (run_dir / "logs" / log_name).read_text(encoding="utf-8")
+    return extract_read_json(log_text)
+
+
+def map_rowstream_addr(args: argparse.Namespace, opcode: int, public_addr: int) -> int:
+    if args.command_protocol != "rowstream192":
+        return public_addr
+    if opcode in (ROWSTREAM_OP_WRITE_LOWBYTE, ROWSTREAM_OP_READ_LOWBYTE):
+        return public_addr + args.rowstream_lowbyte_addr_offset
+    return public_addr
+
 def write_jtag_command_with_repeats(
     run_dir: Path,
     log_name: str,
@@ -140,6 +169,38 @@ def write_jtag_command_with_repeats(
         stem = Path(log_name).stem
         suffix = Path(log_name).suffix
         with_lock(run_dir, f"{stem}-repeat-{repeat_index}{suffix}", command)
+
+
+def wait_for_rowstream_ready(
+    run_dir: Path,
+    args: argparse.Namespace,
+    *,
+    min_ack_count: int,
+    timeout: float,
+    label: str,
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        decoded = decode_uberddr3_payload(
+            read_jtag_debug_once(run_dir, f"{label}-ready-{attempt:03d}.log", args),
+            args,
+        )
+        if decoded["loader_ready"] and decoded["ack_count"] >= min_ack_count:
+            return decoded
+        if decoded["loader_error"] or decoded["err_seen"]:
+            raise SystemExit(
+                "rowstream did not become ready before timeout "
+                f"({label}): {decoded['result']['board']}"
+            )
+        if time.monotonic() >= deadline:
+            raise SystemExit(
+                f"rowstream ready wait timed out ({label}): "
+                f"ack={decoded['ack_count']} loader_state={decoded['loader_state']} "
+                f"loader_ready={decoded['loader_ready']} loader_error={decoded['loader_error']}"
+            )
+        attempt += 1
+        time.sleep(args.rowstream_poll_interval)
 
 
 def extract_read_json(log_text: str) -> dict[str, Any]:
@@ -207,12 +268,20 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     calib_seen_cycle = (raw >> 80) & 0xFFFFFFFF
     if is_rowstream_loader:
         probe_state = probe & 0xF
+        loader_stb = bool(bit(probe, 4))
+        loader_cyc = bool(bit(probe, 5))
         done = bool(bit(probe, 6))
         write_ack_seen = bool(bit(probe, 7))
         read_ack_seen = bool(bit(probe, 8))
+        loader_error = bool(bit(probe, 9))
+        loader_stall_seen = bool(bit(probe, 10))
+        read_probe_done = bool(bit(probe, 11))
+        read_probe_write_ack_seen = bool(bit(probe, 12))
+        read_probe_read_ack_seen = bool(bit(probe, 13))
+        err_seen = bool(bit(probe, 14))
+        stall_seen = bool(bit(probe, 15))
         mismatch = bool(bit(probe, 16))
-        err_seen = bool(bit(probe, 9))
-        stall_seen = bool(bit(probe, 10))
+        loader_ready = probe_state == 1
     else:
         probe_state = probe & 0x7
         done = bool(bit(probe, 5))
@@ -237,6 +306,8 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             calib_seen
             and last_magic_ok
             and not err_seen
+            and not loader_error
+            and not loader_stall_seen
             and (
                 (last_opcode == ROWSTREAM_OP_WRITE_LOWBYTE and write_ack_seen)
                 or (last_opcode == ROWSTREAM_OP_READ_LOWBYTE and read_ack_seen)
@@ -305,6 +376,20 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "last_opcode": f"0x{last_opcode:02x}",
         "probe": f"0x{probe:08x}",
         "probe_state": probe_state,
+        "loader_state": probe_state if is_rowstream_loader else None,
+        "loader_ready": loader_ready if is_rowstream_loader else None,
+        "loader_stb": loader_stb if is_rowstream_loader else None,
+        "loader_cyc": loader_cyc if is_rowstream_loader else None,
+        "loader_done": done if is_rowstream_loader else None,
+        "loader_write_ack_seen": write_ack_seen if is_rowstream_loader else None,
+        "loader_read_ack_seen": read_ack_seen if is_rowstream_loader else None,
+        "loader_error": loader_error if is_rowstream_loader else None,
+        "loader_stall_seen": loader_stall_seen if is_rowstream_loader else None,
+        "read_probe_done": read_probe_done if is_rowstream_loader else None,
+        "read_probe_write_ack_seen": read_probe_write_ack_seen if is_rowstream_loader else None,
+        "read_probe_read_ack_seen": read_probe_read_ack_seen if is_rowstream_loader else None,
+        "read_probe_err_seen": err_seen if is_rowstream_loader else None,
+        "read_probe_stall_seen": stall_seen if is_rowstream_loader else None,
         "done": done,
         "write_ack_seen": write_ack_seen,
         "read_ack_seen": read_ack_seen,
@@ -390,6 +475,7 @@ def run_experiment(args: argparse.Namespace) -> Path:
     with_lock(run_dir, "program.log", program_argv)
     if args.command_byte is not None:
         def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
+            mapped_addr = map_rowstream_addr(args, opcode, address)
             command = [
                 sys.executable,
                 str(WRITE_JTAG),
@@ -400,7 +486,7 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 "--byte",
                 f"0x{byte_value:02x}",
                 "--addr",
-                f"0x{address:x}",
+                f"0x{mapped_addr:x}",
                 "--update-mode",
                 args.command_update_mode,
                 "--json-only",
@@ -420,12 +506,29 @@ def run_experiment(args: argparse.Namespace) -> Path:
 
         command_addr = args.command_addr
         write_command = make_write_command(args.command_opcode, args.command_byte, command_addr)
+        before = decode_uberddr3_payload(
+            read_jtag_debug_once(
+                run_dir,
+                "ready-before-command.log",
+                args,
+            ),
+            args,
+        )
+        before_ack_count = int(before["ack_count"])
         write_jtag_command_with_repeats(
             run_dir,
             "write-command.log",
             write_command,
             args.command_repeats,
         )
+        if args.command_protocol == "rowstream192":
+            write_ready = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=before_ack_count + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label="write",
+            )
         if (
             args.rowstream_readback_after_write
             and args.command_protocol == "rowstream192"
@@ -437,6 +540,14 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 "read-command.log",
                 read_command,
                 args.command_repeats,
+            )
+            write_ready_ack = int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            _ = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=write_ready_ack + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label="read",
             )
         if args.post_command_delay > 0:
             time.sleep(args.post_command_delay)
@@ -523,6 +634,30 @@ def parse_args() -> argparse.Namespace:
         help="after a rowstream low-byte write command, issue a low-byte read command",
     )
     parser.add_argument(
+        "--rowstream-lowbyte-addr-offset",
+        type=int,
+        default=ROWSTREAM_DEFAULT_LOWBYTE_ADDR_OFFSET,
+        help="public stream address offset added for rowstream low-byte commands",
+    )
+    parser.add_argument(
+        "--rowstream-poll-interval",
+        type=float,
+        default=0.05,
+        help="seconds between rowstream readiness polls",
+    )
+    parser.add_argument(
+        "--rowstream-poll-timeout",
+        type=float,
+        default=4.0,
+        help="seconds to wait for rowstream command to reach ready state",
+    )
+    parser.add_argument(
+        "--rowstream-min-ack-delta",
+        type=int,
+        default=1,
+        help="minimum wb_ack increments required for a rowstream write/read command",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -553,6 +688,14 @@ def main() -> int:
         raise SystemExit("--command-chunk must fit in 2 bits")
     if args.command_repeats < 1:
         raise SystemExit("--command-repeats must be positive")
+    if args.rowstream_lowbyte_addr_offset < 0:
+        raise SystemExit("--rowstream-lowbyte-addr-offset must be non-negative")
+    if args.rowstream_poll_interval <= 0:
+        raise SystemExit("--rowstream-poll-interval must be positive")
+    if args.rowstream_poll_timeout <= 0:
+        raise SystemExit("--rowstream-poll-timeout must be positive")
+    if args.rowstream_min_ack_delta < 1:
+        raise SystemExit("--rowstream-min-ack-delta must be at least 1")
     if args.rowstream_readback_after_write and args.command_protocol != "rowstream192":
         raise SystemExit("--rowstream-readback-after-write requires --command-protocol rowstream192")
     if args.expected_byte is None:
