@@ -196,6 +196,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `ea37382` | 1 | `full` + `ddr3_controller_soft`, nextpnr `--router router1` | built | pass | false | false | true | 9 | 0 | 0 | `debug1=0x000006c9`, bitstream `eb33d8f6...`; router1 does not fix seed 1 |
 | 2026-05-13 | `8fc18f4` | 0 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `db20b583...`; candidate soft-placement oracle passes seed 0 at default freq |
 | 2026-05-13 | `8fc18f4` | 1 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | true | true | true | 23 | 9 | 0 | `debug1=0x000006d7`, bitstream `90c65550...`; candidate soft-placement oracle also passes seed 1 at default freq |
+| 2026-05-13 | `c2f7703` | 2 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000026cc`, bitstream `b6a0f433...`; seed 2 still fails, so this oracle is not yet a complete stability recipe |
 
 Routed placement comparison:
 
