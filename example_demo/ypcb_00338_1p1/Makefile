@@ -28,6 +28,8 @@ PYPY3 ?= pypy3
 SYNTH_XILINX_FLAGS ?= -flatten -abc9 -arch xc7
 PNR_ARGS ?= --seed 16 --freq 25
 PNR_DEBUG ?=
+SEED ?= 3
+FREQ ?= 25
 PNR_PRE_PACK ?= --pre-pack ${DDR3_CLOCK_CONSTRAINTS}
 PNR_PRE_PLACE ?=
 JTAG_LINK ?= -c digilent_hs2
@@ -65,6 +67,16 @@ bist-v40-locked: ${BIST_PROJECT}_openxc7.bit
 .PHONY: rowstream-v40-locked
 rowstream-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-locked: ${ROWSTREAM_PROJECT}_openxc7.bit
+
+.PHONY: rowstream-v40-json
+rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+rowstream-v40-json:
+	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
+	$(MAKE) clean
+	$(MAKE) rowstream-v40-locked \
+		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+		PNR_ARGS="--seed ${SEED} --freq ${FREQ}" \
+		PNR_DEBUG="--write ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.json"
 
 .PHONY: program
 program: ${PROJECT}_openxc7.bit
