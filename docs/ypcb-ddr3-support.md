@@ -246,6 +246,25 @@ calibration/control subset while sweeping additional seeds. Keep this
 experimental lock group separate from the upstreamable board LOC and PHY
 primitive constraints.
 
+Current execution split:
+
+- Move functional rowstream work forward with a seed-pinned calibrating
+  artifact. The best buildable rowstream recipe currently calibrates with seeds
+  0, 1, and 3, and misses with seeds 2, 4, and 5. Seed 3 is the working
+  functional candidate because it calibrated immediately with
+  `debug1=0x000006d7`, state 23, and nine ACKs.
+- Treat calibration consistency as a separate nextpnr/constraint problem. The
+  constrained-cluster extractor can identify CARRY roots, but even one
+  user-constrained CARRY4 root (`SLICE_X20Y100/CARRY4`) plus the hard DDR3 lock
+  set triggers a nextpnr heap placer `unordered_map::at` abort. That is now a
+  minimized nextpnr-xilinx bug signal, not a blocker for proving rowstream
+  function on a known-calibrating seed.
+- The immediate HIL loop is: repeatedly program the seed-3 rowstream artifact
+  to confirm artifact-level calibration stability, then run rowstream
+  read/write diagnostics against that artifact. In parallel, reduce the
+  single-CARRY-root crash to a standalone nextpnr repro with a debug backtrace
+  and patch nextpnr only after the failure site is clear.
+
 ### Phase 4: Prove Memory Access
 
 - Run a deterministic low-byte write/read command through the JTAG command
