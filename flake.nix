@@ -47,14 +47,30 @@ EOF
         prjxrayPythonPath =
           "${patchedPrjxrayPython}:${openXC7Fasm}/lib/python3.12/site-packages:${prjxrayPythonDeps}/${pkgs.python312.sitePackages}:${openXC7Prjxray}/usr/share/python3";
 
-        mkSource = pkgs.lib.cleanSourceWith {
-          src = ./.;
-          filter = path: type:
-            let
-              name = baseNameOf path;
-            in
-              name != "result";
-        };
+        mkSource = let
+          sourceRoot = ./.;
+          keep = [
+            "example_demo/ypcb_00338_1p1"
+            "rtl"
+            "fpga/rtl"
+            "scripts/task6"
+            "artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability"
+          ];
+          shouldKeep = rel:
+            builtins.any (root:
+              rel == root
+              || pkgs.lib.hasPrefix (root + "/") rel
+              || pkgs.lib.hasPrefix (rel + "/") (root + "/")
+            ) keep;
+        in
+          pkgs.lib.cleanSourceWith {
+            src = sourceRoot;
+            filter = path: type:
+              let
+                rel = pkgs.lib.removePrefix (toString sourceRoot + "/") (toString path);
+              in
+                if rel == "" then true else shouldKeep rel;
+          };
 
         mkYpcbRowstreamBitstream = {
           seed,
