@@ -46,6 +46,11 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
+ROWSTREAM_DEBUG_VERSION = 63
+ROWSTREAM_COMMAND_BITS = 192
+ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
+ROWSTREAM_OP_READ_LOWBYTE = 0x04
+
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -145,22 +150,41 @@ def hex_words(raw: int, offset: int, word_bits: int, count: int) -> list[str]:
 def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) -> dict[str, Any]:
     raw_hex = readback["raw_hex"]
     raw = int(raw_hex, 16)
+    version = (raw >> 32) & 0xFF
+    is_rowstream_loader = version == ROWSTREAM_DEBUG_VERSION
     debug1 = (raw >> 112) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
-    read_byte = (raw >> 240) & 0xFF
-    read_word = (raw >> 240) & 0xFFFFFFFF
+    if is_rowstream_loader:
+        read_byte = (raw >> 336) & 0xFF
+        read_word = (raw >> 336) & 0xFFFFFFFF
+    else:
+        read_byte = (raw >> 240) & 0xFF
+        read_word = (raw >> 240) & 0xFFFFFFFF
     stream_bytes = [(read_word >> (8 * index)) & 0xFF for index in range(4)]
     read_beat = (raw >> 480) & ((1 << 512) - 1) if args.bits >= 992 else None
     expected = args.expected_byte
     expected_stream_bytes = [expected & 0xFF, 0x00, 0x00, args.command_addr & 0xFF]
-    version = (raw >> 32) & 0xFF
     command_word = (raw >> 272) & 0xFFFFFFFF
-    active_byte = command_word & 0xFF
-    if version <= 23:
+    if is_rowstream_loader:
+        active_byte = read_byte
+        active_addr = (raw >> 496) & 0x7FFF
+        command_count = (command_word >> 18) & 0xFF
+        run_count = 0
+        last_accepted = bool(command_word & 0x1)
+        last_magic_ok = bool(command_word & 0x2)
+        last_chunk = (command_word >> 2) & 0x3
+        last_opcode = (command_word >> 10) & 0xFF
+    else:
+        active_byte = command_word & 0xFF
+        last_accepted = False
+        last_magic_ok = False
+        last_chunk = 0
+        last_opcode = 0
+    if version <= 23 and not is_rowstream_loader:
         active_addr = 0
         command_count = (command_word >> 8) & 0xFF
         run_count = (command_word >> 16) & 0xFFFF
-    else:
+    elif not is_rowstream_loader:
         active_addr = (command_word >> 8) & 0xFF
         command_count = (command_word >> 16) & 0xFF
         run_count = (command_word >> 24) & 0xFF
@@ -169,11 +193,22 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     ack_count = (raw >> 144) & 0xFFFFFFFF
     err_count = (raw >> 176) & 0xFFFFFFFF
     calib_seen_cycle = (raw >> 80) & 0xFFFFFFFF
-    probe_state = probe & 0x7
-    done = bool(bit(probe, 5))
-    write_ack_seen = bool(bit(probe, 6))
-    read_ack_seen = bool(bit(probe, 7))
-    mismatch = bool(bit(probe, 10))
+    if is_rowstream_loader:
+        probe_state = probe & 0xF
+        done = bool(bit(probe, 6))
+        write_ack_seen = bool(bit(probe, 7))
+        read_ack_seen = bool(bit(probe, 8))
+        mismatch = bool(bit(probe, 16))
+        err_seen = bool(bit(probe, 9))
+        stall_seen = bool(bit(probe, 10))
+    else:
+        probe_state = probe & 0x7
+        done = bool(bit(probe, 5))
+        write_ack_seen = bool(bit(probe, 6))
+        read_ack_seen = bool(bit(probe, 7))
+        mismatch = bool(bit(probe, 10))
+        err_seen = bool(bit(probe, 8))
+        stall_seen = bool(bit(probe, 9))
     stream_status = (raw >> 416) & 0xFFFF
     if version <= 23:
         stream_mismatch_count = 1 if mismatch else 0
@@ -185,14 +220,31 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         stream_write_index = 0
     calib_complete = bool(status & 0x01)
     calib_seen = bool(status & 0x02)
-    command_gate = calib_seen and write_ack_seen and read_ack_seen and ack_count >= 2
+    if is_rowstream_loader:
+        command_gate = (
+            calib_seen
+            and last_accepted
+            and last_magic_ok
+            and not err_seen
+            and (
+                (last_opcode == ROWSTREAM_OP_WRITE_LOWBYTE and write_ack_seen)
+                or (last_opcode == ROWSTREAM_OP_READ_LOWBYTE and read_ack_seen)
+                or last_opcode not in (ROWSTREAM_OP_WRITE_LOWBYTE, ROWSTREAM_OP_READ_LOWBYTE)
+            )
+        )
+    else:
+        command_gate = calib_seen and write_ack_seen and read_ack_seen and ack_count >= 2
     # YPCB CH0 open metadata has no DDR3 DM pins, and the diagnostic wrapper's
     # internal mismatch bit compares against its latched default byte for some
     # USER2-commanded runs even when the DDR write/read low byte follows the
     # requested command byte.  Treat the board-visible low-byte round trip plus
     # write/read acks as the no-DM self-test pass criterion; keep the raw
     # hardware mismatch bit in the JSON for tool/RTL debugging.
-    if version <= 23:
+    if is_rowstream_loader:
+        integrity_pass = command_gate and err_count == 0
+        if last_opcode == ROWSTREAM_OP_READ_LOWBYTE:
+            integrity_pass = integrity_pass and read_byte == expected
+    elif version <= 23:
         integrity_pass = command_gate and read_byte == expected and err_count == 0
     else:
         integrity_pass = (
@@ -233,16 +285,20 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "read_beat_bytes": hex_words(raw, 480, 8, 64) if read_beat is not None else [],
         "read_beat_words32": hex_words(raw, 480, 32, 16) if read_beat is not None else [],
         "active_byte": f"0x{active_byte:02x}",
-        "active_addr": f"0x{active_addr:02x}",
+        "active_addr": f"0x{active_addr:08x}" if is_rowstream_loader else f"0x{active_addr:02x}",
         "command_count": command_count,
         "run_count": run_count,
+        "last_accepted": last_accepted,
+        "last_magic_ok": last_magic_ok,
+        "last_chunk": last_chunk,
+        "last_opcode": f"0x{last_opcode:02x}",
         "probe": f"0x{probe:08x}",
         "probe_state": probe_state,
         "done": done,
         "write_ack_seen": write_ack_seen,
         "read_ack_seen": read_ack_seen,
-        "err_seen": bool(bit(probe, 8)),
-        "stall_seen": bool(bit(probe, 9)),
+        "err_seen": err_seen,
+        "stall_seen": stall_seen,
         "mismatch": mismatch,
         "wait_cycles": f"0x{((raw >> 400) & 0xFFFFFFFF):08x}",
         "clk50_count": f"0x{((raw >> 432) & 0xFFFFFFFF):08x}",
@@ -322,25 +378,39 @@ def run_experiment(args: argparse.Namespace) -> Path:
         ]
     with_lock(run_dir, "program.log", program_argv)
     if args.command_byte is not None:
+        write_command = [
+            sys.executable,
+            str(WRITE_JTAG),
+            "--serial",
+            args.ftdi_serial,
+            "--tdo-bit",
+            str(args.tdo_bit),
+            "--byte",
+            f"0x{args.command_byte:02x}",
+            "--addr",
+            f"0x{args.command_addr:x}",
+            "--update-mode",
+            args.command_update_mode,
+            "--json-only",
+        ]
+        if args.command_protocol == "rowstream192":
+            write_command.extend(
+                [
+                    "--bits",
+                    str(ROWSTREAM_COMMAND_BITS),
+                    "--opcode",
+                    f"0x{args.command_opcode:02x}",
+                    "--chunk",
+                    str(args.command_chunk),
+                ]
+            )
         with_lock(
             run_dir,
             "write-command.log",
-            [
-                sys.executable,
-                str(WRITE_JTAG),
-                "--serial",
-                args.ftdi_serial,
-                "--tdo-bit",
-                str(args.tdo_bit),
-                "--byte",
-                f"0x{args.command_byte:02x}",
-                "--addr",
-                f"0x{args.command_addr:02x}",
-                "--update-mode",
-                args.command_update_mode,
-                "--json-only",
-            ],
+            write_command,
         )
+        for repeat_index in range(1, args.command_repeats):
+            with_lock(run_dir, f"write-command-repeat-{repeat_index}.log", write_command)
         if args.post_command_delay > 0:
             time.sleep(args.post_command_delay)
     with_lock(
@@ -404,6 +474,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--command-byte", type=lambda value: int(value, 0))
     parser.add_argument("--command-addr", type=lambda value: int(value, 0), default=0)
     parser.add_argument(
+        "--command-protocol",
+        choices=("bist16", "rowstream192"),
+        default="bist16",
+    )
+    parser.add_argument(
+        "--command-opcode",
+        type=lambda value: int(value, 0),
+        default=ROWSTREAM_OP_WRITE_LOWBYTE,
+    )
+    parser.add_argument("--command-chunk", type=lambda value: int(value, 0), default=0)
+    parser.add_argument(
+        "--command-repeats",
+        type=int,
+        default=1,
+        help="repeat USER2 writes; rowstream RTL accepts every other command event",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -424,8 +511,16 @@ def main() -> int:
     args = parse_args()
     if args.command_byte is not None and not 0 <= args.command_byte <= 0xFF:
         raise SystemExit("--command-byte must fit in 8 bits")
-    if not 0 <= args.command_addr <= 0xFF:
-        raise SystemExit("--command-addr must fit in 8 bits")
+    if args.command_protocol == "bist16" and not 0 <= args.command_addr <= 0xFF:
+        raise SystemExit("--command-addr must fit in 8 bits for bist16")
+    if args.command_protocol == "rowstream192" and not 0 <= args.command_addr <= 0xFFFFFFFF:
+        raise SystemExit("--command-addr must fit in 32 bits for rowstream192")
+    if not 0 <= args.command_opcode <= 0xFF:
+        raise SystemExit("--command-opcode must fit in 8 bits")
+    if not 0 <= args.command_chunk <= 0x3:
+        raise SystemExit("--command-chunk must fit in 2 bits")
+    if args.command_repeats < 1:
+        raise SystemExit("--command-repeats must be positive")
     if args.expected_byte is None:
         args.expected_byte = args.command_byte if args.command_byte is not None else 0xA5
     run_dir = run_experiment(args)
