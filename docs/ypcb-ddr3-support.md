@@ -201,6 +201,7 @@ Initial calibration-sweep record:
 | 2026-05-13 | `275166c` | 2 | `full` + all constrained-cluster oracle from seed-1/freq-50 | build-failed | - | - | - | - | - | - | - | 1014 locks applied; heap placer aborts with `map::at` after placing 1153 constrained cells |
 | 2026-05-13 | `6728592` | 2 | `full` + root-only constrained-cluster oracle from seed-1/freq-50, nextpnr `--placer sa` | build-failed | - | - | - | - | - | - | - | 445 locks applied; SA runs ~680s then fails post-placement validity at `SLICE_X58Y395/A5FF` |
 | 2026-05-13 | `f5eb48e` | 2 | `full` + `ddr3_controller_soft` from seed-1/freq-50 oracle, nextpnr `--freq 50` | built | pass | false | false | true | 12 | 0 | 0 | `debug1=0x000006cc`, bitstream `fda76e0b...`; freq 50 does not rescue seed 2 |
+| 2026-05-13 | `e87dec3` | 2 | `full` + one constrained CARRY root from seed-1/freq-50 oracle | build-failed | - | - | - | - | - | - | - | 412 locks applied; one `CARRY4` root (`SLICE_X20Y100/CARRY4`) is enough to trigger heap placer `unordered_map::at` |
 
 Routed placement comparison:
 
