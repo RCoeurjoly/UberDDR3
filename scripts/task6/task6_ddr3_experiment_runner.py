@@ -203,6 +203,31 @@ def wait_for_rowstream_ready(
         time.sleep(args.rowstream_poll_interval)
 
 
+def wait_for_rowstream_calibration(
+    run_dir: Path, args: argparse.Namespace, timeout: float, label: str
+) -> dict[str, Any]:
+    deadline = time.monotonic() + timeout
+    attempt = 0
+    while True:
+        decoded = decode_uberddr3_payload(
+            read_jtag_debug_once(run_dir, f"{label}-calib-{attempt:03d}.log", args),
+            args,
+        )
+        if decoded["result"]["calibration"] == "pass":
+            return decoded
+        if decoded["loader_error"] or decoded["err_seen"]:
+            raise SystemExit(
+                f"rowstream entered error while waiting for calibration ({label}): {decoded['result']['board']}"
+            )
+        if time.monotonic() >= deadline:
+            raise SystemExit(
+                f"rowstream calibration wait timed out ({label}): "
+                f"calib_seen_cycle={decoded['calib_seen_cycle']} loader_state={decoded['loader_state']}"
+            )
+        attempt += 1
+        time.sleep(args.rowstream_poll_interval)
+
+
 def extract_read_json(log_text: str) -> dict[str, Any]:
     start = log_text.find("{")
     end = log_text.rfind("}")
@@ -473,6 +498,13 @@ def run_experiment(args: argparse.Namespace) -> Path:
             bitstream,
         ]
     with_lock(run_dir, "program.log", program_argv)
+    if args.command_protocol == "rowstream192":
+        wait_for_rowstream_calibration(
+            run_dir,
+            args,
+            timeout=args.rowstream_poll_timeout,
+            label="startup",
+        )
     if args.command_byte is not None:
         def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
             mapped_addr = map_rowstream_addr(args, opcode, address)
