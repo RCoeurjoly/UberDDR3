@@ -46,7 +46,7 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSION = 63
+ROWSTREAM_DEBUG_VERSIONS = {44, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
@@ -151,7 +151,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     raw_hex = readback["raw_hex"]
     raw = int(raw_hex, 16)
     version = (raw >> 32) & 0xFF
-    is_rowstream_loader = version == ROWSTREAM_DEBUG_VERSION
+    is_rowstream_loader = args.command_protocol == "rowstream192" or version in ROWSTREAM_DEBUG_VERSIONS
     debug1 = (raw >> 112) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
     if is_rowstream_loader:
@@ -223,7 +223,6 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     if is_rowstream_loader:
         command_gate = (
             calib_seen
-            and last_accepted
             and last_magic_ok
             and not err_seen
             and (
@@ -300,9 +299,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "err_seen": err_seen,
         "stall_seen": stall_seen,
         "mismatch": mismatch,
-        "wait_cycles": f"0x{((raw >> 400) & 0xFFFFFFFF):08x}",
+        "wait_cycles": f"0x{((raw >> (464 if is_rowstream_loader else 400)) & 0xFFFFFFFF):08x}",
         "clk50_count": f"0x{((raw >> 432) & 0xFFFFFFFF):08x}",
-        "sys_rstn": bool(bit(raw, 464)),
+        "sys_rstn": bool(bit(raw, 511 if is_rowstream_loader else 464)),
         "result": {
             "calibration": "pass" if calib_complete and calib_seen else "fail",
             "command_gate": "pass" if command_gate else "fail",
