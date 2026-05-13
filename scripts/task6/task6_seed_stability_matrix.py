@@ -123,7 +123,14 @@ def make_rows_for_combo(
     if not nix_develop:
         command.append("--no-nix-develop")
 
-    proc = subprocess.run(command, cwd=ROOT, check=False, text=True)
+    proc = subprocess.run(
+        command,
+        cwd=ROOT,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
 
     fallback = {
         "seed": seed,
@@ -136,6 +143,7 @@ def make_rows_for_combo(
         "build_failed": proc.returncode != 0 and not dry_run,
         "returncode": proc.returncode,
         "raw": proc.stdout,
+        "stderr": proc.stderr,
         "notes": notes,
     }
     row = parse_sweep_row(proc.stdout, fallback)
