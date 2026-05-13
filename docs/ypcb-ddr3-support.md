@@ -253,6 +253,10 @@ Current execution split:
   0, 1, and 3, and misses with seeds 2, 4, and 5. Seed 3 is the working
   functional candidate because it calibrated immediately with
   `debug1=0x000006d7`, state 23, and nine ACKs.
+- **Interim policy (important):** rowstream currently uses a pinned seed-3 work
+  path and is considered brittle. Other sampled seeds are not equivalent yet, so
+  we must label this as a provisional single-seed baseline until a
+  seed-stable variant is proven.
 - Treat calibration consistency as a separate nextpnr/constraint problem. The
   constrained-cluster extractor can identify CARRY roots, but even one
   user-constrained CARRY4 root (`SLICE_X20Y100/CARRY4`) plus the hard DDR3 lock
@@ -264,6 +268,27 @@ Current execution split:
   read/write diagnostics against that artifact. In parallel, reduce the
   single-CARRY-root crash to a standalone nextpnr repro with a debug backtrace
   and patch nextpnr only after the failure site is clear.
+
+## Interim Seed-Pinned Baseline
+
+- `seed=3` is the current rowstream baseline for progress.
+- `full-controller-soft` with existing v40/v44 physical lock sets is still the
+  fastest reproducible rowstream path.
+- This is explicitly **not** "any-seed stable" and must stay marked as
+  brittle in commit notes, artifacts, and test tables.
+- Run command contract checks against this artifact with:
+  - `--rowstream-lowbyte-addr-offset 1`
+  - `--rowstream-readback-after-write`
+  - `--rowstream-poll-timeout 4`
+  - `--rowstream-min-ack-delta 1`
+
+Progress plan from this point:
+
+1. Keep repeating seed-3 rowstream HIL runs to validate artifact stability.
+2. Run targeted seed sweeps (`2..5` then `0..31`) on the same lock set, using
+   `scripts/task6/task6_calibration_sweep.py`, and append outcomes to
+   `artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration/results.jsonl`.
+3. Minimize constraints only after we have a seed-agnostic candidate to avoid baking in seed-specific placement debt.
 
 ### Phase 4: Prove Memory Access
 
