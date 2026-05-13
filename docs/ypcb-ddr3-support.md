@@ -281,6 +281,7 @@ Current execution split:
   - `--rowstream-readback-after-write`
   - `--rowstream-poll-timeout 4`
   - `--rowstream-min-ack-delta 1`
+- Followed-by detailed run plan is in [docs/seed-stability-plan.md](docs/seed-stability-plan.md).
 
 Progress plan from this point:
 
@@ -289,6 +290,48 @@ Progress plan from this point:
    `scripts/task6/task6_calibration_sweep.py`, and append outcomes to
    `artifacts/task6/calibration-sweeps/ypcb-rowstream-calibration/results.jsonl`.
 3. Minimize constraints only after we have a seed-agnostic candidate to avoid baking in seed-specific placement debt.
+
+## Seed-stability Matrix (current priority)
+
+Use this matrix run command for deterministic seed exploration:
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-seed-stability \
+  --seeds 0-5 \
+  --lock-sets full-controller-soft,full,clocks-phy,phy,none \
+  --freqs 25,50 \
+  --pnr-extra-args "" \
+  --pnr-extra-args "--no-tmdriv" \
+  --build-only
+```
+
+Outputs:
+
+- `artifacts/task6/calibration-sweeps/ypcb-rowstream-seed-stability/results.jsonl`
+- `artifacts/task6/calibration-sweeps/ypcb-rowstream-seed-stability/stability-scorecard.md`
+
+Pass criteria for each row:
+
+- `build_status == "built"`
+- `program_status == "pass"` (unless `--build-only`)
+- `calib_seen == true`
+- `calib_complete == true`
+- `state == 23` (`DONE_CALIBRATE`)
+- `loader_ready == true`
+- `err_count == 0`
+- `ack_count > 0`
+
+When comparing candidates, choose the lowest-cost tuple that:
+
+1. is fully stable across the tested seed set.
+2. keeps seed3 pass as a monotonic baseline check.
+3. minimizes added knobs/constraints: start with timing knobs (`--no-tmdriv`, freq),
+   then shrink lock scope (`full-controller-soft` -> `clocks-phy` -> `phy` ->
+   `none`).
+
+Keep each candidate’s summary row in the scorecard and mark the chosen default in
+the source tree only after it clears the full seed range target.
 
 ### Phase 4: Prove Memory Access
 
