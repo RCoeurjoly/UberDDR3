@@ -46,7 +46,111 @@ EOF
         ]);
         prjxrayPythonPath =
           "${patchedPrjxrayPython}:${openXC7Fasm}/lib/python3.12/site-packages:${prjxrayPythonDeps}/${pkgs.python312.sitePackages}:${openXC7Prjxray}/usr/share/python3";
+
+        mkYpcbRowstreamBitstream = {
+          seed,
+          freq,
+          synthXilinxFlags ? "-flatten -arch xc7",
+        }:
+          pkgs.stdenvNoCC.mkDerivation {
+            pname = "ypcb-rowstream-loader";
+            version = "seed-${toString seed}-freq-${toString freq}";
+            src = ./.;
+
+            buildInputs = [
+              yosysPkg
+              openXC7Nextpnr
+              openXC7Fasm
+              openXC7Prjxray
+              prjxrayPythonDeps
+              pkgs.gnumake
+              pkgs.pypy3
+            ];
+
+            dontConfigure = true;
+
+            buildPhase = ''
+              runHook preBuild
+
+              export NEXTPNR_XILINX_DIR="${openXC7Nextpnr}/share/nextpnr"
+              export NEXTPNR_XILINX_PYTHON_DIR="${openXC7Nextpnr}/share/nextpnr/python"
+              export PRJXRAY_DB_DIR="${patchedPrjxrayDb}"
+              export PRJXRAY_PYTHON_DIR="${openXC7Prjxray}/usr/share/python3"
+              export PYTHONPATH="${prjxrayPythonPath}''${PYTHONPATH:+:$PYTHONPATH}"
+              export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [ pkgs.libftdi1 ]}''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+
+              cd example_demo/ypcb_00338_1p1
+              mkdir -p ../../artifacts/manual-seed/seed${toString seed}
+
+              make clean
+              make rowstream-v40-locked \
+                SYNTH_XILINX_FLAGS="${synthXilinxFlags}" \
+                PNR_ARGS="--seed ${toString seed} --freq ${toString freq}" \
+                PNR_DEBUG="--write ../../artifacts/manual-seed/seed${toString seed}/nextpnr-routed.json"
+            '';
+
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out
+              cp ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit $out/rowstream_seed${toString seed}_freq${toString freq}.bit
+              cp ../../artifacts/manual-seed/seed${toString seed}/nextpnr-routed.json $out/nextpnr-routed.seed${toString seed}_freq${toString freq}.json
+              cp ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit $out/ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit
+              runHook postInstall
+            '';
+          };
+
+        ypcbSeedPlans = builtins.listToAttrs (
+          map (seed: {
+            name = "ypcb-rowstream-seed-${toString seed}-freq-${toString 25}";
+            value = mkYpcbRowstreamBitstream {
+              inherit seed;
+              freq = 25;
+            };
+          })
+          [0 3 16 40 44]
+        );
       in {
+        packages = ypcbSeedPlans // {
+          default = mkYpcbRowstreamBitstream {
+            seed = 3;
+            freq = 25;
+          };
+        };
+
+        apps.build-ypcb-rowstream = let
+          builder = pkgs.writeShellApplication {
+            name = "build-ypcb-rowstream";
+            runtimeInputs = [ pkgs.nix ];
+            text = ''
+              set -euo pipefail
+
+              if [ "$#" -gt 2 ]; then
+                echo "usage: build-ypcb-rowstream [SEED] [FREQ]" >&2
+                exit 2
+              fi
+
+              SEED="''${1:-3}"
+              FREQ="''${2:-25}"
+
+              if ! [[ "$SEED" =~ ^[0-9]+$ ]]; then
+                echo "seed must be an integer" >&2
+                exit 2
+              fi
+              if ! [[ "$FREQ" =~ ^[0-9]+$ ]]; then
+                echo "freq must be an integer" >&2
+                exit 2
+              fi
+
+              FLAKE_ROOT="${FLAKE_ROOT:-$PWD}"
+
+              nix build "''${FLAKE_ROOT}#ypcb-rowstream-seed-''${SEED}-freq-''${FREQ}"
+            '';
+          };
+        in {
+          type = "app";
+          program = "${builder}/bin/build-ypcb-rowstream";
+        };
+
         devShells.default = pkgs.mkShell {
           packages = [
             yosysPkg

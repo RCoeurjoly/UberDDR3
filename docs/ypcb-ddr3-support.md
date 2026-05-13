@@ -368,25 +368,43 @@ ownership and no generated artifacts.
 
 ## Fast Hardware Loop
 
-Enter the dev shell, build the JTAG-readable BIST bitstream, program the board,
-and read back a decoded verdict:
+Build the seed-specific rowstream bitstream as a flake derivation (defaults to a
+reproducible pinned `seed=3` build if you use `.#default`):
 
 ```sh
-nix develop
-make -C example_demo/ypcb_00338_1p1 hil-smoke
+nix build .#ypcb-rowstream-seed-3-freq-25
+cp result/rowstream_seed3_freq25.bit /tmp/rowstream_seed3.bit
 ```
 
-The flow uses OpenOCD for programming because the connected `xc7k480t` reports
-IDCODE `0x23751093`, which is accepted by OpenOCD's `xilinx-xc7.cfg` but is not
-currently recognized by the installed `openFPGALoader`.
-
-The current passing hardware integrity target is the BIST-derived 64-address
-low-byte stream:
+To build another tracked seed explicitly:
 
 ```sh
-nix develop --command make -C example_demo/ypcb_00338_1p1 \
-  hil-lowbyte-stream-v40-locked \
-  SYNTH_XILINX_FLAGS="-flatten -family xc7"
+nix build .#ypcb-rowstream-seed-16-freq-25
+```
+
+Supported seed packages are currently:
+`ypcb-rowstream-seed-0-freq-25`, `ypcb-rowstream-seed-3-freq-25`,
+`ypcb-rowstream-seed-16-freq-25`, `ypcb-rowstream-seed-40-freq-25`,
+`ypcb-rowstream-seed-44-freq-25`.
+
+Program the artifact with OpenOCD and read back a verdict:
+
+```sh
+openFPGALoader -c digilent_hs3 --ftdi-serial 210299BF3824 \
+  /tmp/rowstream_seed3.bit
+```
+
+or (current OpenOCD-compatible flow):
+
+```sh
+openocd \
+  -f interface/ftdi/digilent_jtag_hs3.cfg \
+  -c "adapter serial 210299BF3824" \
+  -f cpld/xilinx-xc7.cfg \
+  -c "adapter speed 6000" \
+  -c "init" \
+  -c "pld load 0 result/rowstream_seed3_freq25.bit" \
+  -c "exit"
 ```
 
 This builds with the v40 physical lock oracle, programs through OpenOCD, and
