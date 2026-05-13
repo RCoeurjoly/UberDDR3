@@ -117,40 +117,6 @@ EOF
           };
         };
 
-        apps.build-ypcb-rowstream = let
-          builder = pkgs.writeShellApplication {
-            name = "build-ypcb-rowstream";
-            runtimeInputs = [ pkgs.nix ];
-            text = ''
-              set -euo pipefail
-
-              if [ "$#" -gt 2 ]; then
-                echo "usage: build-ypcb-rowstream [SEED] [FREQ]" >&2
-                exit 2
-              fi
-
-              SEED="''${1:-3}"
-              FREQ="''${2:-25}"
-
-              if ! [[ "$SEED" =~ ^[0-9]+$ ]]; then
-                echo "seed must be an integer" >&2
-                exit 2
-              fi
-              if ! [[ "$FREQ" =~ ^[0-9]+$ ]]; then
-                echo "freq must be an integer" >&2
-                exit 2
-              fi
-
-              FLAKE_ROOT="${FLAKE_ROOT:-$PWD}"
-
-              nix build "''${FLAKE_ROOT}#ypcb-rowstream-seed-''${SEED}-freq-''${FREQ}"
-            '';
-          };
-        in {
-          type = "app";
-          program = "${builder}/bin/build-ypcb-rowstream";
-        };
-
         devShells.default = pkgs.mkShell {
           packages = [
             yosysPkg
