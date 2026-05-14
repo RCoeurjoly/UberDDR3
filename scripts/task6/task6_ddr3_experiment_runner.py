@@ -50,6 +50,8 @@ ROWSTREAM_DEBUG_VERSIONS = {44, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
+ROWSTREAM_OP_WRITE_DENSE_BYTE = 0x05
+ROWSTREAM_OP_READ_DENSE_BEAT = 0x06
 ROWSTREAM_DEFAULT_LOWBYTE_ADDR_OFFSET = 1
 
 
@@ -259,7 +261,8 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         read_byte = (raw >> 240) & 0xFF
         read_word = (raw >> 240) & 0xFFFFFFFF
     stream_bytes = [(read_word >> (8 * index)) & 0xFF for index in range(4)]
-    read_beat = (raw >> 480) & ((1 << 512) - 1) if args.bits >= 992 else None
+    read_beat_offset = 512 if is_rowstream_loader else 480
+    read_beat = (raw >> read_beat_offset) & ((1 << 512) - 1) if args.bits >= read_beat_offset + 512 else None
     expected = args.expected_byte
     expected_stream_bytes = [expected & 0xFF, 0x00, 0x00, args.command_addr & 0xFF]
     command_word = (raw >> 272) & 0xFFFFFFFF
@@ -336,7 +339,20 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             and (
                 (last_opcode == ROWSTREAM_OP_WRITE_LOWBYTE and write_ack_seen)
                 or (last_opcode == ROWSTREAM_OP_READ_LOWBYTE and read_ack_seen)
-                or last_opcode not in (ROWSTREAM_OP_WRITE_LOWBYTE, ROWSTREAM_OP_READ_LOWBYTE)
+                or (
+                    last_opcode == ROWSTREAM_OP_WRITE_DENSE_BYTE
+                    and write_ack_seen
+                )
+                or (
+                    last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT
+                    and read_ack_seen
+                )
+                or last_opcode not in (
+                    ROWSTREAM_OP_WRITE_LOWBYTE,
+                    ROWSTREAM_OP_READ_LOWBYTE,
+                    ROWSTREAM_OP_WRITE_DENSE_BYTE,
+                    ROWSTREAM_OP_READ_DENSE_BEAT,
+                )
             )
         )
     else:
@@ -351,6 +367,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         integrity_pass = command_gate and err_count == 0
         if last_opcode == ROWSTREAM_OP_READ_LOWBYTE:
             integrity_pass = integrity_pass and read_byte == expected
+        elif last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT and read_beat is not None:
+            active_lane = args.command_addr & 0x3F
+            integrity_pass = integrity_pass and (((read_beat >> (8 * active_lane)) & 0xFF) == expected)
     elif version <= 23:
         integrity_pass = command_gate and read_byte == expected and err_count == 0
     else:
@@ -389,8 +408,8 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "stream_write_index": stream_write_index,
         "stream_read_index": stream_read_index,
         "read_beat_hex": f"0x{read_beat:0128x}" if read_beat is not None else None,
-        "read_beat_bytes": hex_words(raw, 480, 8, 64) if read_beat is not None else [],
-        "read_beat_words32": hex_words(raw, 480, 32, 16) if read_beat is not None else [],
+        "read_beat_bytes": hex_words(raw, read_beat_offset, 8, 64) if read_beat is not None else [],
+        "read_beat_words32": hex_words(raw, read_beat_offset, 32, 16) if read_beat is not None else [],
         "active_byte": f"0x{active_byte:02x}",
         "active_addr": f"0x{active_addr:08x}" if is_rowstream_loader else f"0x{active_addr:02x}",
         "command_count": command_count,
@@ -580,6 +599,26 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 min_ack_count=write_ready_ack + args.rowstream_min_ack_delta,
                 timeout=args.rowstream_poll_timeout,
                 label="read",
+            )
+        if (
+            args.rowstream_readback_after_write
+            and args.command_protocol == "rowstream192"
+            and args.command_opcode == ROWSTREAM_OP_WRITE_DENSE_BYTE
+        ):
+            read_command = make_write_command(ROWSTREAM_OP_READ_DENSE_BEAT, 0x00, command_addr >> 6)
+            write_jtag_command_with_repeats(
+                run_dir,
+                "read-dense-command.log",
+                read_command,
+                args.command_repeats,
+            )
+            write_ready_ack = int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            _ = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=write_ready_ack + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label="read-dense",
             )
         if args.post_command_delay > 0:
             time.sleep(args.post_command_delay)

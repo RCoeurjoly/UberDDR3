@@ -1,7 +1,7 @@
 `default_nettype none
 
 module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
-  parameter int JTAG_DEBUG_WIDTH = 512,
+  parameter int JTAG_DEBUG_WIDTH = 1024,
   parameter int JTAG_CHAIN = 1,
   parameter int JTAG_COMMAND_CHAIN = 2,
   parameter int PROBE_BYTE = 165
@@ -726,6 +726,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     jtag_debug_payload[481 +: 6] = loader_dense_write_lane_q;
     jtag_debug_payload[487 +: 8] = loader_dense_write_data_q;
     jtag_debug_payload[496 +: 16] = loader_dense_write_sel_low_q;
+    jtag_debug_payload[512 +: WB_DATA_BITS] = loader_read_data_q;
     if (!read_probe_done_q)
       jtag_debug_payload[240 +: 32] = read_probe_stream_bytes_q;
   end
