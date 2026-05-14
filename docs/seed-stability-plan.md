@@ -557,6 +557,9 @@ decoded calibration state in the matrix row.
 
 ## Open Work
 
+- Follow the frozen-shell execution strategy in `docs/ypcb-ddr3-frozen-shell.md`:
+  align RTL and timing constraints first, then preserve the DDR3/JTAG rowstream
+  shell while adding new functionality outside the stable command boundary.
 - Replace provisional seed-3-only path with an any-seed stable candidate.
 - Add one additional evidence pass for 0..31 seeds (build+program) once board loop is
   healthy.

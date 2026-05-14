@@ -1,0 +1,129 @@
+# YPCB DDR3 Frozen Shell Strategy
+
+## Goal
+
+Make DDR3 development deterministic enough to continue from a known-good
+hardware-calibrating design while new functionality is added around it.
+
+The open nextpnr-xilinx flow does not currently provide a Vivado-style routed
+checkpoint that can be reopened, preserved, and incrementally routed around.
+The practical substitute is a frozen DDR3 shell:
+
+1. preserve a known-good synthesized DDR3/JTAG rowstream design artifact,
+2. extract BEL locks from the routed JSON that calibrated on hardware,
+3. keep the DDR3 shell interface stable,
+4. add new RTL outside that boundary,
+5. apply shell locks during PNR,
+6. hardware-test calibration and rowstream read/write after every change.
+
+## Clock Discipline
+
+The RTL PLL and nextpnr timing constraints must describe the same clocks.
+
+For the AMD/Xilinx Kintex-7 DDR3 external-memory-interface guidance, the DDR3
+memory clock must be at least 400 MHz so the Phaser block is used in 1:1 mode.
+The YPCB DDR3 shell therefore uses:
+
+| Clock | Frequency | Period |
+| --- | ---: | ---: |
+| `ddr3_clk` | 400 MHz | 2.5 ns |
+| `ddr3_clk_90` | 400 MHz | 2.5 ns |
+| `controller_clk` | 100 MHz | 10 ns |
+| `ref_clk` | 200 MHz | 5 ns |
+
+With the 50 MHz board clock, the PLL is:
+
+| PLL output | Divide | Frequency |
+| --- | ---: | ---: |
+| VCO | `50 MHz * 24` | 1200 MHz |
+| `CLKOUT0` | 3 | 400 MHz |
+| `CLKOUT1` | 3 | 400 MHz, 90 deg |
+| `CLKOUT2` | 12 | 100 MHz |
+| `CLKOUT3` | 6 | 200 MHz |
+
+Any build that uses 400 MHz `addClock` constraints while the RTL still generates
+500/125 MHz is not a valid timing experiment.
+
+## Frozen Boundary
+
+The initial shell boundary is the current rowstream top:
+
+`task6_ypcb_uberddr3_bist_rowstream_loader_top`
+
+It contains:
+
+- PLL and BUFGs,
+- `ddr3_top` / UberDDR3 PHY and controller,
+- the boot/readback probe,
+- JTAG command and debug scan chains,
+- the low-byte and dense-byte rowstream command interface.
+
+The external, stable development interface is the rowstream command protocol:
+
+| Opcode | Meaning |
+| ---: | --- |
+| `0x03` | write one low byte |
+| `0x04` | read one low byte |
+| `0x05` | write one dense byte into a 512-bit beat |
+| `0x06` | read one dense 512-bit beat |
+
+New test and application logic should first talk to DDR3 through this command
+surface. Only after this path is stable should we split out a wider local bus.
+
+## Artifact Policy
+
+There are two different artifact classes:
+
+- **Matching synth artifact**: a Yosys JSON whose cell names match a known-good
+  routed placement.
+- **Placement oracle**: routed JSON / extracted BEL-lock JSON from a
+  hardware-passing build.
+
+`oracle-all` is only meaningful when the synth artifact matches the extracted
+lock names. Fresh synthesis can rename generated packer cells; this caused only
+5,935 of 26,697 oracle locks to apply in a fresh build. For maximal-lock
+experiments, use PNR-only from the matching synth JSON.
+
+Current known matching synth JSON:
+
+```sh
+artifacts/task6/calibration-sweeps/ypcb-rowstream-oracle-all-seed0/2026-05-14T08-03-04+0200-oracle-all-seed0/build-artifacts/ypcb_00338_1p1_uberddr3_rowstream_loader.json
+```
+
+Current full placement oracle:
+
+```sh
+artifacts/task6/lock-experiments/seed3-all-bel-locks.json
+```
+
+## Execution Plan
+
+1. Align RTL PLL, DDR3 timing parameters, and nextpnr `addClock` constraints to
+   400/100/200 MHz.
+2. Rebuild a rowstream bitstream from current RTL and test hardware with no
+   global `--freq`.
+3. If fresh synthesis is unstable, create a preserved shell artifact and use
+   PNR-only for placement/timing experiments.
+4. Find the smallest lock set that both:
+   - reaches `DONE_CALIBRATE`, `integrity_pass`, `ack_count` advances, `err_count=0`,
+   - meets nextpnr timing without `--timing-allow-fail`.
+5. Extend rowstream tests from low-byte to dense-byte and full 64-byte beat
+   write/readback.
+6. Only after the 64-byte contract is deterministic, add higher-level DDR3
+   functionality outside the frozen shell.
+
+## Acceptance Criteria
+
+A candidate is not considered usable for further DDR3 work unless hardware
+reports:
+
+- decoded state `DONE_CALIBRATE`,
+- `calibration=pass`,
+- `command_gate=pass`,
+- `integrity=pass`,
+- `ack_count` advances,
+- `err_count=0`,
+- readback matches expected data.
+
+For the next milestone, the same criteria must pass for the dense 64-byte
+write/readback path, not only low-byte rowstream commands.
