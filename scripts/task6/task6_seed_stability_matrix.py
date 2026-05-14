@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 from itertools import product
 from pathlib import Path
@@ -36,6 +37,30 @@ def parse_int_list(raw: str) -> list[int]:
 
 def parse_arg_list(raw: str) -> list[str]:
     return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+def expand_random_seeds(
+    *,
+    existing: list[int],
+    count: int,
+    rng_seed: int,
+    seed_min: int,
+    seed_max: int,
+) -> list[int]:
+    if count <= 0:
+        return existing
+    if seed_min > seed_max:
+        raise SystemExit("--random-seed-min must be <= --random-seed-max")
+
+    rng = random.Random(rng_seed)
+    selected = set(existing)
+    space = seed_max - seed_min + 1
+    if count > space - len(selected.intersection(range(seed_min, seed_max + 1))):
+        raise SystemExit("requested more random seeds than available unique values in range")
+
+    while len(selected) < len(existing) + count:
+        selected.add(rng.randint(seed_min, seed_max))
+    return sorted(selected)
 
 
 def normalize_pnr_arg(value: Any) -> str:
@@ -310,6 +335,20 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--sweep", default="ypcb-rowstream-seed-stability")
     parser.add_argument("--seeds", required=True, help="Comma list / ranges, e.g. 0,1,4-7")
+    parser.add_argument(
+        "--random-seeds",
+        type=int,
+        default=0,
+        help="Append this many reproducible random explicit nextpnr seed values.",
+    )
+    parser.add_argument(
+        "--random-seed",
+        type=int,
+        default=0,
+        help="RNG seed used to expand --random-seeds. This is not passed to nextpnr.",
+    )
+    parser.add_argument("--random-seed-min", type=int, default=0)
+    parser.add_argument("--random-seed-max", type=int, default=2**31 - 1)
     parser.add_argument("--lock-sets", required=True, help="Comma-separated lock sets")
     parser.add_argument("--freqs", default="25", help="Comma-separated target frequencies")
     parser.add_argument(
@@ -370,7 +409,14 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
 
-    seeds = parse_int_list(args.seeds)
+    explicit_seeds = parse_int_list(args.seeds)
+    seeds = expand_random_seeds(
+        existing=explicit_seeds,
+        count=args.random_seeds,
+        rng_seed=args.random_seed,
+        seed_min=args.random_seed_min,
+        seed_max=args.random_seed_max,
+    )
     lock_sets = parse_arg_list(args.lock_sets)
     freqs = [int(value) for value in parse_arg_list(args.freqs)]
     pnr_extra_args_list = [v.strip() for v in args.pnr_extra_args] if args.pnr_extra_args else [""]
@@ -435,6 +481,18 @@ def main() -> int:
 
     out = SWEEP_ROOT / args.sweep / "stability-scorecard.md"
     out.parent.mkdir(parents=True, exist_ok=True)
+    seed_manifest = {
+        "explicit_seeds": explicit_seeds,
+        "random_seed_count": args.random_seeds,
+        "random_seed_rng_seed": args.random_seed,
+        "random_seed_min": args.random_seed_min,
+        "random_seed_max": args.random_seed_max,
+        "nextpnr_seeds": seeds,
+    }
+    (out.parent / "seed-manifest.json").write_text(
+        json.dumps(seed_manifest, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     summary = summarise(
         rows,
         seeds=seeds,

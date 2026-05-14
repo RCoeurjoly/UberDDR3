@@ -292,6 +292,56 @@ it must not contain a `yosys -p` invocation. The smoke run on
 2026-05-14 used this path and applied 8,726 locks for the current FFX add-back
 candidate.
 
+## Seed Coverage Policy
+
+Do not use nextpnr `--randomize-seed` as the primary exploration path. It hides
+the actual seed unless every log parser records the resolved value. Instead,
+generate random coverage in the matrix runner and pass every nextpnr invocation
+an explicit `--seed N`.
+
+Use three seed tiers:
+
+- Regression tier: every candidate must pass `0..7`; seeds `5` and `7` are now
+  critical regressions because they fail before calibration.
+- Confidence tier: after passing `0..7`, run `0..31`.
+- Random tier: after passing `0..31`, append reproducible random explicit seeds:
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-random-explicit-seeds \
+  --seeds 0-31 \
+  --random-seeds 32 \
+  --random-seed 12345 \
+  --lock-sets oracle-all \
+  --freqs 25 \
+  --pnr-only \
+  --synth-json "$SYNTH_JSON" \
+  --build-only
+```
+
+The matrix writes `seed-manifest.json` in the sweep directory with the exact
+`nextpnr_seeds` list. Treat that manifest as the reproducibility source of truth.
+
+Because seed 5 fails even under full `oracle-all`, the immediate work is not
+lock shrinking. The next basis-finding step is a focused seed-5 non-BEL knob
+sweep, then compare routed JSON/FASM/logs against passing seeds:
+
+```sh
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-seed5-flow-knobs \
+  --seeds 5 \
+  --lock-sets oracle-all \
+  --freqs 25,50,100 \
+  --pnr-extra-args "" \
+  --pnr-extra-args "--no-tmdriv" \
+  --pnr-extra-args "--router router1" \
+  --pnr-extra-args "--placer-budgets" \
+  --extra-locks-json artifacts/task6/lock-experiments/oracle-all-other-soft-addbacks/base-without-other_soft_logic_add-other_soft_logic_type_slice_ffx.json \
+  --pnr-only \
+  --synth-json "$SYNTH_JSON" \
+  --build-only
+```
+
 ## Execution Protocol (today)
 
 Run this sequence exactly in order before changing any lock payload:
