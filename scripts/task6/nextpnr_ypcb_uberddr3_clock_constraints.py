@@ -1,15 +1,16 @@
 """Clock constraints for YPCB UberDDR3 nextpnr builds.
 
-These are the timing targets for the 400 MHz DDR3 experiment:
+These are the timing targets for the YPCB frozen-shell DDR3 experiment:
 
-- ddr3_clk = 400 MHz
-- ddr3_clk_90 = 400 MHz
-- controller_clk = 100 MHz
+- ddr3_clk = 500 MHz
+- ddr3_clk_90 = 500 MHz
+- controller_clk = 125 MHz
 - ref_clk = 200 MHz
 
-The DDR3 target sits at the AMD/Xilinx Kintex-7 Phaser divide-by-two workaround
-floor, avoiding the called-out 303-399 MHz DDR3/DDR2 memory-clock range while
-relaxing the controller domain compared with the 500 MHz experiment.
+The DDR3 target is above the AMD/Xilinx Kintex-7 Phaser divide-by-two workaround
+floor. The exact-400 MHz experiment is documented as a failing baseline; the
+known-good frozen shell uses the already hardware-passing 500 MHz operating
+point while still staying outside the called-out 303-399 MHz range.
 
 The raw clock names are historical (`clk100_raw`, `clk25_raw`) because BEL-lock
 artifacts and pre-place tooling key on those cell names.
@@ -22,8 +23,8 @@ def env_mhz(name, default):
     return float(os.environ.get(name, str(default)))
 
 
-controller_clk_mhz = env_mhz("YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", 100.0)
-ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", 400.0)
+controller_clk_mhz = env_mhz("YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", 125.0)
+ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", 500.0)
 ref_clk_mhz = env_mhz("YPCB_UBERDDR3_REF_CLK_MHZ", 200.0)
 clk25_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK25_RAW_MHZ", controller_clk_mhz)
 clk100_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK100_RAW_MHZ", ddr3_clk_mhz)

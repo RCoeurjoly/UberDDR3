@@ -585,6 +585,10 @@ decoded calibration state in the matrix row.
       different. The 400 MHz failure is therefore more likely tied to soft
       control/JTAG/controller routing or the clock-rate change itself than to
       gross DDR3 hard-primitive placement.
+  - Decision: proceed with the 500/125 MHz frozen shell for full-functionality
+    DDR3 work. This still satisfies the AMD/Xilinx requirement because 500 MHz
+    is above the 400 MHz minimum. Keep exact-400 MHz as an open investigation,
+    not as the blocking path for rowstream/dense 64-byte functionality.
 - Replace provisional seed-3-only path with an any-seed stable candidate.
 - Add one additional evidence pass for 0..31 seeds (build+program) once board loop is
   healthy.

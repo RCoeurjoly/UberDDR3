@@ -22,27 +22,30 @@ The RTL PLL and nextpnr timing constraints must describe the same clocks.
 
 For the AMD/Xilinx Kintex-7 DDR3 external-memory-interface guidance, the DDR3
 memory clock must be at least 400 MHz so the Phaser block is used in 1:1 mode.
-The YPCB DDR3 shell therefore uses:
+The exact-400 MHz experiment was built and tested as a clean baseline, but it
+failed before calibration started. Because the AMD/Xilinx note permits 400 MHz
+or higher, the frozen shell uses the known hardware-passing 500 MHz operating
+point:
 
 | Clock | Frequency | Period |
 | --- | ---: | ---: |
-| `ddr3_clk` | 400 MHz | 2.5 ns |
-| `ddr3_clk_90` | 400 MHz | 2.5 ns |
-| `controller_clk` | 100 MHz | 10 ns |
+| `ddr3_clk` | 500 MHz | 2 ns |
+| `ddr3_clk_90` | 500 MHz | 2 ns |
+| `controller_clk` | 125 MHz | 8 ns |
 | `ref_clk` | 200 MHz | 5 ns |
 
-With the 50 MHz board clock, the PLL is:
+With the 50 MHz board clock, the frozen-shell PLL is:
 
 | PLL output | Divide | Frequency |
 | --- | ---: | ---: |
-| VCO | `50 MHz * 24` | 1200 MHz |
-| `CLKOUT0` | 3 | 400 MHz |
-| `CLKOUT1` | 3 | 400 MHz, 90 deg |
-| `CLKOUT2` | 12 | 100 MHz |
-| `CLKOUT3` | 6 | 200 MHz |
+| VCO | `50 MHz * 20` | 1000 MHz |
+| `CLKOUT0` | 2 | 500 MHz |
+| `CLKOUT1` | 2 | 500 MHz, 90 deg |
+| `CLKOUT2` | 8 | 125 MHz |
+| `CLKOUT3` | 5 | 200 MHz |
 
-Any build that uses 400 MHz `addClock` constraints while the RTL still generates
-500/125 MHz is not a valid timing experiment.
+Any build whose RTL PLL and `addClock` constraints disagree is not a valid
+timing experiment.
 
 ## Frozen Boundary
 
@@ -99,7 +102,7 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
 ## Execution Plan
 
 1. Align RTL PLL, DDR3 timing parameters, and nextpnr `addClock` constraints to
-   400/100/200 MHz.
+   the frozen-shell 500/125/200 MHz clocks.
 2. Rebuild a rowstream bitstream from current RTL and test hardware with no
    global `--freq`.
 3. If fresh synthesis is unstable, create a preserved shell artifact and use
