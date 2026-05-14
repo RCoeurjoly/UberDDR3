@@ -106,7 +106,8 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
 2. Rebuild a rowstream bitstream from current RTL and test hardware with no
    global `--freq`.
 3. If fresh synthesis is unstable, create a preserved shell artifact and use
-   PNR-only for placement/timing experiments.
+   PNR-only for placement/timing experiments. This is now the active path:
+   fresh synthesis with only the physical locks does not reproduce calibration.
 4. Find the smallest lock set that both:
    - reaches `DONE_CALIBRATE`, `integrity_pass`, `ack_count` advances, `err_count=0`,
    - meets nextpnr timing without `--timing-allow-fail`.
@@ -130,3 +131,17 @@ reports:
 
 For the next milestone, the same criteria must pass for the dense 64-byte
 write/readback path, not only low-byte rowstream commands.
+
+## Current Evidence
+
+- Exact-400 MHz RTL and constraints were tested and failed before calibration,
+  even when hard DDR3 primitives were locked.
+- The 500/125 MHz frozen-shell clock point remains compliant with the AMD/Xilinx
+  guidance because it is above the 400 MHz minimum.
+- Fresh 500/125 MHz synthesis with the 437-lock physical oracle is not enough:
+  seed 3 fails timing at 125 MHz without `--timing-allow-fail`, and the
+  diagnostic `--timing-allow-fail` dense-byte build still fails before
+  calibration starts.
+- The known hardware-passing path is the PNR-only frozen artifact family derived
+  from the matching synth JSON and extracted placement oracle. Further DDR3
+  functionality must preserve that shell instead of relying on fresh synthesis.

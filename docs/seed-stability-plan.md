@@ -589,6 +589,13 @@ decoded calibration state in the matrix row.
     DDR3 work. This still satisfies the AMD/Xilinx requirement because 500 MHz
     is above the 400 MHz minimum. Keep exact-400 MHz as an open investigation,
     not as the blocking path for rowstream/dense 64-byte functionality.
+  - Fresh 500/125 MHz current-RTL checks after that decision:
+    - `full` physical locks, seed 3, no global `--freq`: build fails timing at
+      103.53 MHz vs the 125 MHz controller target.
+    - widened 1024-bit dense-readback debug path with `--timing-allow-fail`
+      builds and programs, but still fails before calibration starts. Dense
+      64-byte validation therefore depends on preserving the known-good shell,
+      not on fresh synthesis with only physical locks.
 - Replace provisional seed-3-only path with an any-seed stable candidate.
 - Add one additional evidence pass for 0..31 seeds (build+program) once board loop is
   healthy.
