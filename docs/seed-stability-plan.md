@@ -444,6 +444,20 @@ decoded calibration state in the matrix row.
       `ack_count=11`, `err_count=0`, readback `0xa5`.
     - the same `--freq 50` policy does not rescue seed 7, and `--freq 100`
       also fails seed 7 before calibration.
+  - comparison reports for seed 5 freq-25 fail, seed 5 freq-50 pass, seed 7
+    freq-50 fail, and seed 7 freq-100 fail are in
+    `artifacts/task6/comparisons/seed5-seed7-freq-pressure/`.
+    - high-risk DDR3 primitives are placed identically across all four builds:
+      BUFGCTRL, PLL, IDELAYCTRL, IDELAYE2, I/O buffers, ISERDES, OSERDES, and
+      PADs are all stable.
+    - placement variation is concentrated in controller/JTAG/general soft logic;
+      `ddr3_controller_soft_logic` has 0/215 cells equal across all four builds.
+    - routed-net variation is also concentrated outside the hard PHY: only
+      17/7532 `ddr3_controller` routes are equal across all four builds, while
+      298/380 `ddr3_phy` routes are equal.
+    - current hypothesis: the missing seed-stability basis is soft-controller
+      and command/control routing/placement pressure, not gross DDR3 IO/PLL/PHY
+      primitive placement.
 - Known gaps:
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
