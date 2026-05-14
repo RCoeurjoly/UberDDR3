@@ -354,7 +354,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--pnr-extra-args",
         action="append",
-        default=[""],
+        default=[],
         help="One or more --pnr-extra-args values to sweep.",
     )
     parser.add_argument("--synth-xilinx-flags", default="-flatten -family xc7")
