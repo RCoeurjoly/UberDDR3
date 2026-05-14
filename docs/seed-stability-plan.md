@@ -362,8 +362,12 @@ decoded calibration state in the matrix row.
       `err_count=0`, readback `0xa5`.
     - seed 2: pass, `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`,
       `err_count=0`, readback `0xa5`.
+    - seed 5 control on 2026-05-14: fails before calibration,
+      `calib_seen_cycle=0`, `loader_state=1`.
   - conclusion: absolute BEL placement is sufficient to rescue failing seeds in
-    the tested 0..3 window. The next phase is shrink/minimize from `oracle-all`.
+    the tested 0..3 window, but not sufficient for all seeds. Seed 5 failing
+    even with `oracle-all` means the remaining instability is not just missing
+    BEL locks from the current seed-3 routed JSON.
   - first shrink result:
     - removing all `other_soft_logic` keeps 870 locks and passes seeds 0 and 1.
     - seed 2 fails before calibration with that 870-lock candidate.
@@ -371,11 +375,21 @@ decoded calibration state in the matrix row.
       `oracle-all` currently triggers a nextpnr `unordered_map::at` crash, so the
       next minimization step uses add-back candidates from the 870-lock base.
     - adding back `other_soft_logic` `SLICE_FFX` produces an 8,726-lock
-      candidate. It builds with the PNR-only path and has passed seed 2 in
-      hardware; seeds 0, 1, and 3 still need hardware confirmation for this
-      reduced candidate.
+      candidate. Hardware results on 2026-05-14:
+      - seeds 0, 1, 2, 3, 4, and 6 pass: `DONE_CALIBRATE`,
+        `integrity_pass`, `ack_count=11`, `err_count=0`, readback `0xa5`.
+      - seeds 5 and 7 fail before calibration with `calib_seen_cycle=0`,
+        `loader_state=1`.
+      - seed 5 was retried and failed the same way.
+    - with `SLICE_FFX` required, adding one more `other_soft_logic` type group
+      (`CARRY4`, `SELMUX2_1`, or `SLICE_LUTX`) currently fails during nextpnr
+      constrained placement with `unordered_map::at`, so those groups cannot yet
+      be tested independently as add-backs.
 - Known gaps:
-  - failing seeds observed at `0`, `2`, `4`, `5` under current lock set and tested knobs.
+  - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
+    candidate.
+  - seed 5 also fails under full `oracle-all`, so additional knobs beyond the
+    current absolute BEL lock set are required.
   - constrained-cluster crash in nextpnr-xilinx appears before a complete stable
     lock-minimization sweep can finish.
   - current matrix runs are also blocked intermittently by a `bbasm` crash in
