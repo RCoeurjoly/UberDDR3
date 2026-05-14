@@ -315,7 +315,7 @@ def read_beat_command(beat_addr: int, expected_byte: int = 0) -> RowstreamComman
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--serial", default="210299BF3824")
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
-    parser.add_argument("--bits", type=int, default=512)
+    parser.add_argument("--bits", type=int, default=1024)
     parser.add_argument("--variant", default="rowstream192")
     parser.add_argument("--command-repeats", type=int, default=2)
     parser.add_argument("--dry-run", action="store_true")
