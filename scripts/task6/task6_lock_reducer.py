@@ -144,10 +144,18 @@ def generate_addbacks(args: argparse.Namespace) -> dict[str, Any]:
         raise SystemExit("--mode addback requires --base-without-category")
 
     locks = load_locks(args.locks_json)
-    base = [lock for lock in locks if category(lock) != args.base_without_category]
+    required_groups = set(args.addback_required_group)
+    base = [
+        lock
+        for lock in locks
+        if category(lock) != args.base_without_category
+        or group_key(lock, args.group_by) in required_groups
+    ]
     removed = [lock for lock in locks if category(lock) == args.base_without_category]
+    candidates = [lock for lock in removed if group_key(lock, args.group_by) not in required_groups]
+    required = [lock for lock in removed if group_key(lock, args.group_by) in required_groups]
     groups: dict[str, list[dict[str, str]]] = defaultdict(list)
-    for lock in removed:
+    for lock in candidates:
         groups[group_key(lock, args.group_by)].append(lock)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -158,15 +166,33 @@ def generate_addbacks(args: argparse.Namespace) -> dict[str, Any]:
         "base_without_category": args.base_without_category,
         "base": summarize(base),
         "removed_pool": summarize(removed),
+        "required_addback_groups": sorted(required_groups),
+        "required_addback": summarize(required),
         "group_by": args.group_by,
         "variants": [],
     }
+    if required:
+        label = "base-without-" + sanitize(args.base_without_category)
+        for group in sorted(required_groups):
+            label += "_with-" + sanitize(group)
+        path = args.out_dir / f"{label}.json"
+        write_locks(path, source=args.locks_json, label=label, locks=base, removed=candidates)
+        manifest["variants"].append({
+            "label": label,
+            "path": str(path),
+            "kept": len(base),
+            "addback": len(required),
+            "addback_group": ",".join(sorted(required_groups)),
+        })
     for group, addback in sorted(groups.items(), key=lambda item: (-len(item[1]), item[0])):
         candidate = sorted(
             base + addback,
             key=lambda lock: (lock["scope"], lock["type"], lock["cell"]),
         )
-        label = f"base-without-{sanitize(args.base_without_category)}_add-{sanitize(group)}"
+        label = f"base-without-{sanitize(args.base_without_category)}"
+        for required_group in sorted(required_groups):
+            label += f"_with-{sanitize(required_group)}"
+        label += f"_add-{sanitize(group)}"
         path = args.out_dir / f"{label}.json"
         write_locks(path, source=args.locks_json, label=label, locks=candidate, removed=removed)
         manifest["variants"].append({
@@ -194,6 +220,12 @@ def main() -> int:
     parser.add_argument(
         "--base-without-category",
         help="For addback mode, start from oracle minus this category and add groups back.",
+    )
+    parser.add_argument(
+        "--addback-required-group",
+        action="append",
+        default=[],
+        help="For addback mode, always include this group key in the base before adding one more group.",
     )
     parser.add_argument(
         "--group-by",
