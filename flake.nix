@@ -163,6 +163,12 @@ EOF
             seed = 3;
             freq = 25;
           };
+          ypcb-rowstream-seed-3-freq-25-timing-allow-fail = mkYpcbRowstreamBitstream {
+            seed = 3;
+            freq = 25;
+            artifactPrefix = "rowstream-timing-allow-fail";
+            pnrExtraArgs = "--timing-allow-fail";
+          };
           ypcb-rowstream-fullbeat-seed-3-freq-25 = mkYpcbRowstreamBitstream {
             seed = 3;
             freq = 25;
