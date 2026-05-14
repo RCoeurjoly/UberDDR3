@@ -46,8 +46,10 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSIONS = {44, 63}
+ROWSTREAM_DEBUG_VERSIONS = {31, 44, 63}
 ROWSTREAM_COMMAND_BITS = 192
+ROWSTREAM_OP_WRITE_CHUNK = 0x01
+ROWSTREAM_OP_READ_BEAT = 0x02
 ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
 ROWSTREAM_OP_WRITE_DENSE_BYTE = 0x05
@@ -341,7 +343,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             and not loader_error
             and not loader_stall_seen
             and (
-                (last_opcode == ROWSTREAM_OP_WRITE_LOWBYTE and write_ack_seen)
+                (last_opcode == ROWSTREAM_OP_WRITE_CHUNK and (done or write_ack_seen))
+                or (last_opcode == ROWSTREAM_OP_READ_BEAT and read_ack_seen)
+                or (last_opcode == ROWSTREAM_OP_WRITE_LOWBYTE and write_ack_seen)
                 or (last_opcode == ROWSTREAM_OP_READ_LOWBYTE and read_ack_seen)
                 or (
                     last_opcode == ROWSTREAM_OP_WRITE_DENSE_BYTE
@@ -356,6 +360,8 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
                     ROWSTREAM_OP_READ_LOWBYTE,
                     ROWSTREAM_OP_WRITE_DENSE_BYTE,
                     ROWSTREAM_OP_READ_DENSE_BEAT,
+                    ROWSTREAM_OP_WRITE_CHUNK,
+                    ROWSTREAM_OP_READ_BEAT,
                 )
             )
         )
@@ -371,13 +377,13 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         integrity_pass = command_gate and err_count == 0
         if last_opcode == ROWSTREAM_OP_READ_LOWBYTE:
             integrity_pass = integrity_pass and read_byte == expected
-        elif last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT and read_beat is not None:
+        elif last_opcode in (ROWSTREAM_OP_READ_DENSE_BEAT, ROWSTREAM_OP_READ_BEAT) and read_beat is not None:
             active_lane = args.command_addr & 0x3F
             integrity_pass = (
                 integrity_pass
                 and (((read_beat >> (8 * active_lane)) & 0xFF) == expected)
             )
-        elif last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT and read_window128 is not None:
+        elif last_opcode in (ROWSTREAM_OP_READ_DENSE_BEAT, ROWSTREAM_OP_READ_BEAT) and read_window128 is not None:
             active_lane = args.command_addr & 0x3F
             if active_lane < 16:
                 integrity_pass = (
@@ -545,7 +551,13 @@ def run_experiment(args: argparse.Namespace) -> Path:
             label="startup",
         )
 
-    def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
+    def make_write_command(
+        opcode: int,
+        byte_value: int,
+        address: int,
+        *,
+        data128: int | None = None,
+    ) -> list[str]:
         mapped_addr = map_rowstream_addr(args, opcode, address)
         command = [
             sys.executable,
@@ -573,9 +585,92 @@ def run_experiment(args: argparse.Namespace) -> Path:
                     str(args.command_chunk),
                 ]
             )
+            if data128 is not None:
+                command.extend(["--data128", f"0x{data128:032x}"])
         return command
 
-    if args.rowstream_dense_window_sweep_lanes:
+    if args.rowstream_full_beat_test:
+        base_command_byte = args.command_byte
+        expected_chunks = []
+        before = decode_uberddr3_payload(
+            read_jtag_debug_once(run_dir, "full-beat-ready-before-command.log", args),
+            args,
+        )
+        before_ack_count = int(before["ack_count"])
+        for chunk in range(4):
+            args.command_chunk = chunk
+            chunk_bytes = [
+                (
+                    base_command_byte
+                    + args.rowstream_full_beat_byte_stride * (chunk * 16 + index)
+                )
+                & 0xFF
+                for index in range(16)
+            ]
+            data128 = sum(byte << (8 * index) for index, byte in enumerate(chunk_bytes))
+            expected_chunks.append([f"0x{byte:02x}" for byte in chunk_bytes])
+            write_command = make_write_command(
+                ROWSTREAM_OP_WRITE_CHUNK,
+                base_command_byte,
+                args.command_addr,
+                data128=data128,
+            )
+            write_jtag_command_with_repeats(
+                run_dir,
+                f"full-beat-write-chunk{chunk}.log",
+                write_command,
+                args.command_repeats,
+            )
+            min_ack_count = (
+                before_ack_count
+                if chunk < 3
+                else before_ack_count + args.rowstream_min_ack_delta
+            )
+            write_ready = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=min_ack_count,
+                timeout=args.rowstream_poll_timeout,
+                label=f"full-beat-write-chunk{chunk}",
+            )
+            before_ack_count = int(write_ready["ack_count"])
+        read_rows = []
+        for chunk in range(4):
+            args.command_chunk = chunk
+            read_command = make_write_command(
+                ROWSTREAM_OP_READ_BEAT,
+                base_command_byte,
+                args.command_addr,
+            )
+            write_jtag_command_with_repeats(
+                run_dir,
+                f"full-beat-read-chunk{chunk}.log",
+                read_command,
+                args.command_repeats,
+            )
+            read_ready = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=before_ack_count + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label=f"full-beat-read-chunk{chunk}",
+            )
+            observed = read_ready["read_window128_bytes"]
+            read_rows.append(
+                {
+                    "chunk": chunk,
+                    "expected": expected_chunks[chunk],
+                    "observed": observed,
+                    "pass": observed == expected_chunks[chunk],
+                    "result": read_ready["result"],
+                    "ack_count": read_ready["ack_count"],
+                    "err_count": read_ready["err_count"],
+                    "state_name": read_ready["state_name"],
+                }
+            )
+            before_ack_count = int(read_ready["ack_count"])
+        write_json(run_dir / "readback" / "full-beat-readback.json", read_rows)
+    elif args.rowstream_dense_window_sweep_lanes:
         sweep_rows = []
         base_command_byte = args.command_byte
         for lane in range(args.rowstream_dense_window_sweep_lanes):
@@ -835,6 +930,17 @@ def parse_args() -> argparse.Namespace:
         help="add this stride per lane to --command-byte during dense window sweeps",
     )
     parser.add_argument(
+        "--rowstream-full-beat-test",
+        action="store_true",
+        help="write four 128-bit chunks, commit a full 512-bit beat, then read four chunks back",
+    )
+    parser.add_argument(
+        "--rowstream-full-beat-byte-stride",
+        type=int,
+        default=1,
+        help="add this stride per byte to --command-byte for full-beat write/read tests",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -886,6 +992,15 @@ def main() -> int:
             raise SystemExit("--rowstream-dense-window-sweep-lanes must be in 1..16")
         if args.rowstream_dense_window_sweep_byte_stride < 0:
             raise SystemExit("--rowstream-dense-window-sweep-byte-stride must be non-negative")
+    if args.rowstream_full_beat_test:
+        if args.command_protocol != "rowstream192":
+            raise SystemExit("--rowstream-full-beat-test requires --command-protocol rowstream192")
+        if args.command_byte is None:
+            raise SystemExit("--rowstream-full-beat-test requires --command-byte")
+        if args.command_repeats < 2:
+            raise SystemExit("--rowstream-full-beat-test requires --command-repeats >= 2")
+        if args.rowstream_full_beat_byte_stride < 0:
+            raise SystemExit("--rowstream-full-beat-byte-stride must be non-negative")
     if args.expected_byte is None:
         args.expected_byte = args.command_byte if args.command_byte is not None else 0xA5
     run_dir = run_experiment(args)

@@ -41,6 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x03)
     parser.add_argument("--bit-delay-us", type=float, default=0.0)
     parser.add_argument("--byte", dest="byte_value", type=lambda value: int(value, 0), required=True)
+    parser.add_argument("--data128", type=lambda value: int(value, 0))
     parser.add_argument("--addr", dest="addr_value", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--bits", type=int, default=16)
     parser.add_argument("--magic-nibble", type=lambda value: int(value, 0), default=0xA)
@@ -64,6 +65,8 @@ def main() -> int:
     args = parse_args()
     if args.byte_value < 0 or args.byte_value > 0xFF:
         raise SystemExit("--byte must fit in 8 bits")
+    if args.data128 is not None and not 0 <= args.data128 < (1 << 128):
+        raise SystemExit("--data128 must fit in 128 bits")
     if args.addr_value < 0:
         raise SystemExit("--addr must be non-negative")
     if args.magic_nibble < 0 or args.magic_nibble > 0xF:
@@ -84,12 +87,13 @@ def main() -> int:
             raise SystemExit("--bits must be 16 or at least 72 for rowstream loader commands")
         if args.addr_value > 0xFFFFFFFF:
             raise SystemExit("--addr must fit in 32 bits for rowstream loader commands")
+        payload_data = args.data128 if args.data128 is not None else args.byte_value
         command = (
             args.loader_magic
             | (args.opcode << 32)
             | (args.chunk << 40)
             | (args.addr_value << 48)
-            | (args.byte_value << 64)
+            | (payload_data << 64)
         )
     if args.backend == "mpsse":
         client = FtdiMpsseJtag(
@@ -121,6 +125,7 @@ def main() -> int:
         "bits": args.bits,
         "addr": f"0x{args.addr_value:08x}" if args.bits != 16 else f"0x{args.addr_value:02x}",
         "byte": f"0x{args.byte_value:02x}",
+        "data128": f"0x{args.data128:032x}" if args.data128 is not None else None,
         "chunk": args.chunk,
         "command": f"0x{command:0{args.bits // 4}x}",
         "loader_magic": f"0x{args.loader_magic:08x}",
