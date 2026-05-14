@@ -544,37 +544,95 @@ def run_experiment(args: argparse.Namespace) -> Path:
             timeout=args.rowstream_poll_timeout,
             label="startup",
         )
-    if args.command_byte is not None:
-        def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
-            mapped_addr = map_rowstream_addr(args, opcode, address)
-            command = [
-                sys.executable,
-                str(WRITE_JTAG),
-                "--serial",
-                args.ftdi_serial,
-                "--tdo-bit",
-                str(args.tdo_bit),
-                "--byte",
-                f"0x{byte_value:02x}",
-                "--addr",
-                f"0x{mapped_addr:x}",
-                "--update-mode",
-                args.command_update_mode,
-                "--json-only",
-            ]
-            if args.command_protocol == "rowstream192":
-                command.extend(
-                    [
-                        "--bits",
-                        str(ROWSTREAM_COMMAND_BITS),
-                        "--opcode",
-                        f"0x{opcode:02x}",
-                        "--chunk",
-                        str(args.command_chunk),
-                    ]
-                )
-            return command
 
+    def make_write_command(opcode: int, byte_value: int, address: int) -> list[str]:
+        mapped_addr = map_rowstream_addr(args, opcode, address)
+        command = [
+            sys.executable,
+            str(WRITE_JTAG),
+            "--serial",
+            args.ftdi_serial,
+            "--tdo-bit",
+            str(args.tdo_bit),
+            "--byte",
+            f"0x{byte_value:02x}",
+            "--addr",
+            f"0x{mapped_addr:x}",
+            "--update-mode",
+            args.command_update_mode,
+            "--json-only",
+        ]
+        if args.command_protocol == "rowstream192":
+            command.extend(
+                [
+                    "--bits",
+                    str(ROWSTREAM_COMMAND_BITS),
+                    "--opcode",
+                    f"0x{opcode:02x}",
+                    "--chunk",
+                    str(args.command_chunk),
+                ]
+            )
+        return command
+
+    if args.rowstream_dense_window_sweep_lanes:
+        sweep_rows = []
+        for lane in range(args.rowstream_dense_window_sweep_lanes):
+            args.command_addr = lane
+            before = decode_uberddr3_payload(
+                read_jtag_debug_once(
+                    run_dir,
+                    f"dense-lane{lane:02d}-ready-before-command.log",
+                    args,
+                ),
+                args,
+            )
+            before_ack_count = int(before["ack_count"])
+            write_command = make_write_command(
+                ROWSTREAM_OP_WRITE_DENSE_BYTE,
+                args.command_byte,
+                lane,
+            )
+            write_jtag_command_with_repeats(
+                run_dir,
+                f"dense-lane{lane:02d}-write-command.log",
+                write_command,
+                args.command_repeats,
+            )
+            write_ready = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=before_ack_count + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label=f"dense-lane{lane:02d}-write",
+            )
+            read_command = make_write_command(ROWSTREAM_OP_READ_DENSE_BEAT, 0x00, lane >> 6)
+            write_jtag_command_with_repeats(
+                run_dir,
+                f"dense-lane{lane:02d}-read-command.log",
+                read_command,
+                args.command_repeats,
+            )
+            read_ready = wait_for_rowstream_ready(
+                run_dir,
+                args,
+                min_ack_count=int(write_ready["ack_count"]) + args.rowstream_min_ack_delta,
+                timeout=args.rowstream_poll_timeout,
+                label=f"dense-lane{lane:02d}-read",
+            )
+            sweep_rows.append(
+                {
+                    "lane": lane,
+                    "byte": f"0x{args.command_byte:02x}",
+                    "result": read_ready["result"],
+                    "ack_count": read_ready["ack_count"],
+                    "err_count": read_ready["err_count"],
+                    "read_window128_byte": read_ready["read_window128_bytes"][lane],
+                    "state_name": read_ready["state_name"],
+                }
+            )
+        write_json(run_dir / "readback" / "dense-window-sweep.json", sweep_rows)
+    elif args.command_byte is not None:
         command_addr = args.command_addr
         write_command = make_write_command(args.command_opcode, args.command_byte, command_addr)
         before = decode_uberddr3_payload(
@@ -612,7 +670,9 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 read_command,
                 args.command_repeats,
             )
-            write_ready_ack = int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            write_ready_ack = (
+                int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            )
             _ = wait_for_rowstream_ready(
                 run_dir,
                 args,
@@ -632,7 +692,9 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 read_command,
                 args.command_repeats,
             )
-            write_ready_ack = int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            write_ready_ack = (
+                int(write_ready["ack_count"]) if args.command_protocol == "rowstream192" else before_ack_count
+            )
             _ = wait_for_rowstream_ready(
                 run_dir,
                 args,
@@ -749,6 +811,12 @@ def parse_args() -> argparse.Namespace:
         help="minimum wb_ack increments required for a rowstream write/read command",
     )
     parser.add_argument(
+        "--rowstream-dense-window-sweep-lanes",
+        type=int,
+        default=0,
+        help="program once and dense-write/read lanes 0..N-1 through the 128-bit debug window",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -789,6 +857,15 @@ def main() -> int:
         raise SystemExit("--rowstream-min-ack-delta must be at least 1")
     if args.rowstream_readback_after_write and args.command_protocol != "rowstream192":
         raise SystemExit("--rowstream-readback-after-write requires --command-protocol rowstream192")
+    if args.rowstream_dense_window_sweep_lanes:
+        if args.command_protocol != "rowstream192":
+            raise SystemExit("--rowstream-dense-window-sweep-lanes requires --command-protocol rowstream192")
+        if args.command_byte is None:
+            raise SystemExit("--rowstream-dense-window-sweep-lanes requires --command-byte")
+        if args.expected_byte != args.command_byte:
+            raise SystemExit("--rowstream-dense-window-sweep-lanes requires --expected-byte == --command-byte")
+        if not 1 <= args.rowstream_dense_window_sweep_lanes <= 16:
+            raise SystemExit("--rowstream-dense-window-sweep-lanes must be in 1..16")
     if args.expected_byte is None:
         args.expected_byte = args.command_byte if args.command_byte is not None else 0xA5
     run_dir = run_experiment(args)
