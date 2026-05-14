@@ -51,8 +51,8 @@ XC7K480T CES9937 engineering-sample part. AMD/Xilinx EN179 has two directly
 relevant external-memory notes for these devices:
 
 - DDR3/DDR2 Phaser divide-by-two mode is not operational from 303-399 MHz
-  memory clock. A Vivado/MIG oracle build must select a 400 MHz or higher DDR3
-  memory clock so the Phaser runs 1:1.
+  memory clock. The active YPCB BIST/rowstream RTL therefore uses a 500 MHz
+  DDR3 clock with a 125 MHz controller clock so the Phaser runs 1:1.
 - DDR3 designs above 800 Mb/s must include external VREF. The current YPCB XDC
   sets SSTL15/DIFF_SSTL15 I/O standards but does not declare `INTERNAL_VREF`,
   so the bring-up must verify the board-level VREF wiring rather than assuming
@@ -68,8 +68,8 @@ Debug in this order:
    and all clock constraints used by nextpnr/OpenXC7.
 2. Reset: verify reset polarity, release sequencing, and controller/PHY reset
    domain crossings.
-3. DDR parameters: verify `MT41K256M8XX-125` timing, low-speed `DLL_OFF`
-   assumptions, mode registers, burst length, and read latency.
+3. DDR parameters: verify `MT41K256M8XX-125` timing, `DLL_OFF=0`, mode
+   registers, burst length, and read latency.
 4. Pin/byte-lane mapping: verify DQ/DQS lane order, DM handling, ODT, CKE, CS,
    VREF, IOSTANDARD, and termination against the YPCB constraints.
 5. Delay path: verify `ODELAY_SUPPORTED`, IDELAY tap behavior, and whether

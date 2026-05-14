@@ -62,13 +62,13 @@ module task6_ypcb_uberddr3_bist_top #(
     .CLKFBOUT_MULT(20),
     .CLKFBOUT_PHASE(0.000),
     .CLKIN1_PERIOD(20.000),
-    .CLKOUT0_DIVIDE(10),
+    .CLKOUT0_DIVIDE(2),
     .CLKOUT0_DUTY_CYCLE(0.500),
     .CLKOUT0_PHASE(0.000),
-    .CLKOUT1_DIVIDE(10),
+    .CLKOUT1_DIVIDE(2),
     .CLKOUT1_DUTY_CYCLE(0.500),
     .CLKOUT1_PHASE(90.000),
-    .CLKOUT2_DIVIDE(40),
+    .CLKOUT2_DIVIDE(8),
     .CLKOUT2_DUTY_CYCLE(0.500),
     .CLKOUT2_PHASE(0.000),
     .CLKOUT3_DIVIDE(5),
@@ -520,8 +520,8 @@ module task6_ypcb_uberddr3_bist_top #(
   end
 
   ddr3_top #(
-    .CONTROLLER_CLK_PERIOD(40_000),
-    .DDR3_CLK_PERIOD(10_000),
+    .CONTROLLER_CLK_PERIOD(8_000),
+    .DDR3_CLK_PERIOD(2_000),
     .ROW_BITS(ROW_BITS),
     .COL_BITS(COL_BITS),
     .BA_BITS(BA_BITS),
@@ -537,7 +537,7 @@ module task6_ypcb_uberddr3_bist_top #(
     .TRAS(35_000),
     .ODELAY_SUPPORTED(0),
     .SECOND_WISHBONE(0),
-    .DLL_OFF(1),
+    .DLL_OFF(0),
     .WB_ERROR(0),
     .BIST_MODE(1),
     .ECC_ENABLE(0)

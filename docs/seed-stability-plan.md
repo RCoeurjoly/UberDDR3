@@ -26,9 +26,9 @@ This plan is now the active sequence we will execute on this branch:
      `fpga/rtl/task6_ypcb_uberddr3_bist_rowstream_loader_top.sv`, and
      `fpga/rtl/task6_ypcb_uberddr3_rowstream_loader_top.sv` currently derive
      these clocks from the 50 MHz board input:
-     - `controller_clk`: 25 MHz
-     - `ddr3_clk`: 100 MHz
-     - `ddr3_clk_90`: 100 MHz
+     - `controller_clk`: 125 MHz
+     - `ddr3_clk`: 500 MHz
+     - `ddr3_clk_90`: 500 MHz
      - `ref_clk`: 200 MHz
    - The AMD/Xilinx Kintex-7 note on external memory interfaces says DDR3/DDR2
      Phaser divide-by-two mode is not operational from 303-399 MHz; DDR3 must
@@ -38,10 +38,9 @@ This plan is now the active sequence we will execute on this branch:
      because `--freq` is nextpnr's global timing target/fallback, not MIG's
      memory-clock selector.
    - `scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py` must match the
-     current RTL while it remains a 25/100/200 MHz design. A 400+ MHz DDR3
-     experiment must change the PLL divides and UberDDR3 timing parameters in
-     RTL first, then update the nextpnr clock constraints to match the new
-     clocks.
+     current RTL. The raw signal and BUFG names still include historical
+     `clk100`/`clk25` strings because existing BEL-lock artifacts and pre-place
+     scripts key on those cell names.
    - In this repo, `full` lock scope means: `ddr3_clocks + ddr3_board_pins + uberddr3_phy`.
    - `ddr3_clocks`
    - `ddr3_board_pins`
