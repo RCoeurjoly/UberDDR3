@@ -287,7 +287,7 @@ def dense_byte_write_commands(beat_addr: int, data: bytes) -> list[RowstreamComm
 
 
 def read_beat_command(beat_addr: int, expected_byte: int = 0) -> RowstreamCommand:
-    return RowstreamCommand(ROWSTREAM_OP_READ_DENSE_BEAT, beat_addr, byte=expected_byte)
+    return RowstreamCommand(ROWSTREAM_OP_READ_BEAT, beat_addr, byte=expected_byte)
 
 
 def add_common_args(parser: argparse.ArgumentParser) -> None:
