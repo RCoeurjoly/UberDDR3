@@ -98,6 +98,7 @@ EOF
           makeTarget ? "rowstream-v40-locked",
           outputStem ? "ypcb_00338_1p1_uberddr3_rowstream_loader",
           artifactPrefix ? "rowstream",
+          pnrExtraArgs ? "",
         }:
           pkgs.stdenvNoCC.mkDerivation {
             pname = "ypcb-${artifactPrefix}";
@@ -132,7 +133,7 @@ EOF
               make clean
               make ${makeTarget} \
                 SYNTH_XILINX_FLAGS="${synthXilinxFlags}" \
-                PNR_ARGS="--seed ${toString seed} --freq ${toString freq}" \
+                PNR_ARGS="--seed ${toString seed} --freq ${toString freq} ${pnrExtraArgs}" \
                 PNR_DEBUG="--write ../../artifacts/manual-seed/seed${toString seed}/nextpnr-routed.json"
             '';
 
@@ -168,6 +169,14 @@ EOF
             makeTarget = "rowstream-fullbeat-v40-locked";
             outputStem = "ypcb_00338_1p1_uberddr3_rowstream_fullbeat";
             artifactPrefix = "rowstream-fullbeat";
+          };
+          ypcb-rowstream-fullbeat-seed-3-freq-25-timing-allow-fail = mkYpcbRowstreamBitstream {
+            seed = 3;
+            freq = 25;
+            makeTarget = "rowstream-fullbeat-v40-locked";
+            outputStem = "ypcb_00338_1p1_uberddr3_rowstream_fullbeat";
+            artifactPrefix = "rowstream-fullbeat-timing-allow-fail";
+            pnrExtraArgs = "--timing-allow-fail";
           };
         };
 
