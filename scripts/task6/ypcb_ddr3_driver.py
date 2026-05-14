@@ -366,9 +366,37 @@ def pattern_bytes(name: str) -> bytes:
 
 
 def observed_beat_bytes(status: dict[str, Any]) -> list[str]:
-    if status["read_beat_bytes"]:
+    if status["version"] != 44 and status["read_beat_bytes"]:
         return status["read_beat_bytes"]
     return status["read_window128_bytes"]
+
+
+def summarize_status(status: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "ack_count": status["ack_count"],
+        "calibration": status["result"]["calibration"],
+        "command_gate": status["result"]["command_gate"],
+        "err_count": status["err_count"],
+        "integrity": status["result"]["integrity"],
+        "last_opcode": status["last_opcode"],
+        "loader_error": status["loader_error"],
+        "loader_ready": status["loader_ready"],
+        "read_ack_seen": status["read_ack_seen"],
+        "state_name": status["state_name"],
+        "version": status["version"],
+        "write_ack_seen": status["write_ack_seen"],
+    }
+
+
+def summarize_statuses(statuses: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "count": len(statuses),
+        "first": summarize_status(statuses[0]) if statuses else None,
+        "last": summarize_status(statuses[-1]) if statuses else None,
+        "pass_count": sum(
+            1 for status in statuses if status["result"]["integrity"] == "pass"
+        ),
+    }
 
 
 def main() -> int:
@@ -483,14 +511,17 @@ def main() -> int:
         read_status = driver.read_beat(args.addr, data[0])
         observed = observed_beat_bytes(read_status)
         expected = [f"0x{byte:02x}" for byte in data]
+        compare_len = min(len(observed), len(expected))
         print_json(
             {
                 "addr": f"0x{args.addr:x}",
-                "expected": expected,
+                "compared_bytes": compare_len,
+                "expected": expected[:compare_len],
                 "observed": observed,
-                "pass": observed == expected,
-                "read_status": read_status,
-                "write_status": write_status,
+                "pass": observed == expected[:compare_len] and compare_len == BEAT_BYTES,
+                "read_status": summarize_status(read_status),
+                "write_status": summarize_statuses(write_status),
+                "window_only": compare_len < BEAT_BYTES,
             }
         )
         return 0
@@ -499,4 +530,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except (RuntimeError, TimeoutError, ValueError) as error:
+        print_json({"error": str(error), "pass": False})
+        raise SystemExit(1)
