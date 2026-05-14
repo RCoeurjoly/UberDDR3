@@ -342,6 +342,31 @@ python3 scripts/task6/task6_seed_stability_matrix.py \
   --build-only
 ```
 
+## Post-Route Simulation Probe
+
+Hardware remains the calibration oracle because plain RTL simulation does not
+model nextpnr placement, routing, clock skew, or interconnect delay. Verilator is
+therefore insufficient for the seed-5/seed-7 failures.
+
+The only plausible simulation-side oracle is post-route gate/timing simulation:
+
+- Ask nextpnr to emit SDF with `--sdf <file>`.
+- Use `--sdf-cvc` if targeting the CVC simulator.
+- Simulate a gate-level/post-synthesis netlist plus SDF using Xilinx primitive
+  simulation models.
+
+This is worth investigating, but it is not yet a replacement for HIL:
+
+- CVC is not currently present in the devShell.
+- We still need a Verilog netlist that matches the routed JSON/FASM naming well
+  enough for SDF back-annotation.
+- We need the relevant 7-series primitive simulation models in a form CVC can
+  elaborate.
+- We need a rowstream/calibration testbench at that gate level.
+
+Treat this as a secondary oracle-building track. The immediate seed-stability
+track remains PNR-only build sweeps followed by rowstream HIL.
+
 ## Execution Protocol (today)
 
 Run this sequence exactly in order before changing any lock payload:
