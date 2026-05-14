@@ -637,8 +637,13 @@ def run_experiment(args: argparse.Namespace) -> Path:
         read_rows = []
         for chunk in range(4):
             args.command_chunk = chunk
+            read_opcode = (
+                ROWSTREAM_OP_READ_DENSE_BEAT
+                if args.rowstream_full_beat_use_dense_read
+                else ROWSTREAM_OP_READ_BEAT
+            )
             read_command = make_write_command(
-                ROWSTREAM_OP_READ_BEAT,
+                read_opcode,
                 base_command_byte,
                 args.command_addr,
             )
@@ -655,7 +660,10 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 timeout=args.rowstream_poll_timeout,
                 label=f"full-beat-read-chunk{chunk}",
             )
-            observed = read_ready["read_window128_bytes"]
+            if len(read_ready["read_beat_bytes"]) >= 64:
+                observed = read_ready["read_beat_bytes"][chunk * 16 : (chunk + 1) * 16]
+            else:
+                observed = read_ready["read_window128_bytes"]
             read_rows.append(
                 {
                     "chunk": chunk,
@@ -939,6 +947,11 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=1,
         help="add this stride per byte to --command-byte for full-beat write/read tests",
+    )
+    parser.add_argument(
+        "--rowstream-full-beat-use-dense-read",
+        action="store_true",
+        help="verify full-beat writes with the existing dense read opcode instead of READ_BEAT",
     )
     parser.add_argument(
         "--command-update-mode",
