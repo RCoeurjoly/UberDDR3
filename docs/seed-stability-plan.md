@@ -438,6 +438,12 @@ decoded calibration state in the matrix row.
     - adding `--no-tmdriv` to the 8,726-lock seed 5 build does not rescue it;
       the bitstream still fails before calibration with `calib_seen_cycle=0`,
       `loader_state=1`.
+    - `--router router1` at `--freq 25` also does not rescue seed 5.
+    - raising placement timing pressure to `--freq 50` rescues seed 5 with the
+      8,726-lock candidate: `DONE_CALIBRATE`, `integrity_pass`,
+      `ack_count=11`, `err_count=0`, readback `0xa5`.
+    - the same `--freq 50` policy does not rescue seed 7, and `--freq 100`
+      also fails seed 7 before calibration.
 - Known gaps:
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
