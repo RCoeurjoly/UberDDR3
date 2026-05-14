@@ -19,7 +19,7 @@ module ypcb_00338_1p1_uberddr3_rowstream_fullbeat (
     inout  wire [7:0]  ddr3_dqs_n,
     output wire [0:0]  ddr3_odt
 );
-  task6_ypcb_uberddr3_rowstream_loader_top fullbeat_top (
+  task6_ypcb_uberddr3_rowstream_loader_top bist_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),
         .ddram_a(ddr3_addr),
