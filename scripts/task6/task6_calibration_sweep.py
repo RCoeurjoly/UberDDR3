@@ -40,6 +40,7 @@ V40_LOCKS = (
     / "uberddr3-rowstream-loader-v40-physical-stability"
     / "known-good-packed-bel-locks.json"
 )
+ORACLE_ALL_LOCKS = ROOT / "artifacts" / "task6" / "lock-experiments" / "seed3-all-bel-locks.json"
 SWEEP_ROOT = ROOT / "artifacts" / "task6" / "calibration-sweeps"
 
 DEBUG_BITS = 512
@@ -180,11 +181,12 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
         out_py.write_text("# No BEL locks for this sweep row.\n", encoding="utf-8")
         return out_py
 
+    base_locks = ORACLE_ALL_LOCKS if args.lock_set == "oracle-all" else V40_LOCKS
     command = [
         sys.executable,
         str(LOCK_GENERATOR),
         "--locks-json",
-        str(V40_LOCKS),
+        str(base_locks),
     ]
     for extra_locks in args.extra_locks_json:
         command.extend(["--locks-json", str(extra_locks)])

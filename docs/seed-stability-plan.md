@@ -513,6 +513,10 @@ decoded calibration state in the matrix row.
     lock shrinking. If it still fails, absolute BEL placement plus clock
     constraints are not a sufficient basis and the next knobs are route/control
     constraints, nextpnr placement/router options, and/or a nextpnr bug fix.
+  - Tooling correction: `oracle-all` must source
+    `artifacts/task6/lock-experiments/seed3-all-bel-locks.json` directly. Using
+    the smaller physical baseline with `--scope all_seed3` generates zero locks,
+    so any row with `applied_locks=0` is an invalid oracle-all test.
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
   - seed 5 also fails under full `oracle-all`, so additional knobs beyond the
