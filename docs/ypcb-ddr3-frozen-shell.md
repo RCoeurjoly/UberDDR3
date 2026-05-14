@@ -184,6 +184,9 @@ Useful dry-run command encoding:
 ```sh
 nix develop .#default --command python3 scripts/task6/ypcb_ddr3_driver.py \
   encode --opcode 0x01 --addr 0 --chunk 0 --data128 0x0
+
+nix develop .#default --command python3 scripts/task6/ypcb_ddr3_driver.py \
+  --dry-run memtest64 --addr 0 --pattern increment --write-method fullbeat
 ```
 
 Hardware examples, after programming a calibrated bitstream:

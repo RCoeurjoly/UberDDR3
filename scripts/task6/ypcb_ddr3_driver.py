@@ -246,12 +246,57 @@ def print_json(payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
 
 
+def command_json(command: RowstreamCommand) -> dict[str, Any]:
+    return {
+        "addr": f"0x{command.addr:08x}",
+        "byte": f"0x{command.byte:02x}",
+        "chunk": command.chunk,
+        "command_hex": f"0x{command.encode():048x}",
+        "data128": f"0x{command.data128:032x}" if command.data128 is not None else None,
+        "opcode": f"0x{command.opcode:02x}",
+    }
+
+
+def fullbeat_write_commands(beat_addr: int, data: bytes) -> list[RowstreamCommand]:
+    if len(data) != BEAT_BYTES:
+        raise ValueError(f"full-beat writes require exactly {BEAT_BYTES} bytes")
+    return [
+        RowstreamCommand(
+            ROWSTREAM_OP_WRITE_CHUNK,
+            beat_addr,
+            chunk=chunk,
+            data128=bytes_to_little_int(
+                data[chunk * CHUNK_BYTES : (chunk + 1) * CHUNK_BYTES]
+            ),
+        )
+        for chunk in range(CHUNKS_PER_BEAT)
+    ]
+
+
+def dense_byte_write_commands(beat_addr: int, data: bytes) -> list[RowstreamCommand]:
+    if len(data) != BEAT_BYTES:
+        raise ValueError(f"dense byte writes require exactly {BEAT_BYTES} bytes")
+    return [
+        RowstreamCommand(
+            ROWSTREAM_OP_WRITE_DENSE_BYTE,
+            (beat_addr << 6) | lane,
+            byte=byte,
+        )
+        for lane, byte in enumerate(data)
+    ]
+
+
+def read_beat_command(beat_addr: int, expected_byte: int = 0) -> RowstreamCommand:
+    return RowstreamCommand(ROWSTREAM_OP_READ_DENSE_BEAT, beat_addr, byte=expected_byte)
+
+
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--serial", default="210299BF3824")
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
     parser.add_argument("--bits", type=int, default=1024)
     parser.add_argument("--variant", default="rowstream192")
     parser.add_argument("--command-repeats", type=int, default=2)
+    parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
     parser.add_argument("--poll-interval", type=float, default=0.05)
     parser.add_argument("--timeout", type=float, default=10.0)
@@ -358,17 +403,45 @@ def main() -> int:
         return 0
 
     if args.command == "write-lowbyte":
+        if args.dry_run:
+            print_json(command_json(RowstreamCommand(ROWSTREAM_OP_WRITE_LOWBYTE, args.addr, byte=args.byte)))
+            return 0
         print_json(driver.write_lowbyte(args.addr, args.byte))
         return 0
 
     if args.command == "read-lowbyte":
         args.expected_addr = args.addr
         args.expected_byte = args.expected_byte
+        if args.dry_run:
+            print_json(
+                command_json(
+                    RowstreamCommand(
+                        ROWSTREAM_OP_READ_LOWBYTE,
+                        args.addr,
+                        byte=args.expected_byte,
+                    )
+                )
+            )
+            return 0
         print_json(driver.read_lowbyte(args.addr, args.expected_byte))
         return 0
 
     if args.command == "write-beat":
         data = parse_hex_bytes(args.data_hex, expected_len=BEAT_BYTES)
+        if args.dry_run:
+            commands = (
+                fullbeat_write_commands(args.addr, data)
+                if args.method == "fullbeat"
+                else dense_byte_write_commands(args.addr, data)
+            )
+            print_json(
+                {
+                    "addr": f"0x{args.addr:x}",
+                    "method": args.method,
+                    "commands": [command_json(command) for command in commands],
+                }
+            )
+            return 0
         if args.method == "fullbeat":
             print_json(driver.write_beat_full(args.addr, data))
         else:
@@ -378,12 +451,31 @@ def main() -> int:
     if args.command == "read-beat":
         args.expected_addr = args.addr
         args.expected_byte = args.expected_byte
+        if args.dry_run:
+            print_json(command_json(read_beat_command(args.addr, args.expected_byte)))
+            return 0
         status = driver.read_beat(args.addr, args.expected_byte)
         print_json({"status": status, "observed_bytes": observed_beat_bytes(status)})
         return 0
 
     if args.command == "memtest64":
         data = pattern_bytes(args.pattern)
+        if args.dry_run:
+            write_commands = (
+                fullbeat_write_commands(args.addr, data)
+                if args.write_method == "fullbeat"
+                else dense_byte_write_commands(args.addr, data)
+            )
+            print_json(
+                {
+                    "addr": f"0x{args.addr:x}",
+                    "expected": [f"0x{byte:02x}" for byte in data],
+                    "read_command": command_json(read_beat_command(args.addr, data[0])),
+                    "write_commands": [command_json(command) for command in write_commands],
+                    "write_method": args.write_method,
+                }
+            )
+            return 0
         if args.write_method == "fullbeat":
             write_status = driver.write_beat_full(args.addr, data)
         else:
