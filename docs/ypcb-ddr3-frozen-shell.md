@@ -127,6 +127,11 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
 
 ## Execution Plan
 
+Current priority: implement the DDR3 driver contract even while calibration
+work remains unstable. The driver must make the desired memory semantics clear
+and testable, so calibration and placement work can be treated as the transport
+problem underneath it rather than mixed into the API definition.
+
 1. Align RTL PLL, DDR3 timing parameters, and nextpnr `addClock` constraints to
    the frozen-shell 500/125/200 MHz clocks.
 2. Rebuild a rowstream bitstream from current RTL and test hardware with no
@@ -142,6 +147,53 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
    512-bit beat writes with all byte strobes asserted.
 6. Only after the 64-byte contract is deterministic, add higher-level DDR3
    functionality outside the frozen shell.
+
+## Driver Contract
+
+The host-side driver lives at:
+
+```sh
+scripts/task6/ypcb_ddr3_driver.py
+```
+
+It is the explicit software contract for the YPCB DDR3 rowstream shell. It
+assumes the FPGA has already been programmed with a rowstream bitstream and
+that the DDR3 shell is calibrated. Calibration is still mandatory for hardware
+success, but the driver implementation is intentionally separated from the
+calibration search.
+
+Primary contract:
+
+1. `write-beat --method fullbeat` writes one complete 64-byte DDR3 beat using
+   four 128-bit chunk commands and all byte lanes active in the hardware path.
+2. `read-beat` reads one complete 64-byte beat when the debug payload exposes
+   the full 512-bit readback. Older shells expose only the first 128-bit window,
+   which the driver reports without pretending it is a full pass.
+3. `memtest64` writes a 64-byte pattern, reads it back, and compares all
+   reported bytes.
+
+Diagnostic-only contract:
+
+`write-beat --method dense-byte` issues 64 one-hot dense byte writes. This mode
+is useful for probing lanes and command decoding, but it is not the target DDR3
+driver semantics for YPCB because the board path has no reliable byte-mask
+foundation.
+
+Useful dry-run command encoding:
+
+```sh
+nix develop .#default --command python3 scripts/task6/ypcb_ddr3_driver.py \
+  encode --opcode 0x01 --addr 0 --chunk 0 --data128 0x0
+```
+
+Hardware examples, after programming a calibrated bitstream:
+
+```sh
+nix develop .#default --command python3 scripts/task6/ypcb_ddr3_driver.py status
+
+nix develop .#default --command python3 scripts/task6/ypcb_ddr3_driver.py \
+  memtest64 --addr 0 --pattern increment --write-method fullbeat
+```
 
 ## Acceptance Criteria
 
