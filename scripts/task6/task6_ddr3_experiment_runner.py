@@ -729,6 +729,11 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 label=f"dense-lane{lane:02d}-read",
             )
             expected_hex = f"0x{command_byte:02x}"
+            read_bytes = (
+                read_ready["read_beat_bytes"]
+                if len(read_ready["read_beat_bytes"]) >= 64
+                else read_ready["read_window128_bytes"]
+            )
             sweep_rows.append(
                 {
                     "lane": lane,
@@ -736,11 +741,12 @@ def run_experiment(args: argparse.Namespace) -> Path:
                     "result": read_ready["result"],
                     "ack_count": read_ready["ack_count"],
                     "err_count": read_ready["err_count"],
-                    "read_window128_byte": read_ready["read_window128_bytes"][lane],
-                    "read_window128_bytes": read_ready["read_window128_bytes"],
+                    "read_byte": read_bytes[lane],
+                    "read_bytes": read_bytes,
+                    "pass": read_bytes[lane] == expected_hex,
                     "matching_window_lanes": [
                         index
-                        for index, value in enumerate(read_ready["read_window128_bytes"])
+                        for index, value in enumerate(read_bytes)
                         if value == expected_hex
                     ],
                     "state_name": read_ready["state_name"],
@@ -1001,8 +1007,8 @@ def main() -> int:
             raise SystemExit("--rowstream-dense-window-sweep-lanes requires --command-byte")
         if args.expected_byte != args.command_byte:
             raise SystemExit("--rowstream-dense-window-sweep-lanes requires --expected-byte == --command-byte")
-        if not 1 <= args.rowstream_dense_window_sweep_lanes <= 16:
-            raise SystemExit("--rowstream-dense-window-sweep-lanes must be in 1..16")
+        if not 1 <= args.rowstream_dense_window_sweep_lanes <= 64:
+            raise SystemExit("--rowstream-dense-window-sweep-lanes must be in 1..64")
         if args.rowstream_dense_window_sweep_byte_stride < 0:
             raise SystemExit("--rowstream-dense-window-sweep-byte-stride must be non-negative")
     if args.rowstream_full_beat_test:
