@@ -105,6 +105,41 @@ seed-3 v44 artifact:
   perturbation from the fresh RTL shape, not a fullbeat command semantics
   failure.
 
+The minimal v45 fullbeat rowstream shell implements the intended command
+contract directly in the historically calibrating v44 top:
+
+| Opcode | Meaning |
+| ---: | --- |
+| `0x01` | stage one 128-bit write chunk; chunk 3 commits all 64 byte lanes |
+| `0x02` | read one complete 512-bit beat |
+| `0x03` | legacy low-byte write |
+| `0x04` | legacy low-byte read |
+| `0x05` | diagnostic dense-byte write |
+| `0x06` | diagnostic dense-beat read |
+
+The hardware implementation is intentionally full-beat only at commit time:
+`LOADER_OP_WRITE_CHUNK` updates a 512-bit staging register for chunks 0..3 and
+only chunk 3 issues the Wishbone write with `loader_sel_q = {WB_SEL_BITS{1'b1}}`.
+This is the correct YPCB memory contract because it does not rely on absent or
+unproven DDR3 DM byte masks.
+
+However, the v45 shell is not yet a usable hardware base. A PNR-only sweep from
+one v45 synth JSON, with the 411-lock v40 physical pre-place constraints and
+`--timing-allow-fail`, failed calibration for all historically useful seeds:
+
+| Seed | Version | Calibration State | `ack_count` | Result |
+| ---: | ---: | --- | ---: | --- |
+| 0 | 45 | `IDLE` | 0 | fail before command gate |
+| 3 | 45 | `IDLE` | 0 | fail before command gate |
+| 16 | 45 | `IDLE` | 0 | fail before command gate |
+| 40 | 45 | `IDLE` | 0 | fail before command gate |
+| 44 | 45 | `IDLE` | 0 | fail before command gate |
+
+The control test immediately after the sweep reprogrammed the preserved v44
+artifact and reached `DONE_CALIBRATE` with `calibration=pass` and `ack_count=9`.
+That isolates the regression to the new RTL shape and resulting placement, not
+to board state, JTAG programming, or the hardware session.
+
 The full 64-byte path must therefore be full-beat based:
 
 1. stage a 512-bit write beat through JTAG or a local producer,
@@ -156,10 +191,14 @@ problem underneath it rather than mixed into the API definition.
 4. Find the smallest lock set that both:
    - reaches `DONE_CALIBRATE`, `integrity_pass`, `ack_count` advances, `err_count=0`,
    - meets nextpnr timing without `--timing-allow-fail`.
-5. Extend rowstream tests from low-byte to dense data on the preserved shell:
-   use the existing 128-bit window for diagnostics only, then move to full
-   512-bit beat writes with all byte strobes asserted.
-6. Only after the 64-byte contract is deterministic, add higher-level DDR3
+5. The v45 fullbeat command path exists, but it must not replace the preserved
+   v44 calibration base until a seed or lock set reaches `DONE_CALIBRATE`.
+6. Next implementation direction: keep the v44 shell intact and move the
+   additional fullbeat staging/producer logic outside the calibration-critical
+   region, or create a new full placement oracle from a v45 seed that
+   calibrates. A fresh fullbeat shell with only the 411 physical locks is not
+   enough.
+7. Only after the 64-byte contract is deterministic, add higher-level DDR3
    functionality outside the frozen shell.
 
 ## Driver Contract
@@ -245,6 +284,10 @@ full-beat write/readback test, not a byte-enable test.
   `ypcb-rowstream-fullbeat-seed-3-freq-25-timing-allow-fail` and
   `ypcb-rowstream-seed-3-freq-25-timing-allow-fail`. Both programmed
   successfully but reported `state=IDLE`, `calibration=fail`, and
+  `ack_count=0`.
+- Minimal v45 fullbeat rowstream RTL was committed and hardware-tested through a
+  PNR-only seed sweep over `0, 3, 16, 40, 44`. All five bitstreams programmed
+  successfully and all five reported `state=IDLE`, `calibration=fail`, and
   `ack_count=0`.
 - The preserved seed-3 v44 artifact from
   `artifacts/task6/calibration-sweeps/ypcb-rowstream-ffx-addback-pnr-only-build/2026-05-14T10-21-35+0200-oracle-all-seed3/`
