@@ -1,16 +1,18 @@
 """Clock constraints for YPCB UberDDR3 nextpnr builds.
 
-The defaults match example_demo/ypcb_00338_1p1/clk_wiz.v:
+The rowstream/BIST top-level PLLs in fpga/rtl currently derive these clocks
+from the 50 MHz board input:
 
-- 50 MHz input clock
-- PLLE2_ADV CLKFBOUT_MULT=20, DIVCLK_DIVIDE=1 -> 1000 MHz VCO
-- CLKOUT0_DIVIDE=8 -> controller_clk = 125 MHz
-- CLKOUT1_DIVIDE=2 -> ddr3_clk = 500 MHz
-- CLKOUT2_DIVIDE=5 -> ref_clk = 200 MHz
-- CLKOUT3_DIVIDE=2, phase 90 -> ddr3_clk_90 = 500 MHz
+- CLKOUT0_DIVIDE=10 -> ddr3_clk = 100 MHz
+- CLKOUT1_DIVIDE=10, phase 90 -> ddr3_clk_90 = 100 MHz
+- CLKOUT2_DIVIDE=40 -> controller_clk = 25 MHz
+- CLKOUT3_DIVIDE=5 -> ref_clk = 200 MHz
 
-The DDR3 clock must stay at or above 400 MHz on Kintex-7 DDR3 designs to avoid
-the AMD/Xilinx Phaser divide-by-two operating range called out for 303-399 MHz.
+These constraints intentionally match the current RTL. The AMD/Xilinx Kintex-7
+Phaser note for DDR3/DDR2 says the memory clock should be 400 MHz or higher to
+avoid the broken 303-399 MHz divide-by-two mode. That is an RTL/PLL and
+UberDDR3-parameter change; nextpnr's global --freq option is not a substitute
+for changing the generated DDR3 clock.
 """
 
 import os
@@ -20,8 +22,8 @@ def env_mhz(name, default):
     return float(os.environ.get(name, str(default)))
 
 
-controller_clk_mhz = env_mhz("YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", 125.0)
-ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", 500.0)
+controller_clk_mhz = env_mhz("YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", 25.0)
+ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", 100.0)
 ref_clk_mhz = env_mhz("YPCB_UBERDDR3_REF_CLK_MHZ", 200.0)
 clk25_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK25_RAW_MHZ", 25.0)
 clk100_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK100_RAW_MHZ", ddr3_clk_mhz)

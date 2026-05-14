@@ -22,11 +22,13 @@ This plan is now the active sequence we will execute on this branch:
 ## Constraints and Priority Order
 
 1. **Clock/PHY physical locks are fixed first**:
-   - The YPCB PLL in `example_demo/ypcb_00338_1p1/clk_wiz.v` derives the real
-     rowstream DDR3 clocks from a 50 MHz input:
-     - `controller_clk`: 125 MHz
-     - `ddr3_clk`: 500 MHz
-     - `ddr3_clk_90`: 500 MHz
+   - The active rowstream/BIST PLLs in `fpga/rtl/ypcb_uberddr3_bist_top.sv`,
+     `fpga/rtl/task6_ypcb_uberddr3_bist_rowstream_loader_top.sv`, and
+     `fpga/rtl/task6_ypcb_uberddr3_rowstream_loader_top.sv` currently derive
+     these clocks from the 50 MHz board input:
+     - `controller_clk`: 25 MHz
+     - `ddr3_clk`: 100 MHz
+     - `ddr3_clk_90`: 100 MHz
      - `ref_clk`: 200 MHz
    - The AMD/Xilinx Kintex-7 note on external memory interfaces says DDR3/DDR2
      Phaser divide-by-two mode is not operational from 303-399 MHz; DDR3 must
@@ -35,10 +37,11 @@ This plan is now the active sequence we will execute on this branch:
      above 400 MHz. It does **not** mean blindly setting nextpnr `--freq 400`,
      because `--freq` is nextpnr's global timing target/fallback, not MIG's
      memory-clock selector.
-   - `scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py` must therefore
-     constrain nextpnr with the actual YPCB clock rates above. Older seed data
-     that used `controller_clk=25 MHz` and `ddr3_clk=100 MHz` is useful only as
-     historical evidence; it was underconstrained for the real hardware.
+   - `scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py` must match the
+     current RTL while it remains a 25/100/200 MHz design. A 400+ MHz DDR3
+     experiment must change the PLL divides and UberDDR3 timing parameters in
+     RTL first, then update the nextpnr clock constraints to match the new
+     clocks.
    - In this repo, `full` lock scope means: `ddr3_clocks + ddr3_board_pins + uberddr3_phy`.
    - `ddr3_clocks`
    - `ddr3_board_pins`
