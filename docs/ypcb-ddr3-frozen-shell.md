@@ -91,6 +91,20 @@ first 128-bit window can read back correctly, but lanes 1, 5, 9, and 13 remain
 at the existing pattern bytes. This matches the earlier no-DM board evidence:
 partial byte-write masking cannot be the foundation for 64-byte correctness.
 
+The 2026-05-14 hardware run confirmed the same conclusion on the preserved
+seed-3 v44 artifact:
+
+- `write-lowbyte` followed by `read-lowbyte` still reaches `DONE_CALIBRATE` and
+  round-trips the low byte.
+- dense-byte `memtest64` now uses the correct legacy dense-read opcode `0x06`;
+  the command gate passes and `ack_count` advances, but the 64-byte data compare
+  fails because one-hot byte writes are not a valid no-DM memory contract.
+- fresh v64 fullbeat RTL builds, both loader-only and BIST-shell variants, fail
+  before calibration even with `--timing-allow-fail`. The failure happens before
+  any host fullbeat command is issued, so this is a placement/timing/calibration
+  perturbation from the fresh RTL shape, not a fullbeat command semantics
+  failure.
+
 The full 64-byte path must therefore be full-beat based:
 
 1. stage a 512-bit write beat through JTAG or a local producer,
@@ -177,7 +191,9 @@ Diagnostic-only contract:
 `write-beat --method dense-byte` issues 64 one-hot dense byte writes. This mode
 is useful for probing lanes and command decoding, but it is not the target DDR3
 driver semantics for YPCB because the board path has no reliable byte-mask
-foundation.
+foundation. A dense-byte memtest failure is expected on YPCB unless the design
+is changed to perform read-modify-write internally or the board exposes working
+DM pins.
 
 Useful dry-run command encoding:
 
@@ -225,6 +241,15 @@ full-beat write/readback test, not a byte-enable test.
   seed 3 fails timing at 125 MHz without `--timing-allow-fail`, and the
   diagnostic `--timing-allow-fail` dense-byte build still fails before
   calibration starts.
+- Fresh v64 fullbeat command RTL was hardware-tested in two forms:
+  `ypcb-rowstream-fullbeat-seed-3-freq-25-timing-allow-fail` and
+  `ypcb-rowstream-seed-3-freq-25-timing-allow-fail`. Both programmed
+  successfully but reported `state=IDLE`, `calibration=fail`, and
+  `ack_count=0`.
+- The preserved seed-3 v44 artifact from
+  `artifacts/task6/calibration-sweeps/ypcb-rowstream-ffx-addback-pnr-only-build/2026-05-14T10-21-35+0200-oracle-all-seed3/`
+  still reports `DONE_CALIBRATE`, `calibration=pass`, and advancing `ack_count`
+  on the same hardware.
 - The known hardware-passing path is the PNR-only frozen artifact family derived
   from the matching synth JSON and extracted placement oracle. Further DDR3
   functionality must preserve that shell instead of relying on fresh synthesis.
