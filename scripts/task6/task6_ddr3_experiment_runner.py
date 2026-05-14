@@ -577,8 +577,13 @@ def run_experiment(args: argparse.Namespace) -> Path:
 
     if args.rowstream_dense_window_sweep_lanes:
         sweep_rows = []
+        base_command_byte = args.command_byte
         for lane in range(args.rowstream_dense_window_sweep_lanes):
+            command_byte = (
+                base_command_byte + args.rowstream_dense_window_sweep_byte_stride * lane
+            ) & 0xFF
             args.command_addr = lane
+            args.expected_byte = command_byte
             before = decode_uberddr3_payload(
                 read_jtag_debug_once(
                     run_dir,
@@ -590,7 +595,7 @@ def run_experiment(args: argparse.Namespace) -> Path:
             before_ack_count = int(before["ack_count"])
             write_command = make_write_command(
                 ROWSTREAM_OP_WRITE_DENSE_BYTE,
-                args.command_byte,
+                command_byte,
                 lane,
             )
             write_jtag_command_with_repeats(
@@ -620,14 +625,21 @@ def run_experiment(args: argparse.Namespace) -> Path:
                 timeout=args.rowstream_poll_timeout,
                 label=f"dense-lane{lane:02d}-read",
             )
+            expected_hex = f"0x{command_byte:02x}"
             sweep_rows.append(
                 {
                     "lane": lane,
-                    "byte": f"0x{args.command_byte:02x}",
+                    "byte": expected_hex,
                     "result": read_ready["result"],
                     "ack_count": read_ready["ack_count"],
                     "err_count": read_ready["err_count"],
                     "read_window128_byte": read_ready["read_window128_bytes"][lane],
+                    "read_window128_bytes": read_ready["read_window128_bytes"],
+                    "matching_window_lanes": [
+                        index
+                        for index, value in enumerate(read_ready["read_window128_bytes"])
+                        if value == expected_hex
+                    ],
                     "state_name": read_ready["state_name"],
                 }
             )
@@ -817,6 +829,12 @@ def parse_args() -> argparse.Namespace:
         help="program once and dense-write/read lanes 0..N-1 through the 128-bit debug window",
     )
     parser.add_argument(
+        "--rowstream-dense-window-sweep-byte-stride",
+        type=int,
+        default=0,
+        help="add this stride per lane to --command-byte during dense window sweeps",
+    )
+    parser.add_argument(
         "--command-update-mode",
         choices=("idle", "stop-at-update"),
         default="idle",
@@ -866,6 +884,8 @@ def main() -> int:
             raise SystemExit("--rowstream-dense-window-sweep-lanes requires --expected-byte == --command-byte")
         if not 1 <= args.rowstream_dense_window_sweep_lanes <= 16:
             raise SystemExit("--rowstream-dense-window-sweep-lanes must be in 1..16")
+        if args.rowstream_dense_window_sweep_byte_stride < 0:
+            raise SystemExit("--rowstream-dense-window-sweep-byte-stride must be non-negative")
     if args.expected_byte is None:
         args.expected_byte = args.command_byte if args.command_byte is not None else 0xA5
     run_dir = run_experiment(args)
