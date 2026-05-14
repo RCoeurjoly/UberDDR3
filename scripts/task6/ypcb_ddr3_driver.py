@@ -176,11 +176,33 @@ class YpcbDdr3Driver:
     def read_status(self) -> dict[str, Any]:
         return decode_status(self.read_raw_status(), self.args)
 
-    def wait_ready(self, min_ack_count: int) -> dict[str, Any]:
+    @staticmethod
+    def command_count_advanced(current: int, previous: int, delta: int) -> bool:
+        return ((current - previous) & 0xFF) >= delta
+
+    def wait_ready(
+        self,
+        min_ack_count: int,
+        *,
+        previous_command_count: int | None = None,
+        min_command_delta: int = 0,
+    ) -> dict[str, Any]:
         deadline = time.monotonic() + self.args.timeout
         while True:
             status = self.read_status()
-            if status["loader_ready"] and status["ack_count"] >= min_ack_count:
+            command_ready = (
+                previous_command_count is None
+                or self.command_count_advanced(
+                    int(status["command_count"]),
+                    previous_command_count,
+                    min_command_delta,
+                )
+            )
+            if (
+                status["loader_ready"]
+                and status["ack_count"] >= min_ack_count
+                and command_ready
+            ):
                 return status
             if status["loader_error"] or status["err_seen"]:
                 raise RuntimeError(f"loader entered error state: {status['result']}")
@@ -200,10 +222,15 @@ class YpcbDdr3Driver:
     ) -> dict[str, Any]:
         before = self.read_status()
         before_ack = int(before["ack_count"])
+        before_command_count = int(before["command_count"])
         self.send(command)
         self.args.expected_addr = command.addr
         self.args.expected_byte = command.byte
-        return self.wait_ready(before_ack + min_ack_delta)
+        return self.wait_ready(
+            before_ack + min_ack_delta,
+            previous_command_count=before_command_count,
+            min_command_delta=self.args.command_repeats,
+        )
 
     def write_lowbyte(self, addr: int, byte: int) -> dict[str, Any]:
         return self.transact(RowstreamCommand(ROWSTREAM_OP_WRITE_LOWBYTE, addr, byte=byte))
