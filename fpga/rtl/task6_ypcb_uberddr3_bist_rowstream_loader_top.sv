@@ -24,7 +24,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd49;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd50;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -795,7 +795,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
                {WB_SEL_BITS{read_probe_write_byte}}),
     .i_wb_sel(read_probe_state_q == LOADER_ISSUE ||
               read_probe_state_q == LOADER_WAIT_ACK ? loader_sel_q : {WB_SEL_BITS{1'b1}}),
-    .i_aux(4'd1),
+    .i_aux(read_probe_we_q ? 4'd2 : 4'd3),
     .o_wb_stall(wb_stall),
     .o_wb_ack(wb_ack),
     .o_wb_err(wb_err),
