@@ -18,6 +18,7 @@ endif
 REPO_ROOT := ../..
 V40_BEL_LOCKS ?= ${REPO_ROOT}/artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json
 V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
+ROWSTREAM_PRE_PLACE_DEPS ?= ${V40_PRE_PLACE_BEL_LOCKS}
 DDR3_CLOCK_CONSTRAINTS ?= ${REPO_ROOT}/scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py
 
 ADDITIONAL_SOURCES = \
@@ -36,6 +37,7 @@ SEED ?= 3
 FREQ ?= 25
 ROWSTREAM_ROUTED_JSON ?= ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
 ROWSTREAM_BITSTREAM_OUT ?= ../../artifacts/manual-seed/seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_seed${SEED}_freq${FREQ}.bit
+ROWSTREAM_SYNTH_JSON ?=
 DEFAULT_PNR_ARGS = --seed ${SEED} --freq ${FREQ}
 DEFAULT_PNR_DEBUG = --write ${ROWSTREAM_ROUTED_JSON}
 ifneq ($(origin PNR_ARGS), command line)
@@ -109,6 +111,41 @@ rowstream-v40-json:
 		PNR_ARGS="$(PNR_ARGS)" \
 		PNR_DEBUG="$(PNR_DEBUG)"
 	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
+	@if [ ! -f ${ROWSTREAM_ROUTED_JSON_ABS} ]; then \
+		echo "ERROR: expected routed json ${ROWSTREAM_ROUTED_JSON_ABS} not created"; \
+		exit 1; \
+	fi
+	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT_ABS}
+	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT_ABS} ${ROWSTREAM_ROUTED_JSON_ABS}
+
+.PHONY: clean-rowstream-pnr
+clean-rowstream-pnr:
+	rm -f ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm \
+		${ROWSTREAM_XDC}
+
+.PHONY: rowstream-v40-json-pnr-only
+rowstream-v40-json-pnr-only:
+	@if [ -z "${ROWSTREAM_SYNTH_JSON}" ]; then \
+		echo "ERROR: ROWSTREAM_SYNTH_JSON is required for rowstream-v40-json-pnr-only"; \
+		exit 1; \
+	fi
+	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
+	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
+	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT_ABS})
+	$(MAKE) clean-rowstream-pnr
+	cp ${ROWSTREAM_SYNTH_JSON} ${ROWSTREAM_PROJECT}.json
+	touch ${ROWSTREAM_PROJECT}.json
+	@printf 'rowstream-v40-json-pnr-only: seed=%s freq=%s chipdb=%s synth_json=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
+		"${SEED}" "${FREQ}" "${CHIPDB}" "${ROWSTREAM_SYNTH_JSON}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
+	$(MAKE) ${ROWSTREAM_PROJECT}_openxc7.bit \
+		SEED="${SEED}" \
+		FREQ="${FREQ}" \
+		ROWSTREAM_ROUTED_JSON="${ROWSTREAM_ROUTED_JSON_ABS}" \
+		ROWSTREAM_BITSTREAM_OUT="${ROWSTREAM_BITSTREAM_OUT_ABS}" \
+		ROWSTREAM_PRE_PLACE_DEPS="" \
+		PNR_PRE_PLACE="$(PNR_PRE_PLACE)" \
+		PNR_ARGS="$(PNR_ARGS)" \
+		PNR_DEBUG="$(PNR_DEBUG)"
 	@if [ ! -f ${ROWSTREAM_ROUTED_JSON_ABS} ]; then \
 		echo "ERROR: expected routed json ${ROWSTREAM_ROUTED_JSON_ABS} not created"; \
 		exit 1; \
@@ -209,7 +246,7 @@ ${BIST_PROJECT}.fasm: ${BIST_PROJECT}.json ${CHIPDB_BIN} ${BIST_XDC} ypcb_vref.f
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${BIST_XDC} --json ${BIST_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
-${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
+${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 

@@ -114,6 +114,8 @@ def make_rows_for_combo(
     pnr_extra_args: str,
     synth_xilinx_flags: str,
     chipdb: Path | None,
+    pnr_only: bool,
+    synth_json: Path | None,
     extra_lock_jsons: list[Path],
     build_only: bool,
     rowstream_check: bool,
@@ -153,6 +155,11 @@ def make_rows_for_combo(
     ]
     if chipdb is not None:
         command.extend(["--chipdb", str(chipdb)])
+    if pnr_only:
+        command.append("--pnr-only")
+        if synth_json is None:
+            raise SystemExit("--pnr-only requires --synth-json")
+        command.extend(["--synth-json", str(synth_json)])
     for lock_json in extra_lock_jsons:
         command.extend(["--extra-locks-json", str(lock_json)])
     if rowstream_check:
@@ -312,6 +319,8 @@ def parse_args() -> argparse.Namespace:
         help="One or more --pnr-extra-args values to sweep.",
     )
     parser.add_argument("--synth-xilinx-flags", default="-flatten -family xc7")
+    parser.add_argument("--pnr-only", action="store_true", help="Reuse --synth-json in each row.")
+    parser.add_argument("--synth-json", type=Path, help="Prebuilt rowstream Yosys JSON for --pnr-only.")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--build-only", action="store_true")
@@ -401,6 +410,8 @@ def main() -> int:
                     pnr_extra_args=pnr_extra_args,
                     synth_xilinx_flags=args.synth_xilinx_flags,
                     chipdb=args.chipdb,
+                    pnr_only=args.pnr_only,
+                    synth_json=args.synth_json,
                     rowstream_check=args.rowstream_check,
                     rowstream_command_byte=args.rowstream_command_byte,
                     rowstream_expected_byte=args.rowstream_expected_byte,
