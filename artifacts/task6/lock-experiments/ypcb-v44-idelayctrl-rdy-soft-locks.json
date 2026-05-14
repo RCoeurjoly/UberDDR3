@@ -1,0 +1,21 @@
+{
+  "format": "task6.nextpnr-ddr3-soft-bel-locks.v1",
+  "label": "ypcb-v44-idelayctrl-rdy-soft-locks",
+  "lock_count": 2,
+  "locks": [
+    {
+      "bel": "SLICE_X1Y74/A6LUT",
+      "cell": "bist_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_1",
+      "scope": "uberddr3_phy",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y101/D5LUT",
+      "cell": "bist_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_2",
+      "scope": "uberddr3_phy",
+      "type": "SLICE_LUTX"
+    }
+  ],
+  "source_pass_routed_json": "artifacts/task6/calibration-sweeps/ypcb-rowstream-ffx-addback-pnr-only-build/2026-05-14T10-21-35+0200-oracle-all-seed3/build-artifacts/nextpnr-routed.json",
+  "source_fail_routed_json": "artifacts/manual-seed/fullbeat-v46-reuse-write-q/seed3/nextpnr-routed.json"
+}
