@@ -46,6 +46,7 @@ SWEEP_ROOT = ROOT / "artifacts" / "task6" / "calibration-sweeps"
 DEBUG_BITS = 512
 DEBUG_MAGIC = 0x54364A44
 LOCK_SETS: dict[str, tuple[str, ...]] = {
+    "custom": ("all_seed3",),
     "none": (),
     "clocks": ("ddr3_clocks",),
     "phy": ("uberddr3_phy",),
@@ -180,14 +181,18 @@ def generate_lock_script(args: argparse.Namespace, run_dir: Path) -> Path:
     if not scopes:
         out_py.write_text("# No BEL locks for this sweep row.\n", encoding="utf-8")
         return out_py
+    if args.lock_set == "custom" and not args.extra_locks_json:
+        raise SystemExit("--lock-set custom requires at least one --extra-locks-json")
 
-    base_locks = ORACLE_ALL_LOCKS if args.lock_set == "oracle-all" else V40_LOCKS
+    base_locks = [] if args.lock_set == "custom" else [
+        ORACLE_ALL_LOCKS if args.lock_set == "oracle-all" else V40_LOCKS
+    ]
     command = [
         sys.executable,
         str(LOCK_GENERATOR),
-        "--locks-json",
-        str(base_locks),
     ]
+    for lock_json in base_locks:
+        command.extend(["--locks-json", str(lock_json)])
     for extra_locks in args.extra_locks_json:
         command.extend(["--locks-json", str(extra_locks)])
     command.extend([

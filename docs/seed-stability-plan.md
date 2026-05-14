@@ -533,6 +533,18 @@ decoded calibration state in the matrix row.
     `0xa5`. This proves the full placement oracle can still calibrate under the
     400 MHz clock-constraint experiment; the immediate blocker is timing closure
     or timing-model policy for the controller domain, not DDR3 PHY placement.
+  - Timing-closure execution plan:
+    1. Keep the exact reusable synth JSON so lock names are stable.
+    2. First try full `oracle-all` with router-only/timing-analysis knobs,
+       because full placement locks leave no freedom for placer knobs.
+    3. If full `oracle-all` cannot meet `controller_clk=100 MHz`, switch to
+       reduced `custom` lock candidates passed through `--extra-locks-json`,
+       starting with the 8,726-lock FFX add-back candidate.
+    4. For every candidate, require nextpnr timing to pass first. Only hardware
+       test candidates that build without `--timing-allow-fail`; keep
+       `--timing-allow-fail` as a diagnostic probe only.
+    5. Once one candidate both meets timing and passes rowstream, sweep seeds
+       under PNR-only, then hardware-test the passing build artifacts.
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
   - seed 5 also fails under full `oracle-all`, so additional knobs beyond the
