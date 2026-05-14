@@ -257,9 +257,13 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     if is_rowstream_loader:
         read_byte = (raw >> 336) & 0xFF
         read_word = (raw >> 336) & 0xFFFFFFFF
+        read_window128_offset = 336
+        read_window128 = (raw >> read_window128_offset) & ((1 << 128) - 1)
     else:
         read_byte = (raw >> 240) & 0xFF
         read_word = (raw >> 240) & 0xFFFFFFFF
+        read_window128_offset = None
+        read_window128 = None
     stream_bytes = [(read_word >> (8 * index)) & 0xFF for index in range(4)]
     read_beat_offset = 512 if is_rowstream_loader else 480
     read_beat = (raw >> read_beat_offset) & ((1 << 512) - 1) if args.bits >= read_beat_offset + 512 else None
@@ -369,7 +373,19 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             integrity_pass = integrity_pass and read_byte == expected
         elif last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT and read_beat is not None:
             active_lane = args.command_addr & 0x3F
-            integrity_pass = integrity_pass and (((read_beat >> (8 * active_lane)) & 0xFF) == expected)
+            integrity_pass = (
+                integrity_pass
+                and (((read_beat >> (8 * active_lane)) & 0xFF) == expected)
+            )
+        elif last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT and read_window128 is not None:
+            active_lane = args.command_addr & 0x3F
+            if active_lane < 16:
+                integrity_pass = (
+                    integrity_pass
+                    and (((read_window128 >> (8 * active_lane)) & 0xFF) == expected)
+                )
+            else:
+                integrity_pass = False
     elif version <= 23:
         integrity_pass = command_gate and read_byte == expected and err_count == 0
     else:
@@ -410,6 +426,10 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "read_beat_hex": f"0x{read_beat:0128x}" if read_beat is not None else None,
         "read_beat_bytes": hex_words(raw, read_beat_offset, 8, 64) if read_beat is not None else [],
         "read_beat_words32": hex_words(raw, read_beat_offset, 32, 16) if read_beat is not None else [],
+        "read_window128_hex": f"0x{read_window128:032x}" if read_window128 is not None else None,
+        "read_window128_bytes": (
+            hex_words(raw, read_window128_offset, 8, 16) if read_window128_offset is not None else []
+        ),
         "active_byte": f"0x{active_byte:02x}",
         "active_addr": f"0x{active_addr:08x}" if is_rowstream_loader else f"0x{active_addr:02x}",
         "command_count": command_count,

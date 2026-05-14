@@ -73,6 +73,13 @@ The external, stable development interface is the rowstream command protocol:
 New test and application logic should first talk to DDR3 through this command
 surface. Only after this path is stable should we split out a wider local bus.
 
+The currently preserved passing shell exposes the old 512-bit JTAG debug scan.
+That scan includes a 128-bit readback window at debug bit 336, so it can
+hardware-validate dense byte lanes 0 through 15 without regenerating the DDR3
+shell. A later frozen-shell revision must expose either four selectable
+128-bit chunks or the full 512-bit beat before the full 64-byte readback
+contract can be accepted.
+
 ## Artifact Policy
 
 There are two different artifact classes:
@@ -111,8 +118,9 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
 4. Find the smallest lock set that both:
    - reaches `DONE_CALIBRATE`, `integrity_pass`, `ack_count` advances, `err_count=0`,
    - meets nextpnr timing without `--timing-allow-fail`.
-5. Extend rowstream tests from low-byte to dense-byte and full 64-byte beat
-   write/readback.
+5. Extend rowstream tests from low-byte to dense-byte on the preserved shell:
+   first lanes 0 through 15 through the existing 128-bit debug window, then all
+   64 lanes once the frozen shell exposes chunked or full-beat readback.
 6. Only after the 64-byte contract is deterministic, add higher-level DDR3
    functionality outside the frozen shell.
 
