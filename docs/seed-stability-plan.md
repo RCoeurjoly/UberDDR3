@@ -560,6 +560,19 @@ decoded calibration state in the matrix row.
 - Follow the frozen-shell execution strategy in `docs/ypcb-ddr3-frozen-shell.md`:
   align RTL and timing constraints first, then preserve the DDR3/JTAG rowstream
   shell while adding new functionality outside the stable command boundary.
+- 2026-05-14 RTL-aligned 400 MHz hardware baseline:
+  - no pre-place locks, seed 3: builds and programs, but fails before
+    calibration starts (`calib_seen_cycle=0`, `loader_state=1`).
+  - `full` physical locks, seed 3: applies 411 locks, misses 25, passes
+    controller timing after route at 108.17 MHz, but still fails before
+    calibration starts.
+  - `full` physical locks, seed 0: normal build fails timing narrowly at
+    99.22 MHz; diagnostic `--timing-allow-fail` build programs but also fails
+    before calibration starts.
+  - conclusion: after RTL and nextpnr agree on 400/100/200 MHz, the current
+    physical-lock recipe is not enough. The next debugging target is the
+    missing/stale physical locks and the exact PHY/clock placement delta between
+    the last 500 MHz passing oracle and the new 400 MHz routed builds.
 - Replace provisional seed-3-only path with an any-seed stable candidate.
 - Add one additional evidence pass for 0..31 seeds (build+program) once board loop is
   healthy.

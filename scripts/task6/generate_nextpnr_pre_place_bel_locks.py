@@ -163,6 +163,8 @@ print(
     "Task 6 pre-place BEL locks: applied={{}} missing={{}} source={','.join(str(path) for path in args.locks_json)}"
     .format(applied, len(missing))
 )
+if missing and ALLOW_MISSING:
+    print("Task 6 pre-place BEL missing sample: " + repr(missing[:16]))
 '''
     args.out_py.write_text(script, encoding="utf-8")
     return 0
