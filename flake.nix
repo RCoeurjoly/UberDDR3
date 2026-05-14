@@ -95,9 +95,12 @@ EOF
           seed,
           freq,
           synthXilinxFlags ? "-flatten -arch xc7",
+          makeTarget ? "rowstream-v40-locked",
+          outputStem ? "ypcb_00338_1p1_uberddr3_rowstream_loader",
+          artifactPrefix ? "rowstream",
         }:
           pkgs.stdenvNoCC.mkDerivation {
-            pname = "ypcb-rowstream-loader";
+            pname = "ypcb-${artifactPrefix}";
             version = "seed-${toString seed}-freq-${toString freq}";
             src = mkSource;
 
@@ -127,7 +130,7 @@ EOF
               mkdir -p ../../artifacts/manual-seed/seed${toString seed}
 
               make clean
-              make rowstream-v40-locked \
+              make ${makeTarget} \
                 SYNTH_XILINX_FLAGS="${synthXilinxFlags}" \
                 PNR_ARGS="--seed ${toString seed} --freq ${toString freq}" \
                 PNR_DEBUG="--write ../../artifacts/manual-seed/seed${toString seed}/nextpnr-routed.json"
@@ -136,9 +139,9 @@ EOF
             installPhase = ''
               runHook preInstall
               mkdir -p $out
-              cp ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit $out/rowstream_seed${toString seed}_freq${toString freq}.bit
+              cp ${outputStem}_openxc7.bit $out/${artifactPrefix}_seed${toString seed}_freq${toString freq}.bit
               cp ../../artifacts/manual-seed/seed${toString seed}/nextpnr-routed.json $out/nextpnr-routed.seed${toString seed}_freq${toString freq}.json
-              cp ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit $out/ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit
+              cp ${outputStem}_openxc7.bit $out/${outputStem}_openxc7.bit
               runHook postInstall
             '';
           };
@@ -158,6 +161,13 @@ EOF
           default = mkYpcbRowstreamBitstream {
             seed = 3;
             freq = 25;
+          };
+          ypcb-rowstream-fullbeat-seed-3-freq-25 = mkYpcbRowstreamBitstream {
+            seed = 3;
+            freq = 25;
+            makeTarget = "rowstream-fullbeat-v40-locked";
+            outputStem = "ypcb_00338_1p1_uberddr3_rowstream_fullbeat";
+            artifactPrefix = "rowstream-fullbeat";
           };
         };
 

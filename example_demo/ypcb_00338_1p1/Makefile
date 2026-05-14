@@ -1,6 +1,7 @@
 PROJECT = ypcb_00338_1p1_ddr3
 BIST_PROJECT = ypcb_00338_1p1_uberddr3_bist
 ROWSTREAM_PROJECT = ypcb_00338_1p1_uberddr3_rowstream_loader
+ROWSTREAM_FULLBEAT_PROJECT = ypcb_00338_1p1_uberddr3_rowstream_fullbeat
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 DBPART = $(shell echo ${PART} | sed -e 's/-[0-9].*//g')
@@ -10,6 +11,7 @@ TOP_VERILOG = ${PROJECT}.v
 XDC = ${PROJECT}.xdc
 BIST_XDC = ${BIST_PROJECT}.xdc
 ROWSTREAM_XDC = ${ROWSTREAM_PROJECT}.xdc
+ROWSTREAM_FULLBEAT_XDC = ${ROWSTREAM_FULLBEAT_PROJECT}.xdc
 CHIPDB ?= .
 CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
 ifeq ($(suffix ${CHIPDB}),.bin)
@@ -83,6 +85,15 @@ ROWSTREAM_SOURCES = \
 	../../rtl/ecc/ecc_dec.sv \
 	../../rtl/ecc/ecc_enc.sv
 
+ROWSTREAM_FULLBEAT_SOURCES = \
+	${ROWSTREAM_FULLBEAT_PROJECT}.v \
+	../../fpga/rtl/task6_ypcb_uberddr3_rowstream_loader_top.sv \
+	../../rtl/ddr3_controller.v \
+	../../rtl/ddr3_phy.v \
+	../../rtl/ddr3_top.v \
+	../../rtl/ecc/ecc_dec.sv \
+	../../rtl/ecc/ecc_enc.sv
+
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
@@ -96,6 +107,10 @@ bist-v40-locked: ${BIST_PROJECT}_openxc7.bit
 .PHONY: rowstream-v40-locked
 rowstream-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-locked: ${ROWSTREAM_PROJECT}_openxc7.bit
+
+.PHONY: rowstream-fullbeat-v40-locked
+rowstream-fullbeat-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+rowstream-fullbeat-v40-locked: ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit
 
 .PHONY: rowstream-v40-json
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
@@ -222,6 +237,9 @@ ${BIST_PROJECT}.json: ${BIST_SOURCES} Makefile
 ${ROWSTREAM_PROJECT}.json: ${ROWSTREAM_SOURCES} Makefile
 	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_SOURCES}
 
+${ROWSTREAM_FULLBEAT_PROJECT}.json: ${ROWSTREAM_FULLBEAT_SOURCES} Makefile
+	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_FULLBEAT_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_FULLBEAT_SOURCES}
+
 ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py
 	python3 ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py \
 		--locks-json ${V40_BEL_LOCKS} \
@@ -246,12 +264,19 @@ ${BIST_XDC}: ${XDC}
 ${ROWSTREAM_XDC}: ${XDC}
 	sed '/led/d' $< > $@
 
+${ROWSTREAM_FULLBEAT_XDC}: ${XDC}
+	sed '/led/d' $< > $@
+
 ${BIST_PROJECT}.fasm: ${BIST_PROJECT}.json ${CHIPDB_BIN} ${BIST_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${BIST_XDC} --json ${BIST_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
 ${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+	cat ypcb_vref.features >> $@
+
+${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_FULLBEAT_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_FULLBEAT_XDC} --json ${ROWSTREAM_FULLBEAT_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
 ${PROJECT}.frames: ${PROJECT}.fasm
@@ -263,6 +288,9 @@ ${BIST_PROJECT}.frames: ${BIST_PROJECT}.fasm
 ${ROWSTREAM_PROJECT}.frames: ${ROWSTREAM_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
+${ROWSTREAM_FULLBEAT_PROJECT}.frames: ${ROWSTREAM_FULLBEAT_PROJECT}.fasm
+	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
+
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
@@ -272,9 +300,13 @@ ${BIST_PROJECT}_openxc7.bit: ${BIST_PROJECT}.frames
 ${ROWSTREAM_PROJECT}_openxc7.bit: ${ROWSTREAM_PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit: ${ROWSTREAM_FULLBEAT_PROJECT}.frames
+	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
 .PHONY: clean
 clean:
 	rm -f ${PROJECT}_openxc7.bit ${PROJECT}.frames ${PROJECT}.fasm ${PROJECT}.json \
 		${BIST_PROJECT}_openxc7.bit ${BIST_PROJECT}.frames ${BIST_PROJECT}.fasm ${BIST_PROJECT}.json \
 		${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm ${ROWSTREAM_PROJECT}.json \
-		${BIST_XDC} ${ROWSTREAM_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS}
+		${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm ${ROWSTREAM_FULLBEAT_PROJECT}.json \
+		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS}
