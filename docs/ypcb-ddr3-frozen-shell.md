@@ -80,6 +80,25 @@ shell. A later frozen-shell revision must expose either four selectable
 128-bit chunks or the full 512-bit beat before the full 64-byte readback
 contract can be accepted.
 
+Rowstream USER2 commands must be sent with `--command-repeats 2`. The loader
+accepts every other command event; using one repeat can make alternating
+write/read commands look like data-lane failures.
+
+The preserved-shell dense-byte experiment showed that one-hot byte writes are
+not a sound contract for this YPCB configuration. With repeated commands and
+calibration passing, lanes 0, 2, 3, 4, 6, 7, 8, 10, 11, 12, 14, and 15 in the
+first 128-bit window can read back correctly, but lanes 1, 5, 9, and 13 remain
+at the existing pattern bytes. This matches the earlier no-DM board evidence:
+partial byte-write masking cannot be the foundation for 64-byte correctness.
+
+The full 64-byte path must therefore be full-beat based:
+
+1. stage a 512-bit write beat through JTAG or a local producer,
+2. commit it to DDR3 with `i_wb_sel = {64{1'b1}}`,
+3. read back the 512-bit beat,
+4. expose the beat as four 128-bit chunks or one 512-bit debug payload,
+5. compare all 64 bytes in software.
+
 ## Artifact Policy
 
 There are two different artifact classes:
@@ -118,9 +137,9 @@ artifacts/task6/lock-experiments/seed3-all-bel-locks.json
 4. Find the smallest lock set that both:
    - reaches `DONE_CALIBRATE`, `integrity_pass`, `ack_count` advances, `err_count=0`,
    - meets nextpnr timing without `--timing-allow-fail`.
-5. Extend rowstream tests from low-byte to dense-byte on the preserved shell:
-   first lanes 0 through 15 through the existing 128-bit debug window, then all
-   64 lanes once the frozen shell exposes chunked or full-beat readback.
+5. Extend rowstream tests from low-byte to dense data on the preserved shell:
+   use the existing 128-bit window for diagnostics only, then move to full
+   512-bit beat writes with all byte strobes asserted.
 6. Only after the 64-byte contract is deterministic, add higher-level DDR3
    functionality outside the frozen shell.
 
@@ -138,7 +157,8 @@ reports:
 - readback matches expected data.
 
 For the next milestone, the same criteria must pass for the dense 64-byte
-write/readback path, not only low-byte rowstream commands.
+write/readback path, not only low-byte rowstream commands. On YPCB this means a
+full-beat write/readback test, not a byte-enable test.
 
 ## Current Evidence
 
