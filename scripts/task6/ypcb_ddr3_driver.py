@@ -193,12 +193,17 @@ class YpcbDdr3Driver:
             time.sleep(self.args.poll_interval)
 
     def transact(self, command: RowstreamCommand) -> dict[str, Any]:
+        return self.transact_with_ack_delta(command, self.args.min_ack_delta)
+
+    def transact_with_ack_delta(
+        self, command: RowstreamCommand, min_ack_delta: int
+    ) -> dict[str, Any]:
         before = self.read_status()
         before_ack = int(before["ack_count"])
         self.send(command)
         self.args.expected_addr = command.addr
         self.args.expected_byte = command.byte
-        return self.wait_ready(before_ack + self.args.min_ack_delta)
+        return self.wait_ready(before_ack + min_ack_delta)
 
     def write_lowbyte(self, addr: int, byte: int) -> dict[str, Any]:
         return self.transact(RowstreamCommand(ROWSTREAM_OP_WRITE_LOWBYTE, addr, byte=byte))
@@ -220,7 +225,8 @@ class YpcbDdr3Driver:
                 chunk=chunk,
                 data128=bytes_to_little_int(chunk_data),
             )
-            statuses.append(self.transact(command))
+            min_ack_delta = self.args.min_ack_delta if chunk == CHUNKS_PER_BEAT - 1 else 0
+            statuses.append(self.transact_with_ack_delta(command, min_ack_delta))
         return statuses
 
     def write_beat_dense_bytes(self, beat_addr: int, data: bytes) -> list[dict[str, Any]]:
@@ -236,10 +242,20 @@ class YpcbDdr3Driver:
             )
         return statuses
 
-    def read_beat(self, beat_addr: int, expected_byte: int = 0) -> dict[str, Any]:
-        return self.transact(
-            RowstreamCommand(ROWSTREAM_OP_READ_DENSE_BEAT, beat_addr, byte=expected_byte)
-        )
+    def read_beat_chunks(self, beat_addr: int, expected_byte: int = 0) -> list[dict[str, Any]]:
+        statuses = []
+        for chunk in range(CHUNKS_PER_BEAT):
+            statuses.append(
+                self.transact(
+                    RowstreamCommand(
+                        ROWSTREAM_OP_READ_BEAT,
+                        beat_addr,
+                        byte=expected_byte,
+                        chunk=chunk,
+                    )
+                )
+            )
+        return statuses
 
 
 def print_json(payload: Any) -> None:
@@ -293,7 +309,7 @@ def read_beat_command(beat_addr: int, expected_byte: int = 0) -> RowstreamComman
 def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--serial", default="210299BF3824")
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
-    parser.add_argument("--bits", type=int, default=1024)
+    parser.add_argument("--bits", type=int, default=512)
     parser.add_argument("--variant", default="rowstream192")
     parser.add_argument("--command-repeats", type=int, default=2)
     parser.add_argument("--dry-run", action="store_true")
@@ -365,10 +381,18 @@ def pattern_bytes(name: str) -> bytes:
     raise ValueError(name)
 
 
-def observed_beat_bytes(status: dict[str, Any]) -> list[str]:
+def observed_status_bytes(status: dict[str, Any]) -> list[str]:
     if status["version"] != 44 and status["read_beat_bytes"]:
         return status["read_beat_bytes"]
     return status["read_window128_bytes"]
+
+
+def observed_beat_bytes(statuses: list[dict[str, Any]]) -> list[str]:
+    return [
+        byte
+        for status in statuses
+        for byte in observed_status_bytes(status)[:CHUNK_BYTES]
+    ]
 
 
 def summarize_status(status: dict[str, Any]) -> dict[str, Any]:
@@ -480,10 +504,27 @@ def main() -> int:
         args.expected_addr = args.addr
         args.expected_byte = args.expected_byte
         if args.dry_run:
-            print_json(command_json(read_beat_command(args.addr, args.expected_byte)))
+            print_json(
+                [
+                    command_json(
+                        RowstreamCommand(
+                            ROWSTREAM_OP_READ_BEAT,
+                            args.addr,
+                            byte=args.expected_byte,
+                            chunk=chunk,
+                        )
+                    )
+                    for chunk in range(CHUNKS_PER_BEAT)
+                ]
+            )
             return 0
-        status = driver.read_beat(args.addr, args.expected_byte)
-        print_json({"status": status, "observed_bytes": observed_beat_bytes(status)})
+        statuses = driver.read_beat_chunks(args.addr, args.expected_byte)
+        print_json(
+            {
+                "observed_bytes": observed_beat_bytes(statuses),
+                "status": summarize_statuses(statuses),
+            }
+        )
         return 0
 
     if args.command == "memtest64":
@@ -498,7 +539,17 @@ def main() -> int:
                 {
                     "addr": f"0x{args.addr:x}",
                     "expected": [f"0x{byte:02x}" for byte in data],
-                    "read_command": command_json(read_beat_command(args.addr, data[0])),
+                    "read_commands": [
+                        command_json(
+                            RowstreamCommand(
+                                ROWSTREAM_OP_READ_BEAT,
+                                args.addr,
+                                byte=data[0],
+                                chunk=chunk,
+                            )
+                        )
+                        for chunk in range(CHUNKS_PER_BEAT)
+                    ],
                     "write_commands": [command_json(command) for command in write_commands],
                     "write_method": args.write_method,
                 }
@@ -508,8 +559,8 @@ def main() -> int:
             write_status = driver.write_beat_full(args.addr, data)
         else:
             write_status = driver.write_beat_dense_bytes(args.addr, data)
-        read_status = driver.read_beat(args.addr, data[0])
-        observed = observed_beat_bytes(read_status)
+        read_statuses = driver.read_beat_chunks(args.addr, data[0])
+        observed = observed_beat_bytes(read_statuses)
         expected = [f"0x{byte:02x}" for byte in data]
         compare_len = min(len(observed), len(expected))
         print_json(
@@ -519,7 +570,7 @@ def main() -> int:
                 "expected": expected[:compare_len],
                 "observed": observed,
                 "pass": observed == expected[:compare_len] and compare_len == BEAT_BYTES,
-                "read_status": summarize_status(read_status),
+                "read_status": summarize_statuses(read_statuses),
                 "write_status": summarize_statuses(write_status),
                 "window_only": compare_len < BEAT_BYTES,
             }
