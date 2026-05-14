@@ -394,6 +394,10 @@ def observed_status_bytes(status: dict[str, Any]) -> list[str]:
 
 
 def observed_beat_bytes(statuses: list[dict[str, Any]]) -> list[str]:
+    for status in statuses:
+        read_beat_bytes = status["read_beat_bytes"]
+        if len(read_beat_bytes) >= BEAT_BYTES:
+            return read_beat_bytes[:BEAT_BYTES]
     return [
         byte
         for status in statuses
