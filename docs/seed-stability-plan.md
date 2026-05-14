@@ -573,6 +573,18 @@ decoded calibration state in the matrix row.
     physical-lock recipe is not enough. The next debugging target is the
     missing/stale physical locks and the exact PHY/clock placement delta between
     the last 500 MHz passing oracle and the new 400 MHz routed builds.
+  - comparison reports saved under
+    `artifacts/task6/comparisons/rtl400-vs-passing500/`.
+    - placement: all high-risk hard primitives are equal between passing 500 MHz
+      seed 3 and failing 400 MHz seed 3 (`BUFGCTRL`, `PLL`, `IDELAYCTRL`,
+      `IDELAYE2`, I/O buffers, `ISERDESE2`, `OSERDESE2`, and `PAD`).
+    - only 2 DDR3 PHY soft LUT placements differ; the dominant placement
+      movement is `other_soft_logic`.
+    - routed nets: `ddr3_phy` is mostly stable (297/311 common nets equal),
+      while `ddr3_controller`, `jtag`, and `uberddr3_other` routes are heavily
+      different. The 400 MHz failure is therefore more likely tied to soft
+      control/JTAG/controller routing or the clock-rate change itself than to
+      gross DDR3 hard-primitive placement.
 - Replace provisional seed-3-only path with an any-seed stable candidate.
 - Add one additional evidence pass for 0..31 seeds (build+program) once board loop is
   healthy.
