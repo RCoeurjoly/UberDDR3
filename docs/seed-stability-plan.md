@@ -517,6 +517,22 @@ decoded calibration state in the matrix row.
     `artifacts/task6/lock-experiments/seed3-all-bel-locks.json` directly. Using
     the smaller physical baseline with `--scope all_seed3` generates zero locks,
     so any row with `applied_locks=0` is an invalid oracle-all test.
+  - Fresh synthesis plus `oracle-all` is not a valid maximal test yet:
+    generated packer cell names churn, so only 5,935/26,697 locks applied and
+    20,762 were missing. The run then hit a nextpnr placement-validity error and
+    stalled in router setup. For maximal lock experiments, use PNR-only from the
+    matching synth JSON until the oracle extractor excludes or canonicalizes
+    generated packer cells.
+  - PNR-only exact-synth `oracle-all`, no global `--freq`, and 400 MHz
+    `addClock` constraints applies all 26,697 locks with no missing locks but
+    fails nextpnr timing at `bist_top.controller_clk`: 87.05 MHz reported vs
+    100 MHz required.
+  - Diagnostic-only run with the same PNR-only exact-synth `oracle-all` plus
+    `--timing-allow-fail` builds and passes hardware on seed 3:
+    `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`, `err_count=0`, readback
+    `0xa5`. This proves the full placement oracle can still calibrate under the
+    400 MHz clock-constraint experiment; the immediate blocker is timing closure
+    or timing-model policy for the controller domain, not DDR3 PHY placement.
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
   - seed 5 also fails under full `oracle-all`, so additional knobs beyond the
