@@ -11,6 +11,10 @@ XDC = ${PROJECT}.xdc
 BIST_XDC = ${BIST_PROJECT}.xdc
 ROWSTREAM_XDC = ${ROWSTREAM_PROJECT}.xdc
 CHIPDB ?= .
+CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
+ifeq ($(suffix ${CHIPDB}),.bin)
+CHIPDB_BIN := ${CHIPDB}
+endif
 REPO_ROOT := ../..
 V40_BEL_LOCKS ?= ${REPO_ROOT}/artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json
 V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
@@ -32,6 +36,23 @@ SEED ?= 3
 FREQ ?= 25
 ROWSTREAM_ROUTED_JSON ?= ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
 ROWSTREAM_BITSTREAM_OUT ?= ../../artifacts/manual-seed/seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_seed${SEED}_freq${FREQ}.bit
+DEFAULT_PNR_ARGS = --seed ${SEED} --freq ${FREQ}
+DEFAULT_PNR_DEBUG = --write ${ROWSTREAM_ROUTED_JSON}
+ifneq ($(origin PNR_ARGS), command line)
+PNR_ARGS = $(DEFAULT_PNR_ARGS)
+endif
+ifneq ($(origin PNR_DEBUG), command line)
+PNR_DEBUG = $(DEFAULT_PNR_DEBUG)
+endif
+ifeq ($(origin PNR_DEBUG), command line)
+ifeq ($(word 1,${PNR_DEBUG}),--write)
+ifneq ($(origin ROWSTREAM_ROUTED_JSON), command line)
+ROWSTREAM_ROUTED_JSON = $(word 2,${PNR_DEBUG})
+endif
+endif
+endif
+ROWSTREAM_ROUTED_JSON_ABS = $(abspath ${ROWSTREAM_ROUTED_JSON})
+ROWSTREAM_BITSTREAM_OUT_ABS = $(abspath ${ROWSTREAM_BITSTREAM_OUT})
 PNR_PRE_PACK ?= --pre-pack ${DDR3_CLOCK_CONSTRAINTS}
 PNR_PRE_PLACE ?=
 JTAG_LINK ?= -c digilent_hs2
@@ -74,15 +95,26 @@ rowstream-v40-locked: ${ROWSTREAM_PROJECT}_openxc7.bit
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-json:
 	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
-	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON})
-	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT})
+	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
+	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT_ABS})
 	$(MAKE) clean
+	@printf 'rowstream-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
+		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
 	$(MAKE) rowstream-v40-locked \
 		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
-		PNR_ARGS="--seed ${SEED} --freq ${FREQ}" \
-		PNR_DEBUG="--write ${ROWSTREAM_ROUTED_JSON}"
-	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT}
-	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT} ${ROWSTREAM_ROUTED_JSON}
+		SEED="${SEED}" \
+		FREQ="${FREQ}" \
+		ROWSTREAM_ROUTED_JSON="${ROWSTREAM_ROUTED_JSON_ABS}" \
+		ROWSTREAM_BITSTREAM_OUT="${ROWSTREAM_BITSTREAM_OUT_ABS}" \
+		PNR_ARGS="$(PNR_ARGS)" \
+		PNR_DEBUG="$(PNR_DEBUG)"
+	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
+	@if [ ! -f ${ROWSTREAM_ROUTED_JSON_ABS} ]; then \
+		echo "ERROR: expected routed json ${ROWSTREAM_ROUTED_JSON_ABS} not created"; \
+		exit 1; \
+	fi
+	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT_ABS}
+	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT_ABS} ${ROWSTREAM_ROUTED_JSON_ABS}
 
 .PHONY: program
 program: ${PROJECT}_openxc7.bit
@@ -158,13 +190,13 @@ ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate
 		--skip-cell clk100_90_bufg \
 		--out-py $@
 
-${CHIPDB}/${DBPART}.bin:
+${CHIPDB_BIN}:
 	${PYPY3} ${NEXTPNR_XILINX_PYTHON_DIR}/bbaexport.py --device ${PART} --bba ${DBPART}.bba
 	bbasm -l ${DBPART}.bba $@
 	rm -f ${DBPART}.bba
 
-${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC} ypcb_vref.features
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB_BIN} ${XDC} ypcb_vref.features
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
 ${BIST_XDC}: ${XDC}
@@ -173,12 +205,12 @@ ${BIST_XDC}: ${XDC}
 ${ROWSTREAM_XDC}: ${XDC}
 	sed '/led/d' $< > $@
 
-${BIST_PROJECT}.fasm: ${BIST_PROJECT}.json ${CHIPDB}/${DBPART}.bin ${BIST_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${BIST_XDC} --json ${BIST_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+${BIST_PROJECT}.fasm: ${BIST_PROJECT}.json ${CHIPDB_BIN} ${BIST_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${BIST_XDC} --json ${BIST_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
-${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB}/${DBPART}.bin ${ROWSTREAM_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
 ${PROJECT}.frames: ${PROJECT}.fasm

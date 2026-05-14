@@ -3,6 +3,15 @@
 This is the live plan for removing seed dependence in the rowstream
 calibration path while keeping changes upstreamable.
 
+This plan is now the active sequence we will execute on this branch:
+
+1. Lock the layout as much as possible using generated BEL locks.
+2. Validate whether it is seed-stable by sweeping a declared seed set.
+3. If stable, shrink the lock set; if not stable, add deterministic PNR knobs
+   (timing/placement/router) and retry.
+4. Promote the smallest seed-stable configuration to the default and keep all
+   non-stable attempts in `artifacts/task6/calibration-sweeps` for evidence.
+
 ## Objective
 
 - Start from the current pinned seed-3 artifact as a progress artifact only.
@@ -17,6 +26,11 @@ calibration path while keeping changes upstreamable.
    - `ddr3_clocks`
    - `ddr3_board_pins`
    - `uberddr3_phy`
+   - `full-jtag-clocks` adds the seed-3 BSCAN/JTAG BUFGCTRL placements as a
+     test knob, because full-lock seed 3 passes while seeds 0/1/2 do not start
+     calibration.
+   - `oracle-all` is the true maximal lock experiment: extract every placed BEL
+     from the passing seed-3 routed JSON and lock all of them for another seed.
 2. **Clock and timing knobs next**:
    - `--no-tmdriv`
    - `--freq`
@@ -43,6 +57,7 @@ calibration path while keeping changes upstreamable.
    - `loader_ready == true`
    - `err_count == 0`
    - `ack_count > 0`
+   - if rowstream command fields are present: `integrity == pass`
 4. If no candidate is stable for all seeds:
    - broaden search with additional pnr knobs.
    - reduce/remove fewer constraints only after knobs are exhausted.
@@ -150,9 +165,78 @@ python3 scripts/task6/task6_seed_stability_matrix.py \
 
 If you need a no-lock delta run, omit `--extra-locks-json` and keep the same command.
 
+## Execution Protocol (today)
+
+Run this sequence exactly in order before changing any lock payload:
+
+```sh
+# 1) Build baseline candidates (custom outputs are now deterministic)
+make -C example_demo/ypcb_00338_1p1 rowstream-v40-json \
+  SEED=3 FREQ=25 CHIPDB=/nix/store/<CHIPDB_STORE_PATH>/nextpnr-xilinx-chipdb-0.8.2 \
+  ROWSTREAM_ROUTED_JSON=artifacts/manual-seed/seed3/nextpnr-routed.seed3.freq25.json \
+  ROWSTREAM_BITSTREAM_OUT=artifacts/manual-seed/seed3/rowstream_seed3_freq25.bit
+
+make -C example_demo/ypcb_00338_1p1 rowstream-v40-json \
+  SEED=2 FREQ=25 CHIPDB=/nix/store/<CHIPDB_STORE_PATH>/nextpnr-xilinx-chipdb-0.8.2 \
+  ROWSTREAM_ROUTED_JSON=artifacts/manual-seed/seed2/nextpnr-routed.seed2.freq25.json \
+  ROWSTREAM_BITSTREAM_OUT=artifacts/manual-seed/seed2/rowstream_seed2_freq25.bit
+
+# 2) Compare routed placements for seed-invariant / seed-specific deltas
+python3 scripts/task6/compare_routed_placements.py \
+  --seed-json 3:artifacts/manual-seed/seed3/nextpnr-routed.seed3.freq25.json \
+  --seed-json 2:artifacts/manual-seed/seed2/nextpnr-routed.seed2.freq25.json \
+  --pass-seed 3 --fail-seed 2
+
+# 3) Run seed sweep automatically (build-only first, then hardware rowstream contract)
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-maximality-check \
+  --seeds 0-5 \
+  --lock-sets full \
+  --freqs 25 \
+  --build-only
+
+python3 scripts/task6/task6_seed_stability_matrix.py \
+  --sweep ypcb-rowstream-maximality-check-hw \
+  --seeds 0-5 \
+  --lock-sets full \
+  --freqs 25 \
+  --rowstream-check \
+  --rowstream-readback-after-write \
+  --rowstream-command-byte 0xa5 \
+  --rowstream-expected-byte 0xa5
+```
+
+Use `--rowstream-check` for board confirmation. This path programs with OpenOCD
+through `task6_ddr3_experiment_runner.py`, waits for rowstream calibration, sends
+a low-byte rowstream write, optionally sends a readback command, and records
+`calibration`, `command_gate`, `integrity`, `ack_count`, `err_count`, and the
+decoded calibration state in the matrix row.
+
 ## Current Status (snapshot)
 
 - Provisional default (brittle): `full-controller-soft` with seed-3-derived oracle locks.
+- The matrix now has a rowstream-aware hardware check path; passive JTAG polling
+  is not sufficient for rowstream-loader success because it does not exercise the
+  command/readback contract.
+- Latest hardware evidence:
+  - `full` seed 3 passes: `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`,
+    `err_count=0`, readback `0xa5`.
+  - `full` seeds 0, 1, and 2 fail before calibration starts:
+    `calib_seen_cycle=0`, `loader_state=1`.
+  - placement comparison shows DDR3 IO/IDELAY/ISERDES/OSERDES primitives stable
+    across seeds, but three auto-generated BSCAN/JTAG `BUFGCTRL` cells vary.
+  - `full-jtag-clocks` seed 0 still fails before calibration, so those BUFGs are
+    not sufficient.
+  - `oracle-all` applies all 26,697 placed BELs from the passing seed-3 routed
+    JSON. Hardware results:
+    - seed 0: pass, `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`,
+      `err_count=0`, readback `0xa5`.
+    - seed 1: pass, `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`,
+      `err_count=0`, readback `0xa5`.
+    - seed 2: pass, `DONE_CALIBRATE`, `integrity_pass`, `ack_count=11`,
+      `err_count=0`, readback `0xa5`.
+  - conclusion: absolute BEL placement is sufficient to rescue failing seeds in
+    the tested 0..3 window. The next phase is shrink/minimize from `oracle-all`.
 - Known gaps:
   - failing seeds observed at `0`, `2`, `4`, `5` under current lock set and tested knobs.
   - constrained-cluster crash in nextpnr-xilinx appears before a complete stable

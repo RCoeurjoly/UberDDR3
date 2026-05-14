@@ -21,6 +21,7 @@ ROOT = Path(__file__).resolve().parents[2]
 BOARD_RUN = ROOT / "scripts" / "task6" / "task6_board_run.py"
 READ_JTAG = ROOT / "scripts" / "task6" / "read_jtag_debug_ftdi_bitbang.py"
 LOCK_GENERATOR = ROOT / "scripts" / "task6" / "generate_nextpnr_pre_place_bel_locks.py"
+EXPERIMENT_RUNNER = ROOT / "scripts" / "task6" / "task6_ddr3_experiment_runner.py"
 YPCB_DIR = ROOT / "example_demo" / "ypcb_00338_1p1"
 ROWSTREAM_BIT = YPCB_DIR / "ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit"
 ROWSTREAM_STEM = "ypcb_00338_1p1_uberddr3_rowstream_loader"
@@ -49,6 +50,13 @@ LOCK_SETS: dict[str, tuple[str, ...]] = {
     "phy": ("uberddr3_phy",),
     "clocks-phy": ("ddr3_clocks", "uberddr3_phy"),
     "full": ("ddr3_clocks", "ddr3_board_pins", "uberddr3_phy"),
+    "full-jtag-clocks": (
+        "ddr3_clocks",
+        "ddr3_board_pins",
+        "uberddr3_phy",
+        "jtag_clocks",
+    ),
+    "oracle-all": ("all_seed3",),
     "full-idelayctrl-soft": (
         "ddr3_clocks",
         "ddr3_board_pins",
@@ -223,16 +231,21 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
     pnr_pre_place = "" if args.lock_set == "none" else f"--pre-place {lock_py}"
     routed_json = run_dir / "build-artifacts" / "nextpnr-routed.json"
     routed_json.parent.mkdir(parents=True, exist_ok=True)
-    command = devshell(args, [
-        "make",
-        "-C",
-        str(YPCB_DIR.relative_to(ROOT)),
+    make_vars = [
         "ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit",
         f"V40_PRE_PLACE_BEL_LOCKS={lock_py}",
         f"PNR_PRE_PLACE={pnr_pre_place}",
         f"PNR_ARGS=--seed {args.seed} --freq {args.freq} {args.pnr_extra_args}".rstrip(),
         f"PNR_DEBUG=--write {routed_json}",
         f"SYNTH_XILINX_FLAGS={args.synth_xilinx_flags}",
+    ]
+    if args.chipdb is not None:
+        make_vars.append(f"CHIPDB={args.chipdb}")
+    command = devshell(args, [
+        "make",
+        "-C",
+        str(YPCB_DIR.relative_to(ROOT)),
+        *make_vars,
     ])
     proc = run_command(command, log_path=run_dir / "logs" / "build.log", dry_run=args.dry_run)
     if proc.returncode != 0:
@@ -366,6 +379,130 @@ def decode_debug(readback: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def _read_json_if_exists(path: Path) -> dict[str, Any] | None:
+    if not path.is_file():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def program_and_rowstream_contract(
+    args: argparse.Namespace,
+    run_dir: Path,
+    bitstream: Path,
+) -> tuple[str, dict[str, Any]]:
+    if args.skip_program:
+        board_run = init_board_run(args, run_dir, bitstream)
+        return str(board_run), {"program_status": "skipped"}
+
+    label = f"{args.sweep}-{args.lock_set}-seed{args.seed}"
+    argv = [
+        sys.executable,
+        str(EXPERIMENT_RUNNER),
+        "--label",
+        label,
+        "--experiment",
+        "task6-ddr3-calibration-sweep",
+        "--variant",
+        "rowstream-calibration-sweep",
+        "--command-protocol",
+        "rowstream192",
+        "--expected-byte",
+        f"0x{args.rowstream_expected_byte:02x}",
+        "--command-byte",
+        f"0x{args.rowstream_command_byte:02x}",
+        "--command-addr",
+        str(args.rowstream_command_addr),
+        "--command-repeats",
+        str(args.rowstream_command_repeats),
+        "--command-opcode",
+        f"0x{args.rowstream_command_opcode:02x}",
+        "--rowstream-poll-timeout",
+        str(args.rowstream_poll_timeout),
+        "--rowstream-poll-interval",
+        str(args.rowstream_poll_interval),
+        "--rowstream-min-ack-delta",
+        str(args.rowstream_min_ack_delta),
+        "--rowstream-lowbyte-addr-offset",
+        str(args.rowstream_lowbyte_addr_offset),
+        "--ftdi-serial",
+        args.ftdi_serial,
+        "--openocd-interface",
+        args.openocd_interface,
+        "--openocd-target",
+        args.openocd_target,
+        "--openocd-speed",
+        str(args.openocd_speed),
+        "--tdo-bit",
+        str(args.tdo_bit),
+        "--bits",
+        str(args.bits),
+        "--bitstream",
+        str(bitstream),
+        "--programmer",
+        "openocd",
+    ]
+    if args.rowstream_readback_after_write:
+        argv.append("--rowstream-readback-after-write")
+    if args.rowstream_command_update_mode:
+        argv.extend(["--command-update-mode", args.rowstream_command_update_mode])
+
+    log_path = run_dir / "logs" / "rowstream-contract.log"
+    proc = run_command(devshell(args, argv), log_path=log_path, dry_run=args.dry_run)
+    if args.dry_run:
+        return "dry-run-rowstream-contract", {"program_status": "pass"}
+    if proc.returncode != 0:
+        return "rowstream-contract-failed", {
+            "program_status": "fail",
+            "raw_runner_output": log_path.read_text(encoding="utf-8"),
+        }
+
+    runner_stdout = log_path.read_text(encoding="utf-8")
+    output_lines = [line.strip() for line in runner_stdout.splitlines() if line.strip()]
+    board_run_path_text = next(
+        (line for line in reversed(output_lines) if line.startswith("/")),
+        "",
+    )
+    if not board_run_path_text:
+        return "rowstream-contract-failed", {"program_status": "fail", "raw_runner_output": runner_stdout}
+
+    board_run = Path(board_run_path_text)
+    if not board_run.is_absolute():
+        board_run = ROOT / board_run_path_text
+    if not board_run.is_dir():
+        return str(board_run), {"program_status": "fail"}
+
+    decoded = _read_json_if_exists(board_run / "readback" / f"decoded-tdo{args.tdo_bit}.json")
+    if decoded is None:
+        return str(board_run), {"program_status": "fail", "board_run_dir": str(board_run)}
+
+    result = decoded.get("result", {})
+    calibration_pass = result.get("calibration") == "pass"
+    row = {
+        "program_status": "pass",
+        "loader_ready": decoded.get("loader_ready"),
+        "loader_error": decoded.get("loader_error"),
+        "calib_seen": decoded.get("calib_seen", calibration_pass),
+        "calib_complete": decoded.get("calib_complete", calibration_pass),
+        "state": decoded.get("state"),
+        "state_name": decoded.get("state_name"),
+        "ack_count": decoded.get("ack_count"),
+        "err_count": decoded.get("err_count"),
+        "read_byte": decoded.get("read_byte"),
+        "expected_byte": decoded.get("expected_byte"),
+        "command_gate": result.get("command_gate"),
+        "integrity": result.get("integrity"),
+        "calibration": result.get("calibration"),
+        "board": result.get("board"),
+        "poll_count": None,
+    }
+    verdict = _read_json_if_exists(board_run / "verdict.json")
+    if verdict is not None:
+        row["board_verdict_status"] = verdict.get("status")
+        row["board_verdict_correctness"] = verdict.get("correctness")
+        row["board_verdict_board"] = verdict.get("board")
+    return str(board_run), row
+
+
 def program_and_poll(args: argparse.Namespace, run_dir: Path, bitstream: Path) -> tuple[str, dict[str, Any]]:
     if args.skip_program:
         board_run = init_board_run(args, run_dir, bitstream)
@@ -467,7 +604,10 @@ def run_row(args: argparse.Namespace) -> dict[str, Any]:
         if args.build_only:
             debug = {"program_status": "build-only"}
         else:
-            board_run, debug = program_and_poll(args, run_dir, bitstream)
+            if args.rowstream_check:
+                board_run, debug = program_and_rowstream_contract(args, run_dir, bitstream)
+            else:
+                board_run, debug = program_and_poll(args, run_dir, bitstream)
     else:
         archived_artifacts = {}
 
@@ -478,6 +618,7 @@ def run_row(args: argparse.Namespace) -> dict[str, Any]:
         "freq": args.freq,
         "lock_set": args.lock_set,
         "lock_scopes": list(LOCK_SETS[args.lock_set]),
+        "chipdb": str(args.chipdb) if args.chipdb is not None else None,
         "run_dir": str(run_dir.relative_to(ROOT)),
         "board_run_dir": board_run,
         "bitstream": str(bitstream),
@@ -485,16 +626,27 @@ def run_row(args: argparse.Namespace) -> dict[str, Any]:
         "archived_artifacts": archived_artifacts,
         "build_status": build_status,
         "program_status": debug.get("program_status"),
+        "program_notes": debug.get("raw_runner_output"),
         "pnr_extra_args": args.pnr_extra_args,
         "calib_seen": debug.get("calib_seen"),
         "calib_complete": debug.get("calib_complete"),
+        "state_name": debug.get("state_name"),
         "loader_ready": debug.get("loader_ready"),
         "loader_error": debug.get("loader_error"),
         "state": debug.get("state"),
         "debug1": debug.get("debug1"),
         "ack_count": debug.get("ack_count"),
         "err_count": debug.get("err_count"),
+        "read_byte": debug.get("read_byte"),
+        "expected_byte": debug.get("expected_byte"),
+        "command_gate": debug.get("command_gate"),
+        "integrity": debug.get("integrity"),
+        "calibration": debug.get("calibration"),
+        "board": debug.get("board"),
         "poll_count": debug.get("poll_count"),
+        "board_verdict_status": debug.get("board_verdict_status"),
+        "board_verdict_correctness": debug.get("board_verdict_correctness"),
+        "board_verdict_board": debug.get("board_verdict_board"),
         "applied_locks": applied_locks,
         "missing_locks": missing_locks,
         "notes": args.notes,
@@ -518,6 +670,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--clean", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--build-only", action="store_true")
     parser.add_argument("--skip-program", action="store_true")
+    parser.add_argument(
+        "--rowstream-check",
+        action="store_true",
+        help="Use task6_ddr3_experiment_runner rowstream192 contract verification.",
+    )
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--nix-develop", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--allow-missing-locks", action="store_true")
@@ -530,6 +687,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--openocd-speed", default="6000")
     parser.add_argument("--tdo-bit", type=int, default=7)
     parser.add_argument("--bits", type=int, default=DEBUG_BITS)
+    parser.add_argument("--rowstream-command-byte", type=lambda value: int(value, 0), default=0xA5)
+    parser.add_argument("--rowstream-expected-byte", type=lambda value: int(value, 0), default=0xA5)
+    parser.add_argument("--rowstream-command-addr", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--rowstream-command-repeats", type=int, default=1)
+    parser.add_argument("--rowstream-command-opcode", type=lambda value: int(value, 0), default=0x03)
+    parser.add_argument(
+        "--rowstream-readback-after-write",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+    )
+    parser.add_argument("--rowstream-poll-timeout", type=float, default=8.0)
+    parser.add_argument("--rowstream-poll-interval", type=float, default=0.05)
+    parser.add_argument("--rowstream-min-ack-delta", type=int, default=1)
+    parser.add_argument("--rowstream-lowbyte-addr-offset", type=int, default=1)
+    parser.add_argument(
+        "--rowstream-command-update-mode",
+        choices=("idle", "stop-at-update"),
+        default="idle",
+    )
+    parser.add_argument("--chipdb", type=Path, help="Override CHIPDB directory or direct .bin path.")
     parser.add_argument("--notes", default="")
     return parser.parse_args()
 

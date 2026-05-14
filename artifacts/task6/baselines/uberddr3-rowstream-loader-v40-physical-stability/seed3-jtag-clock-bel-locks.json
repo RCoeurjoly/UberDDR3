@@ -1,0 +1,27 @@
+{
+  "locks": [
+    {
+      "bel": "BUFGCTRL_X0Y15/BUFGCTRL",
+      "cell": "$auto$clkbufmap.cc:261:execute$150813",
+      "scope": "jtag_clocks",
+      "type": "BUFGCTRL"
+    },
+    {
+      "bel": "BUFGCTRL_X0Y8/BUFGCTRL",
+      "cell": "$auto$clkbufmap.cc:261:execute$150815",
+      "scope": "jtag_clocks",
+      "type": "BUFGCTRL"
+    },
+    {
+      "bel": "BUFGCTRL_X0Y3/BUFGCTRL",
+      "cell": "$auto$clkbufmap.cc:261:execute$150817",
+      "scope": "jtag_clocks",
+      "type": "BUFGCTRL"
+    }
+  ],
+  "source": {
+    "notes": "Passing full-lock seed-3 rowstream placement; locks BSCAN/JTAG command/debug clock BUFGCTRLs.",
+    "routed_json": "artifacts/task6/calibration-sweeps/ypcb-rowstream-maximality-check-fresh4/2026-05-14T03-39-50+0200-full-seed3/build-artifacts/nextpnr-routed.json",
+    "seed": 3
+  }
+}

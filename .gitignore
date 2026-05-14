@@ -1,4 +1,5 @@
 result
+artifacts/manual-seed/
 formal/ddr3_multiconfig*prf*
 formal/ddr3_multiconfig_default/
 formal/ddr3_multiconfig_ecc/
@@ -14,6 +15,8 @@ example_demo/*/build/*
 example_demo/ypcb_00338_1p1/ypcb_00338_1p1_uberddr3_*.xdc
 example_demo/ypcb_00338_1p1/v40-*-pre-place-bel-locks.py
 example_demo/ypcb_00338_1p1/*_openxc7.bit
+example_demo/ypcb_00338_1p1/artifacts/
+example_demo/ypcb_00338_1p1/artifacts/**
 example_demo/build_logs*
 *.fasm
 *.frames
@@ -31,6 +34,7 @@ artifacts/task6/baselines/*
 artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/*
 !artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/critical.fasm
 !artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json
+!artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/seed3-jtag-clock-bel-locks.json
 *toolchain-nix*
 testbench/ddr3_dimm_micron_sim_behav.wcfg
 testbench/icarus_sim/*.log
