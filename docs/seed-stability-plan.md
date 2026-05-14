@@ -385,6 +385,9 @@ decoded calibration state in the matrix row.
       (`CARRY4`, `SELMUX2_1`, or `SLICE_LUTX`) currently fails during nextpnr
       constrained placement with `unordered_map::at`, so those groups cannot yet
       be tested independently as add-backs.
+    - adding `--no-tmdriv` to the 8,726-lock seed 5 build does not rescue it;
+      the bitstream still fails before calibration with `calib_seen_cycle=0`,
+      `loader_state=1`.
 - Known gaps:
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
