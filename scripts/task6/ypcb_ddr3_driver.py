@@ -415,6 +415,8 @@ def pattern_bytes(name: str) -> bytes:
 
 
 def observed_status_bytes(status: dict[str, Any]) -> list[str]:
+    if status["version"] >= 49:
+        return status["read_window128_bytes"]
     if status["version"] != 44 and status["read_beat_bytes"]:
         return status["read_beat_bytes"]
     return status["read_window128_bytes"]
@@ -423,7 +425,7 @@ def observed_status_bytes(status: dict[str, Any]) -> list[str]:
 def observed_beat_bytes(statuses: list[dict[str, Any]]) -> list[str]:
     for status in statuses:
         read_beat_bytes = status["read_beat_bytes"]
-        if len(read_beat_bytes) >= BEAT_BYTES:
+        if status["version"] < 49 and len(read_beat_bytes) >= BEAT_BYTES:
             return read_beat_bytes[:BEAT_BYTES]
     return [
         byte
