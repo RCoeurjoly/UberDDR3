@@ -242,13 +242,19 @@ class YpcbDdr3Driver:
             )
         return statuses
 
-    def read_beat_chunks(self, beat_addr: int, expected_byte: int = 0) -> list[dict[str, Any]]:
+    def read_beat_chunks(
+        self,
+        beat_addr: int,
+        expected_byte: int = 0,
+        *,
+        opcode: int = ROWSTREAM_OP_READ_BEAT,
+    ) -> list[dict[str, Any]]:
         statuses = []
         for chunk in range(CHUNKS_PER_BEAT):
             statuses.append(
                 self.transact(
                     RowstreamCommand(
-                        ROWSTREAM_OP_READ_BEAT,
+                        opcode,
                         beat_addr,
                         byte=expected_byte,
                         chunk=chunk,
@@ -535,6 +541,11 @@ def main() -> int:
                 if args.write_method == "fullbeat"
                 else dense_byte_write_commands(args.addr, data)
             )
+            read_opcode = (
+                ROWSTREAM_OP_READ_BEAT
+                if args.write_method == "fullbeat"
+                else ROWSTREAM_OP_READ_DENSE_BEAT
+            )
             print_json(
                 {
                     "addr": f"0x{args.addr:x}",
@@ -542,7 +553,7 @@ def main() -> int:
                     "read_commands": [
                         command_json(
                             RowstreamCommand(
-                                ROWSTREAM_OP_READ_BEAT,
+                                read_opcode,
                                 args.addr,
                                 byte=data[0],
                                 chunk=chunk,
@@ -559,7 +570,12 @@ def main() -> int:
             write_status = driver.write_beat_full(args.addr, data)
         else:
             write_status = driver.write_beat_dense_bytes(args.addr, data)
-        read_statuses = driver.read_beat_chunks(args.addr, data[0])
+        read_opcode = (
+            ROWSTREAM_OP_READ_BEAT
+            if args.write_method == "fullbeat"
+            else ROWSTREAM_OP_READ_DENSE_BEAT
+        )
+        read_statuses = driver.read_beat_chunks(args.addr, data[0], opcode=read_opcode)
         observed = observed_beat_bytes(read_statuses)
         expected = [f"0x{byte:02x}" for byte in data]
         compare_len = min(len(observed), len(expected))
