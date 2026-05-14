@@ -22,6 +22,23 @@ This plan is now the active sequence we will execute on this branch:
 ## Constraints and Priority Order
 
 1. **Clock/PHY physical locks are fixed first**:
+   - The YPCB PLL in `example_demo/ypcb_00338_1p1/clk_wiz.v` derives the real
+     rowstream DDR3 clocks from a 50 MHz input:
+     - `controller_clk`: 125 MHz
+     - `ddr3_clk`: 500 MHz
+     - `ddr3_clk_90`: 500 MHz
+     - `ref_clk`: 200 MHz
+   - The AMD/Xilinx Kintex-7 note on external memory interfaces says DDR3/DDR2
+     Phaser divide-by-two mode is not operational from 303-399 MHz; DDR3 must
+     use a memory clock of 400 MHz or higher so the Phaser block is in 1:1 mode.
+     In this flow, that means the actual generated DDR3 clock must remain at or
+     above 400 MHz. It does **not** mean blindly setting nextpnr `--freq 400`,
+     because `--freq` is nextpnr's global timing target/fallback, not MIG's
+     memory-clock selector.
+   - `scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py` must therefore
+     constrain nextpnr with the actual YPCB clock rates above. Older seed data
+     that used `controller_clk=25 MHz` and `ddr3_clk=100 MHz` is useful only as
+     historical evidence; it was underconstrained for the real hardware.
    - In this repo, `full` lock scope means: `ddr3_clocks + ddr3_board_pins + uberddr3_phy`.
    - `ddr3_clocks`
    - `ddr3_board_pins`
