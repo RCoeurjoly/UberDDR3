@@ -38,7 +38,11 @@ FREQ ?= 25
 ROWSTREAM_ROUTED_JSON ?= ../../artifacts/manual-seed/seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
 ROWSTREAM_BITSTREAM_OUT ?= ../../artifacts/manual-seed/seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_seed${SEED}_freq${FREQ}.bit
 ROWSTREAM_SYNTH_JSON ?=
+ifeq (${FREQ},0)
+DEFAULT_PNR_ARGS = --seed ${SEED}
+else
 DEFAULT_PNR_ARGS = --seed ${SEED} --freq ${FREQ}
+endif
 DEFAULT_PNR_DEBUG = --write ${ROWSTREAM_ROUTED_JSON}
 ifneq ($(origin PNR_ARGS), command line)
 PNR_ARGS = $(DEFAULT_PNR_ARGS)

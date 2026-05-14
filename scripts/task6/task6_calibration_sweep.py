@@ -233,11 +233,16 @@ def build_bitstream(args: argparse.Namespace, run_dir: Path, lock_py: Path) -> t
     routed_json = run_dir / "build-artifacts" / "nextpnr-routed.json"
     routed_json.parent.mkdir(parents=True, exist_ok=True)
     make_target = "rowstream-v40-json-pnr-only" if args.pnr_only else "ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7.bit"
+    pnr_args = f"--seed {args.seed}"
+    if args.freq > 0:
+        pnr_args += f" --freq {args.freq}"
+    if args.pnr_extra_args:
+        pnr_args += f" {args.pnr_extra_args}"
     make_vars = [
         make_target,
         f"V40_PRE_PLACE_BEL_LOCKS={lock_py}",
         f"PNR_PRE_PLACE={pnr_pre_place}",
-        f"PNR_ARGS=--seed {args.seed} --freq {args.freq} {args.pnr_extra_args}".rstrip(),
+        f"PNR_ARGS={pnr_args}",
         f"PNR_DEBUG=--write {routed_json}",
         f"SYNTH_XILINX_FLAGS={args.synth_xilinx_flags}",
     ]

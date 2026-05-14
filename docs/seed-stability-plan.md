@@ -503,6 +503,16 @@ decoded calibration state in the matrix row.
       and command/control routing/placement pressure, not gross DDR3 IO/PLL/PHY
       primitive placement.
 - Known gaps:
+  - 2026-05-14 addClock-only control: seed 3 with 400 MHz explicit nextpnr
+    `addClock` constraints, no global `--freq`, and no pre-place locks builds
+    but fails hardware before calibration starts (`calib_seen_cycle=0`,
+    `loader_state=1`). Clock discipline alone is not enough.
+  - Next experiment: keep the 400 MHz `addClock` constraints as the invariant,
+    do not pass global `--freq`, and reapply `oracle-all` pre-place locks. If
+    that passes consistently across seeds, use it as the new upper bound for
+    lock shrinking. If it still fails, absolute BEL placement plus clock
+    constraints are not a sufficient basis and the next knobs are route/control
+    constraints, nextpnr placement/router options, and/or a nextpnr bug fix.
   - failing seeds observed at `5` and `7` under the 8,726-lock FFX add-back
     candidate.
   - seed 5 also fails under full `oracle-all`, so additional knobs beyond the
