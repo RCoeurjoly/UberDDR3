@@ -348,6 +348,30 @@ combination on this smaller shell can pass calibration; if none does, the
 project needs either an ODELAY-capable YPCB open-flow fix or a controller/PHY
 calibration change instead of more rowstream wrapper work.
 
+A short constrained PNR sweep reused the same v75 calibration-only synth JSON
+and varied only nextpnr placement seed. Several candidates met or nearly met
+the 100 MHz controller constraint, but none of the hardware-tested candidates
+calibrated:
+
+| Seed | Controller max | Hardware state | Instruction | `debug1` | Result |
+| ---: | ---: | --- | ---: | ---: | --- |
+| 0 | 104.49 MHz | `IDLE` | 2 | `0x00001440` | fail before command gate |
+| 3 | 106.80 MHz | `IDLE` | 2 | `0x00001440` | fail before command gate |
+| 4 | 100.05 MHz | `ANALYZE_DQS` | 13 | `0x000015a4` | fail before command gate |
+| 40 | 106.30 MHz | `ANALYZE_DQS` | 13 | `0x000015a4` | fail before command gate |
+
+Seeds 1 and 2 built at 93.81 MHz and 99.68 MHz respectively and were not
+hardware-priority candidates. Seed 5 was stopped once the sweep already had
+multiple timing-clean failures to compare.
+
+This changes the next useful experiment. Closing the visible controller timing
+constraint is necessary but not sufficient. The next build should expose DQS
+calibration internals: reset cause, active lane, `data_start_index`,
+`start_index_check`, lane early/late flags, and whether the expected write
+pattern matched the read lane. That is the information needed to distinguish a
+placement/timing reset loop from a missing PHY capability or a calibration
+algorithm assumption that is wrong for the YPCB no-ODELAY path.
+
 ## Artifact Policy
 
 There are two different artifact classes:
