@@ -46,7 +46,28 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 56, 57, 58, 63}
+ROWSTREAM_DEBUG_VERSIONS = {
+    31,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    55,
+    56,
+    57,
+    58,
+    59,
+    60,
+    61,
+    62,
+    63,
+}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_CHUNK = 0x01
 ROWSTREAM_OP_READ_BEAT = 0x02
@@ -54,6 +75,7 @@ ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
 ROWSTREAM_OP_WRITE_DENSE_BYTE = 0x05
 ROWSTREAM_OP_READ_DENSE_BEAT = 0x06
+ROWSTREAM_OP_READ_WB2_DEBUG = 0x07
 ROWSTREAM_DEFAULT_LOWBYTE_ADDR_OFFSET = 1
 
 
@@ -259,11 +281,13 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     if is_rowstream_loader:
         read_byte = (raw >> 336) & 0xFF
         read_word = (raw >> 336) & 0xFFFFFFFF
+        wb2_debug_word = (raw >> 240) & 0xFFFFFFFF
         read_window128_offset = 336
         read_window128 = (raw >> read_window128_offset) & ((1 << 128) - 1)
     else:
         read_byte = (raw >> 240) & 0xFF
         read_word = (raw >> 240) & 0xFFFFFFFF
+        wb2_debug_word = None
         read_window128_offset = None
         read_window128 = None
     stream_bytes = [(read_word >> (8 * index)) & 0xFF for index in range(4)]
@@ -385,6 +409,10 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
                     last_opcode == ROWSTREAM_OP_READ_DENSE_BEAT
                     and read_ack_seen
                 )
+                or (
+                    last_opcode == ROWSTREAM_OP_READ_WB2_DEBUG
+                    and read_ack_seen
+                )
                 or last_opcode not in (
                     ROWSTREAM_OP_WRITE_LOWBYTE,
                     ROWSTREAM_OP_READ_LOWBYTE,
@@ -392,6 +420,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
                     ROWSTREAM_OP_READ_DENSE_BEAT,
                     ROWSTREAM_OP_WRITE_CHUNK,
                     ROWSTREAM_OP_READ_BEAT,
+                    ROWSTREAM_OP_READ_WB2_DEBUG,
                 )
             )
         )
@@ -454,6 +483,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "stall_count": f"0x{((raw >> 208) & 0xFFFFFFFF):08x}",
         "read_byte": f"0x{read_byte:02x}",
         "read_word": f"0x{read_word:08x}",
+        "wb2_debug_word": (
+            f"0x{wb2_debug_word:08x}" if wb2_debug_word is not None else None
+        ),
         "stream_bytes": [f"0x{byte:02x}" for byte in stream_bytes],
         "expected_stream_bytes": [f"0x{byte:02x}" for byte in expected_stream_bytes],
         "stream_mismatch_count": stream_mismatch_count,

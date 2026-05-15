@@ -33,6 +33,7 @@ ADDITIONAL_SOURCES = \
 
 PYPY3 ?= pypy3
 SYNTH_XILINX_FLAGS ?= -flatten -abc9 -arch xc7
+ROWSTREAM_SYNTH_PRELUDE ?=
 PNR_ARGS ?= --seed 16 --freq 25
 PNR_DEBUG ?=
 SEED ?= 3
@@ -262,7 +263,7 @@ ${BIST_PROJECT}.json: ${BIST_SOURCES} Makefile
 	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${BIST_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${BIST_SOURCES}
 
 ${ROWSTREAM_PROJECT}.json: ${ROWSTREAM_SOURCES} Makefile
-	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_SOURCES}
+	yosys -p "${ROWSTREAM_SYNTH_PRELUDE} synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_SOURCES}
 
 ${ROWSTREAM_FULLBEAT_PROJECT}.json: ${ROWSTREAM_FULLBEAT_SOURCES} Makefile
 	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_FULLBEAT_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_FULLBEAT_SOURCES}

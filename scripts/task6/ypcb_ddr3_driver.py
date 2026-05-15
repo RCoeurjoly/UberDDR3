@@ -31,6 +31,7 @@ ROWSTREAM_OP_WRITE_LOWBYTE = 0x03
 ROWSTREAM_OP_READ_LOWBYTE = 0x04
 ROWSTREAM_OP_WRITE_DENSE_BYTE = 0x05
 ROWSTREAM_OP_READ_DENSE_BEAT = 0x06
+ROWSTREAM_OP_READ_WB2_DEBUG = 0x07
 
 BEAT_BYTES = 64
 CHUNK_BYTES = 16
@@ -290,6 +291,18 @@ class YpcbDdr3Driver:
             )
         return statuses
 
+    def read_wb2_debug(self, addr: int) -> dict[str, Any]:
+        before = self.read_status()
+        before_command_count = int(before["command_count"])
+        self.send(RowstreamCommand(ROWSTREAM_OP_READ_WB2_DEBUG, addr))
+        self.args.expected_addr = addr
+        self.args.expected_byte = 0
+        return self.wait_ready(
+            int(before["ack_count"]),
+            previous_command_count=before_command_count,
+            min_command_delta=self.args.command_repeats,
+        )
+
 
 def print_json(payload: Any) -> None:
     print(json.dumps(payload, indent=2, sort_keys=True))
@@ -366,6 +379,9 @@ def build_parser() -> argparse.ArgumentParser:
     encode.add_argument("--data128", type=lambda value: int(value, 0))
 
     subparsers.add_parser("status", help="read and decode the debug payload")
+
+    debug_wb2 = subparsers.add_parser("debug-wb2")
+    debug_wb2.add_argument("--addr", type=lambda value: int(value, 0), required=True)
 
     write_low = subparsers.add_parser("write-lowbyte")
     write_low.add_argument("--addr", type=lambda value: int(value, 0), required=True)
@@ -496,6 +512,20 @@ def main() -> int:
 
     if args.command == "status":
         print_json(driver.read_status())
+        return 0
+
+    if args.command == "debug-wb2":
+        if args.dry_run:
+            print_json(command_json(RowstreamCommand(ROWSTREAM_OP_READ_WB2_DEBUG, args.addr)))
+            return 0
+        status = driver.read_wb2_debug(args.addr)
+        print_json(
+            {
+                "addr": f"0x{args.addr:02x}",
+                "status": summarize_status(status),
+                "wb2_debug_word": status["wb2_debug_word"],
+            }
+        )
         return 0
 
     if args.command == "write-lowbyte":
