@@ -25,6 +25,7 @@ V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
 CALIB_PRE_PLACE_BEL_LOCKS ?= v40-calib-phy-pre-place-bel-locks.py
 ROWSTREAM_PRE_PLACE_DEPS ?= ${V40_PRE_PLACE_BEL_LOCKS}
 ROWSTREAM_FULLBEAT_PRE_PLACE_DEPS ?= ${CALIB_PRE_PLACE_BEL_LOCKS}
+CALIB_PRE_PLACE_DEPS ?= ${CALIB_PRE_PLACE_BEL_LOCKS}
 DDR3_CLOCK_CONSTRAINTS ?= ${REPO_ROOT}/scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py
 APPEND_YPCB_VREF ?= 1
 
@@ -51,6 +52,7 @@ ROWSTREAM_FULLBEAT_BITSTREAM_OUT ?= ../../artifacts/manual-seed/fullbeat-seed${S
 CALIB_ROUTED_JSON ?= ../../artifacts/manual-seed/calib-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
 CALIB_BITSTREAM_OUT ?= ../../artifacts/manual-seed/calib-seed${SEED}/ypcb_00338_1p1_uberddr3_calib_only_seed${SEED}_freq${FREQ}.bit
 ROWSTREAM_SYNTH_JSON ?=
+CALIB_SYNTH_JSON ?=
 ifeq (${FREQ},0)
 DEFAULT_PNR_ARGS = --seed ${SEED}
 else
@@ -221,6 +223,11 @@ clean-rowstream-fullbeat-pnr:
 	rm -f ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm \
 		${ROWSTREAM_FULLBEAT_XDC}
 
+.PHONY: clean-calib-pnr
+clean-calib-pnr:
+	rm -f ${CALIB_PROJECT}_openxc7.bit ${CALIB_PROJECT}.frames ${CALIB_PROJECT}.fasm \
+		${CALIB_XDC}
+
 .PHONY: rowstream-v40-json-pnr-only
 rowstream-v40-json-pnr-only:
 	@if [ -z "${ROWSTREAM_SYNTH_JSON}" ]; then \
@@ -250,6 +257,35 @@ rowstream-v40-json-pnr-only:
 	fi
 	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT_ABS}
 	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT_ABS} ${ROWSTREAM_ROUTED_JSON_ABS}
+
+.PHONY: calib-v40-json-pnr-only
+calib-v40-json-pnr-only: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
+calib-v40-json-pnr-only:
+	@if [ -z "${CALIB_SYNTH_JSON}" ]; then \
+		echo "ERROR: CALIB_SYNTH_JSON is required for calib-v40-json-pnr-only"; \
+		exit 1; \
+	fi
+	@mkdir -p $(dir ${CALIB_ROUTED_JSON_ABS})
+	@mkdir -p $(dir ${CALIB_BITSTREAM_OUT_ABS})
+	$(MAKE) clean-calib-pnr
+	cp ${CALIB_SYNTH_JSON} ${CALIB_PROJECT}.json
+	touch ${CALIB_PROJECT}.json
+	@printf 'calib-v40-json-pnr-only: seed=%s freq=%s chipdb=%s synth_json=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
+		"${SEED}" "${FREQ}" "${CHIPDB}" "${CALIB_SYNTH_JSON}" "${PNR_ARGS}" "${CALIB_ROUTED_JSON}" "${CALIB_BITSTREAM_OUT}"
+	$(MAKE) ${CALIB_PROJECT}_openxc7.bit \
+		SEED="${SEED}" \
+		FREQ="${FREQ}" \
+		CALIB_ROUTED_JSON="${CALIB_ROUTED_JSON_ABS}" \
+		CALIB_BITSTREAM_OUT="${CALIB_BITSTREAM_OUT_ABS}" \
+		PNR_PRE_PLACE="$(PNR_PRE_PLACE)" \
+		PNR_ARGS="$(PNR_ARGS)" \
+		PNR_DEBUG="--write ${CALIB_ROUTED_JSON_ABS}"
+	@if [ ! -f ${CALIB_ROUTED_JSON_ABS} ]; then \
+		echo "ERROR: expected routed json ${CALIB_ROUTED_JSON_ABS} not created"; \
+		exit 1; \
+	fi
+	cp ${CALIB_PROJECT}_openxc7.bit ${CALIB_BITSTREAM_OUT_ABS}
+	@printf 'Generated calibration bitstream: %s\nGenerated routed json: %s\n' ${CALIB_BITSTREAM_OUT_ABS} ${CALIB_ROUTED_JSON_ABS}
 
 .PHONY: program
 program: ${PROJECT}_openxc7.bit
@@ -367,7 +403,7 @@ ${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_FULLBEAT_XDC} --json ${ROWSTREAM_FULLBEAT_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
-${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vref.features ${CALIB_PRE_PLACE_BEL_LOCKS}
+${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vref.features ${CALIB_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${CALIB_XDC} --json ${CALIB_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
