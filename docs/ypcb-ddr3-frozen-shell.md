@@ -933,6 +933,14 @@ on what seed 5 has in common with the historical preserved route at the net or
 FASM feature level, or use seed 5 itself as the next preserved shell while
 searching for a timing-clean variant.
 
+Seed 5 was reprogrammed immediately after the lock-isolation tests and
+calibrated again: `DONE_CALIBRATE`, instruction `22`, `debug1=0x000006d7`,
+`calib_seen_cycle=0x000138f0`. The seed-5 pass is therefore repeatable within
+the same hardware session. It is still a calibration oracle rather than a
+production shell because its post-route controller timing is only about
+90.05 MHz against the 100 MHz constraint and this calibration-only image has
+no command path.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
