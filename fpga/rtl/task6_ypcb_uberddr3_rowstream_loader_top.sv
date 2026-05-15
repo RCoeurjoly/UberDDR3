@@ -409,50 +409,93 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
     end
   end
 
-  logic [JTAG_DEBUG_WIDTH - 1:0] jtag_debug_payload;
+  logic [JTAG_DEBUG_WIDTH - 1:0] jtag_debug_payload_q;
+  logic [7:0] debug_flags8_q;
+  logic [31:0] debug_cycle_q;
+  logic [31:0] debug_calib_seen_cycle_q;
+  logic [31:0] debug_debug1_q;
+  logic [31:0] debug_ack_count_q;
+  logic [31:0] debug_err_count_q;
+  logic [31:0] debug_stall_count_q;
+  logic [31:0] debug_read_low_q;
+  logic [31:0] debug_command_word_q;
+  logic [31:0] debug_status_word_q;
+  logic [127:0] debug_read_chunk_q;
+  logic [31:0] debug_wait_cycles_q;
+  logic [14:0] debug_command_addr_low_q;
 
-  always_comb begin
-    jtag_debug_payload = '0;
-    jtag_debug_payload[0 +: 32] = JTAG_DEBUG_MAGIC;
-    jtag_debug_payload[32 +: 8] = JTAG_DEBUG_VERSION;
-    jtag_debug_payload[40 +: 8] = {
-      1'b0,
-      uart_tx,
-      wb2_ack,
-      wb2_stall,
-      wb_err,
-      wb_ack,
-      calib_seen_q,
-      calib_complete
-    };
-    jtag_debug_payload[47] = mmcm_locked;
-    jtag_debug_payload[48 +: 32] = cycle_count_q;
-    jtag_debug_payload[80 +: 32] = calib_seen_cycle_q;
-    jtag_debug_payload[112 +: 32] = debug1;
-    jtag_debug_payload[144 +: 32] = wb_ack_count_q;
-    jtag_debug_payload[176 +: 32] = wb_err_count_q;
-    jtag_debug_payload[208 +: 32] = wb_stall_count_q;
-    jtag_debug_payload[240 +: 32] = loader_read_data_q[31:0];
-    jtag_debug_payload[272 +: 32] =
-      {jtag_command_count[7:0], loader_last_opcode_q,
-       6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
-    jtag_debug_payload[304 +: 32] = {
-      16'd0,
-      calib_seen_q,
-      loader_stall_seen_q,
-      loader_error_q,
-      loader_read_ack_seen_q,
-      loader_write_ack_seen_q,
-      loader_done_q,
-      loader_cyc_q,
-      loader_stb_q,
-      loader_state_q
-    };
-    jtag_debug_payload[336 +: 128] =
-      loader_read_data_q[loader_read_chunk_q * 128 +: 128];
-    jtag_debug_payload[464 +: 32] = loader_wait_cycles_q;
-    jtag_debug_payload[496 +: 15] = loader_command_payload_addr_q[14:0];
-    jtag_debug_payload[511] = SYS_RSTN;
+  always_ff @(posedge controller_clk or negedge rst_n) begin
+    if (!rst_n) begin
+      debug_flags8_q <= '0;
+      debug_cycle_q <= '0;
+      debug_calib_seen_cycle_q <= '0;
+      debug_debug1_q <= '0;
+      debug_ack_count_q <= '0;
+      debug_err_count_q <= '0;
+      debug_stall_count_q <= '0;
+      debug_read_low_q <= '0;
+      debug_command_word_q <= '0;
+      debug_status_word_q <= '0;
+      debug_read_chunk_q <= '0;
+      debug_wait_cycles_q <= '0;
+      debug_command_addr_low_q <= '0;
+      jtag_debug_payload_q <= '0;
+    end else begin
+      debug_flags8_q <= {
+        1'b0,
+        uart_tx,
+        wb2_ack,
+        wb2_stall,
+        wb_err,
+        wb_ack,
+        calib_seen_q,
+        calib_complete
+      };
+      debug_cycle_q <= cycle_count_q;
+      debug_calib_seen_cycle_q <= calib_seen_cycle_q;
+      debug_debug1_q <= debug1;
+      debug_ack_count_q <= wb_ack_count_q;
+      debug_err_count_q <= wb_err_count_q;
+      debug_stall_count_q <= wb_stall_count_q;
+      debug_read_low_q <= loader_read_data_q[31:0];
+      debug_command_word_q <=
+        {jtag_command_count[7:0], loader_last_opcode_q,
+         6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
+      debug_status_word_q <= {
+        16'd0,
+        calib_seen_q,
+        loader_stall_seen_q,
+        loader_error_q,
+        loader_read_ack_seen_q,
+        loader_write_ack_seen_q,
+        loader_done_q,
+        loader_cyc_q,
+        loader_stb_q,
+        loader_state_q
+      };
+      debug_read_chunk_q <= loader_read_data_q[loader_read_chunk_q * 128 +: 128];
+      debug_wait_cycles_q <= loader_wait_cycles_q;
+      debug_command_addr_low_q <= loader_command_payload_addr_q[14:0];
+
+      jtag_debug_payload_q <= '0;
+      jtag_debug_payload_q[0 +: 32] <= JTAG_DEBUG_MAGIC;
+      jtag_debug_payload_q[32 +: 8] <= JTAG_DEBUG_VERSION;
+      jtag_debug_payload_q[40 +: 8] <= debug_flags8_q;
+      jtag_debug_payload_q[47] <= mmcm_locked;
+      jtag_debug_payload_q[48 +: 32] <= debug_cycle_q;
+      jtag_debug_payload_q[80 +: 32] <= debug_calib_seen_cycle_q;
+      jtag_debug_payload_q[112 +: 32] <= debug_debug1_q;
+      jtag_debug_payload_q[144 +: 32] <= debug_ack_count_q;
+      jtag_debug_payload_q[176 +: 32] <= debug_err_count_q;
+      jtag_debug_payload_q[208 +: 32] <= debug_stall_count_q;
+      jtag_debug_payload_q[240 +: 32] <= debug_read_low_q;
+      jtag_debug_payload_q[272 +: 32] <= debug_command_word_q;
+      jtag_debug_payload_q[304 +: 32] <= debug_status_word_q;
+      jtag_debug_payload_q[336 +: 128] <= debug_read_chunk_q;
+      jtag_debug_payload_q[464 +: 32] <= debug_wait_cycles_q;
+      jtag_debug_payload_q[496 +: 15] <= debug_command_addr_low_q;
+      jtag_debug_payload_q[511] <= SYS_RSTN;
+    end
   end
 
   ddr3_top #(
@@ -529,7 +572,7 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
     .WIDTH(JTAG_DEBUG_WIDTH),
     .JTAG_CHAIN(JTAG_CHAIN)
   ) jtag_debug_shift (
-    .payload_i(jtag_debug_payload)
+    .payload_i(jtag_debug_payload_q)
   );
 
   task6_uberddr3_loader_jtag_command_shift #(
