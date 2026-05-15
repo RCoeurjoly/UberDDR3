@@ -152,6 +152,18 @@ def main() -> int:
         default=[],
         help="Drop these lock scopes before writing variants. Repeatable.",
     )
+    parser.add_argument(
+        "--include-cell",
+        action="append",
+        default=[],
+        help="Keep only these exact cell names before writing variants. Repeatable.",
+    )
+    parser.add_argument(
+        "--exclude-cell",
+        action="append",
+        default=[],
+        help="Drop these exact cell names before writing variants. Repeatable.",
+    )
     args = parser.parse_args()
 
     source_files = [str(path) for path in args.locks_json]
@@ -172,6 +184,8 @@ def main() -> int:
     exclude_types = set(args.exclude_type)
     include_scopes = set(args.include_scope)
     exclude_scopes = set(args.exclude_scope)
+    include_cells = set(args.include_cell)
+    exclude_cells = set(args.exclude_cell)
     all_locks = [
         lock
         for lock in all_locks
@@ -179,6 +193,8 @@ def main() -> int:
         and lock["type"] not in exclude_types
         and (not include_scopes or lock["scope"] in include_scopes)
         and lock["scope"] not in exclude_scopes
+        and (not include_cells or lock["cell"] in include_cells)
+        and lock["cell"] not in exclude_cells
     ]
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
