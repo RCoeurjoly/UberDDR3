@@ -24,6 +24,7 @@ V40_BEL_LOCKS ?= ${REPO_ROOT}/artifacts/task6/baselines/uberddr3-rowstream-loade
 V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
 CALIB_PRE_PLACE_BEL_LOCKS ?= v40-calib-phy-pre-place-bel-locks.py
 ROWSTREAM_PRE_PLACE_DEPS ?= ${V40_PRE_PLACE_BEL_LOCKS}
+ROWSTREAM_FULLBEAT_PRE_PLACE_DEPS ?= ${CALIB_PRE_PLACE_BEL_LOCKS}
 DDR3_CLOCK_CONSTRAINTS ?= ${REPO_ROOT}/scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py
 APPEND_YPCB_VREF ?= 1
 
@@ -362,7 +363,7 @@ ${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_X
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
-${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_FULLBEAT_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
+${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_FULLBEAT_XDC} ypcb_vref.features ${ROWSTREAM_FULLBEAT_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_FULLBEAT_XDC} --json ${ROWSTREAM_FULLBEAT_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
