@@ -6,7 +6,8 @@ module task6_uberddr3_rowstream_command_port #(
   parameter int WB_ADDR_BITS = 25,
   parameter int WB_DATA_BITS = 512,
   parameter int WB_SEL_BITS = 64,
-  parameter bit FULLBEAT_ENABLE = 1'b1
+  parameter bit FULLBEAT_ENABLE = 1'b1,
+  parameter bit READBACK_ENABLE = 1'b1
 ) (
   input  logic                      controller_clk_i,
   input  logic                      rst_ni,
@@ -232,10 +233,12 @@ module task6_uberddr3_rowstream_command_port #(
               write_ack_seen_q <= 1'b1;
             end else begin
               read_ack_seen_q <= 1'b1;
-              if (FULLBEAT_ENABLE)
+              if (READBACK_ENABLE && FULLBEAT_ENABLE)
                 read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
-              else
+              else if (READBACK_ENABLE)
                 read_chunk_o <= {{120{1'b0}}, wb_data_i[7:0]};
+              else
+                read_chunk_o <= '0;
             end
             done_q <= 1'b1;
             state_q <= LOADER_IDLE;
@@ -254,10 +257,12 @@ module task6_uberddr3_rowstream_command_port #(
               write_ack_seen_q <= 1'b1;
             end else begin
               read_ack_seen_q <= 1'b1;
-              if (FULLBEAT_ENABLE)
+              if (READBACK_ENABLE && FULLBEAT_ENABLE)
                 read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
-              else
+              else if (READBACK_ENABLE)
                 read_chunk_o <= {{120{1'b0}}, wb_data_i[7:0]};
+              else
+                read_chunk_o <= '0;
             end
             done_q <= 1'b1;
             state_q <= LOADER_IDLE;

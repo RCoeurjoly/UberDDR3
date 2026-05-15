@@ -7,7 +7,9 @@ module task6_ypcb_uberddr3_calib_only_top #(
   parameter bit COMMAND_WB_ENABLE = 1'b0,
   parameter bit COMMAND_JTAG_ENABLE = 1'b0,
   parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b0,
-  parameter bit COMMAND_FULLBEAT_ENABLE = 1'b1
+  parameter bit COMMAND_FULLBEAT_ENABLE = 1'b1,
+  parameter bit COMMAND_READBACK_ENABLE = 1'b1,
+  parameter bit DEBUG_WB_DATA_ENABLE = 1'b1
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -198,7 +200,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
       jtag_debug_payload_q[144 +: 32] <= wb_ack_count_q;
       jtag_debug_payload_q[176 +: 32] <= wb_err_count_q;
       jtag_debug_payload_q[208 +: 32] <= wb_stall_count_q;
-      jtag_debug_payload_q[240 +: 32] <= wb_data[31:0];
+      if (DEBUG_WB_DATA_ENABLE)
+        jtag_debug_payload_q[240 +: 32] <= wb_data[31:0];
       if (DEBUG_LOADER_PAYLOAD_ENABLE) begin
         jtag_debug_payload_q[272 +: 32] <= command_debug_word;
         jtag_debug_payload_q[304 +: 32] <= command_status_word;
@@ -288,7 +291,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
         .WB_ADDR_BITS(WB_ADDR_BITS),
         .WB_DATA_BITS(WB_DATA_BITS),
         .WB_SEL_BITS(WB_SEL_BITS),
-        .FULLBEAT_ENABLE(COMMAND_FULLBEAT_ENABLE)
+        .FULLBEAT_ENABLE(COMMAND_FULLBEAT_ENABLE),
+        .READBACK_ENABLE(COMMAND_READBACK_ENABLE)
       ) command_port (
         .controller_clk_i(controller_clk),
         .rst_ni(rst_n),
