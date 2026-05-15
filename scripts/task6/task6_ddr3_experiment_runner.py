@@ -278,6 +278,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     is_rowstream_loader = version in ROWSTREAM_DEBUG_VERSIONS
     debug1 = (raw >> 112) & 0xFFFFFFFF
     debug2 = (raw >> 272) & 0xFFFFFFFF
+    debug3 = (raw >> 336) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
     if is_rowstream_loader:
         read_byte = (raw >> 336) & 0xFF
@@ -495,6 +496,37 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             hex_words(raw, 272, 8, 4)
             if not is_rowstream_loader and version >= 86
             else []
+        ),
+        "debug3": f"0x{debug3:08x}" if not is_rowstream_loader and version >= 87 else None,
+        "debug3_dqs_store_high": (
+            f"0x{(debug3 >> 24) & 0xFF:02x}"
+            if not is_rowstream_loader and version >= 87
+            else None
+        ),
+        "debug3_dqs_lane": (
+            (debug3 >> 20) & 0x7
+            if not is_rowstream_loader and version >= 87
+            else None
+        ),
+        "debug3_dqs_start_index": (
+            (debug3 >> 14) & 0x3F
+            if not is_rowstream_loader and version >= 87
+            else None
+        ),
+        "debug3_dqs_start_index_stored": (
+            (debug3 >> 8) & 0x3F
+            if not is_rowstream_loader and version >= 87
+            else None
+        ),
+        "debug3_dqs_count_repeat": (
+            (debug3 >> 4) & 0x7
+            if not is_rowstream_loader and version >= 87
+            else None
+        ),
+        "debug3_dqs_start_index_repeat": (
+            debug3 & 0xF
+            if not is_rowstream_loader and version >= 87
+            else None
         ),
         "debug1_bist_addr_low": debug1_bist_addr_low,
         "debug1_correct_bist_reads": debug1_correct_bist_reads,
