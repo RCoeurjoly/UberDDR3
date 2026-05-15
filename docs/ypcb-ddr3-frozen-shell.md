@@ -278,6 +278,36 @@ wide `jtag_debug_payload` paths. The next targeted RTL change is to snapshot the
 debug payload on `controller_clk` and keep live `wb_data`/readback paths out of
 the asynchronous BSCAN capture cone.
 
+The v70 high-speed experiment corrected a major DDR3 mode error: the YPCB
+400 MHz shell was still instantiating UberDDR3 with `DLL_OFF=1`. That is only
+the low-frequency path. With `DLL_OFF=0`, nextpnr timing improved materially
+for seed 16, but hardware still did not reach `DONE_CALIBRATE`. The visible
+state changed from a read-data failure to an apparent early-init state:
+`state=IDLE`, `instruction=2`, `ack_count=0`.
+
+The v71 diagnostic build proved that this was not a permanent init-ROM stall.
+It exposed the init delay counter in `debug1` for one build only. Repeated
+hardware samples showed the FSM reaching DLL-on read calibration
+(`instruction=13`, `state=ANALYZE_DQS`, `pause_counter=1`) and then returning
+to early reset/init. The current high-speed failure is therefore a calibration
+retry/reset loop, not a dead init sequencer. The same hardware session then
+reprogrammed the older v63 seed-16 low-speed artifact and reached
+`DONE_CALIBRATE` with `ack_count=9`, confirming that the board, DDR3, and JTAG
+path were still healthy.
+
+The v72 ODELAY experiment compared YPCB against the closest
+`qmtech_kintex_7` example, which uses `ODELAY_SUPPORTED=1`. Enabling that on
+YPCB did not reach hardware: nextpnr/OpenXC7 failed during packing with:
+
+```text
+ERROR: ODELAYE2 'bist_top.uberddr3.ddr3_phy_inst.genblk4.ODELAYE2_clk' has DATAOUT connected to unsupported cell type IOB33M_OUTBUF
+```
+
+So `ODELAY_SUPPORTED=1` is not an available YPCB knob in the current open flow.
+It may be an upstream/tooling project, but the active YPCB shell must remain
+`ODELAY_SUPPORTED=0` unless the pin/bank mapping or nextpnr/OpenXC7 support
+changes. v73 restored the buildable no-ODELAY shell.
+
 ## Artifact Policy
 
 There are two different artifact classes:
@@ -458,6 +488,11 @@ full-beat write/readback test, not a byte-enable test.
   issuing the final bus write. Hardware still failed `memtest64` fullbeat:
   commands were accepted, but readback remained calibration-pattern data. This
   proves the remaining issue is below host command packing.
+- The v70/v71 high-speed DLL-on path reaches read calibration and then resets;
+  it is not stuck forever in DDR3 init. The next useful calibration work should
+  instrument or constrain the DLL-on DQS/read-leveling path, not the reset ROM.
+- `ODELAY_SUPPORTED=1` matches the qmtech Kintex-7 example but is blocked on
+  YPCB in the current open flow by an ODELAYE2-to-IOB33M_OUTBUF packing error.
 - The v60 bounded controller BIST experiment enabled an internal all-lane BIST
   by setting `BIST_ADDR_BITS=8`. It did not reach `DONE_CALIBRATE`, which is
   useful evidence: the controller's own BIST catches the same full-lane failure
