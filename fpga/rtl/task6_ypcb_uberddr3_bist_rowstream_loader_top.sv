@@ -24,7 +24,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd54;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd53;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -154,8 +154,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     LOADER_ISSUE = 4'd10,
     LOADER_WAIT_ACK = 4'd11,
     LOADER_ERROR = 4'd12,
-    LOADER_WRITE_DRAIN = 4'd13,
-    LOADER_PREPARE = 4'd14
+    LOADER_WRITE_DRAIN = 4'd13
   } read_probe_state_t;
 
   read_probe_state_t read_probe_state_q;
@@ -256,7 +255,6 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     read_probe_state_q == LOADER_WAIT_ACK ? 4'd3 :
     read_probe_state_q == LOADER_ERROR ? 4'd4 :
     read_probe_state_q == LOADER_WRITE_DRAIN ? 4'd5 :
-    read_probe_state_q == LOADER_PREPARE ? 4'd6 :
     read_probe_done_q ? 4'd1 :
     read_probe_state_q;
 
@@ -328,6 +326,9 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
 
       loader_done_q <= 1'b0;
       loader_last_accepted_q <= 1'b0;
+      if (read_probe_done_q)
+        read_probe_cyc_q <= 1'b1;
+
       if (
         jtag_command_event && !jtag_command_accept_phase_q && read_probe_done_q &&
         jtag_command_magic_ok
@@ -346,10 +347,10 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           if (jtag_command_chunk == 2'd3) begin
             loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
             loader_sel_q <= {WB_SEL_BITS{1'b1}};
-            read_probe_cyc_q <= 1'b0;
-            read_probe_stb_q <= 1'b0;
+            read_probe_cyc_q <= 1'b1;
+            read_probe_stb_q <= 1'b1;
             read_probe_we_q <= 1'b1;
-            read_probe_state_q <= LOADER_PREPARE;
+            read_probe_state_q <= LOADER_ISSUE;
           end else begin
             loader_done_q <= 1'b1;
           end
@@ -357,26 +358,26 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
           loader_sel_q <= {WB_SEL_BITS{1'b1}};
           loader_read_chunk_q <= jtag_command_chunk;
-          read_probe_cyc_q <= 1'b0;
-          read_probe_stb_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
+          read_probe_stb_q <= 1'b1;
           read_probe_we_q <= 1'b0;
-          read_probe_state_q <= LOADER_PREPARE;
+          read_probe_state_q <= LOADER_ISSUE;
         end else if (jtag_command_opcode == LOADER_OP_WRITE_LOWBYTE) begin
           loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
           loader_write_data_q <= '0;
           loader_write_data_q[7:0] <= jtag_command_data_byte;
           loader_sel_q <= {{(WB_SEL_BITS - 1){1'b0}}, 1'b1};
-          read_probe_cyc_q <= 1'b0;
-          read_probe_stb_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
+          read_probe_stb_q <= 1'b1;
           read_probe_we_q <= 1'b1;
-          read_probe_state_q <= LOADER_PREPARE;
+          read_probe_state_q <= LOADER_ISSUE;
         end else if (jtag_command_opcode == LOADER_OP_READ_LOWBYTE) begin
           loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
           loader_sel_q <= {{(WB_SEL_BITS - 1){1'b0}}, 1'b1};
-          read_probe_cyc_q <= 1'b0;
-          read_probe_stb_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
+          read_probe_stb_q <= 1'b1;
           read_probe_we_q <= 1'b0;
-          read_probe_state_q <= LOADER_PREPARE;
+          read_probe_state_q <= LOADER_ISSUE;
         end else if (jtag_command_opcode == LOADER_OP_WRITE_DENSE_BYTE) begin
           loader_addr_q <= jtag_command_dense_addr;
           loader_write_data_q <= '0;
@@ -388,18 +389,18 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           loader_dense_write_lane_q <= jtag_command_addr[5:0];
           loader_dense_write_data_q <= jtag_command_data_byte;
           loader_dense_write_sel_low_q <= jtag_command_dense_sel[15:0];
-          read_probe_cyc_q <= 1'b0;
-          read_probe_stb_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
+          read_probe_stb_q <= 1'b1;
           read_probe_we_q <= 1'b1;
-          read_probe_state_q <= LOADER_PREPARE;
+          read_probe_state_q <= LOADER_ISSUE;
         end else if (jtag_command_opcode == LOADER_OP_READ_DENSE_BEAT) begin
           loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
           loader_sel_q <= {WB_SEL_BITS{1'b1}};
           loader_read_chunk_q <= jtag_command_chunk;
-          read_probe_cyc_q <= 1'b0;
-          read_probe_stb_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
+          read_probe_stb_q <= 1'b1;
           read_probe_we_q <= 1'b0;
-          read_probe_state_q <= LOADER_PREPARE;
+          read_probe_state_q <= LOADER_ISSUE;
         end else begin
           loader_error_q <= 1'b1;
           read_probe_state_q <= LOADER_ERROR;
@@ -610,16 +611,10 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
         end
 
         READ_PROBE_DONE: begin
-          read_probe_cyc_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
           read_probe_stb_q <= 1'b0;
           read_probe_we_q <= 1'b0;
           read_probe_done_q <= 1'b1;
-        end
-
-        LOADER_PREPARE: begin
-          read_probe_cyc_q <= 1'b1;
-          read_probe_stb_q <= 1'b1;
-          read_probe_state_q <= LOADER_ISSUE;
         end
 
         LOADER_ISSUE: begin
@@ -643,6 +638,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
             read_probe_stb_q <= 1'b0;
             if (read_probe_we_q) begin
               loader_write_ack_seen_q <= 1'b1;
+              read_probe_cyc_q <= 1'b1;
               read_probe_write_drain_q <= 10'd0;
               read_probe_state_q <= LOADER_WRITE_DRAIN;
             end else begin
@@ -668,6 +664,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
             read_probe_cyc_q <= 1'b0;
             if (read_probe_we_q) begin
               loader_write_ack_seen_q <= 1'b1;
+              read_probe_cyc_q <= 1'b1;
               read_probe_stb_q <= 1'b0;
               read_probe_write_drain_q <= 10'd0;
               read_probe_state_q <= LOADER_WRITE_DRAIN;
@@ -682,7 +679,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
         end
 
         LOADER_WRITE_DRAIN: begin
-          read_probe_cyc_q <= 1'b0;
+          read_probe_cyc_q <= 1'b1;
           read_probe_stb_q <= 1'b0;
           read_probe_we_q <= 1'b0;
           loader_wait_cycles_q <= loader_wait_cycles_q + 32'd1;
