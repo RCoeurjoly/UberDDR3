@@ -38,15 +38,16 @@ def load_top_cells(path: Path) -> dict[str, Any]:
     raise KeyError(f"could not identify top module in {path}")
 
 
-def cell_scope(name: str, cell_type: str) -> str | None:
+def cell_scope(name: str, cell_type: str, top_prefixes: list[str]) -> str | None:
     if cell_type not in SOFT_TYPES:
         return None
     if "ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_" in name:
         return "ddr3_idelayctrl_soft"
-    if name.startswith("bist_top.uberddr3.ddr3_controller_inst."):
-        return "ddr3_controller_soft"
-    if name.startswith("bist_top.uberddr3."):
-        return "uberddr3_soft"
+    for top_prefix in top_prefixes:
+        if name.startswith(f"{top_prefix}.uberddr3.ddr3_controller_inst."):
+            return "ddr3_controller_soft"
+        if name.startswith(f"{top_prefix}.uberddr3."):
+            return "uberddr3_soft"
     return None
 
 
@@ -68,11 +69,11 @@ def placement_root_names(cells: dict[str, Any], start_names: dict[str, str]) -> 
     return roots
 
 
-def extract_locks(routed_json: Path) -> dict[str, Any]:
+def extract_locks(routed_json: Path, top_prefixes: list[str]) -> dict[str, Any]:
     cells = load_top_cells(routed_json)
     start_names: dict[str, str] = {}
     for name, cell in cells.items():
-        scope = cell_scope(name, cell.get("type", ""))
+        scope = cell_scope(name, cell.get("type", ""), top_prefixes)
         if scope is not None:
             start_names[name] = scope
 
@@ -104,9 +105,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--routed-json", required=True, type=Path)
     parser.add_argument("--out-json", required=True, type=Path)
+    parser.add_argument(
+        "--top-prefix",
+        action="append",
+        default=[],
+        help="Top-level instance prefix to classify, e.g. bist_top or calib_top. Repeatable.",
+    )
     args = parser.parse_args()
 
-    report = extract_locks(args.routed_json)
+    top_prefixes = args.top_prefix or ["bist_top", "calib_top"]
+    report = extract_locks(args.routed_json, top_prefixes)
     args.out_json.parent.mkdir(parents=True, exist_ok=True)
     args.out_json.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(
