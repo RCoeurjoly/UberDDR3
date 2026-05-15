@@ -959,6 +959,22 @@ implementation work should keep the seed-5 calibration shell as the reference
 and add command functionality in smaller increments, not continue feature work
 on the present monolithic fullbeat wrapper.
 
+A stripped version of the same wrapper, built with
+`YPCB_FULLBEAT_COMMAND_WB_ENABLE=0`, `YPCB_FULLBEAT_COMMAND_JTAG_ENABLE=0`, and
+`YPCB_FULLBEAT_DEBUG_LOADER_PAYLOAD_ENABLE=0`, improved the failure class but
+still did not calibrate. The build routed legally, with nextpnr reporting about
+95.90 MHz against the 100 MHz controller clock, and produced:
+
+```text
+artifacts/manual-seed/fullbeat-v91-v88hard-lut1-cmdalloff/seed5/rowstream-fullbeat-v91-v88hard-lut1-cmdalloff-seed5.bit
+```
+
+Hardware status reported `version=89`, `state=ANALYZE_DQS`, instruction `13`,
+`debug1=0x000015a4`, `ack_count=0`, and `calib_seen_cycle=0x00000000`. This is
+better than the command-enabled fullbeat wrapper, but it is still not the
+seed-5 `calib_only` pass. The remaining rowstream wrapper shape, not merely
+the live command path, is enough to disturb calibration.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
