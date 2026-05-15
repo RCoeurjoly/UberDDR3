@@ -192,6 +192,8 @@ class YpcbDdr3Driver:
         while True:
             status = self.read_status()
             command_ready = (
+                self.args.minimal_loader_status
+                or
                 previous_command_count is None
                 or self.command_count_advanced(
                     int(status["command_count"]),
@@ -200,12 +202,15 @@ class YpcbDdr3Driver:
                 )
             )
             if (
-                status["loader_ready"]
+                (self.args.minimal_loader_status or status["loader_ready"])
                 and status["ack_count"] >= min_ack_count
                 and command_ready
             ):
                 return status
-            if status["loader_error"] or status["err_seen"]:
+            if (
+                (not self.args.minimal_loader_status and status["loader_error"])
+                or status["err_seen"]
+            ):
                 raise RuntimeError(f"loader entered error state: {status['result']}")
             if time.monotonic() >= deadline:
                 raise TimeoutError(
@@ -363,6 +368,14 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--poll-interval", type=float, default=0.05)
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--min-ack-delta", type=int, default=1)
+    parser.add_argument(
+        "--minimal-loader-status",
+        action="store_true",
+        help=(
+            "Do not require loader_ready/command_count telemetry. Use this only "
+            "with shells that intentionally hide loader debug to preserve calibration."
+        ),
+    )
     parser.set_defaults(expected_addr=0, expected_byte=0)
 
 
