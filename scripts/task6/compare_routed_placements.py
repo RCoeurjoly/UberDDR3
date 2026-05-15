@@ -146,12 +146,12 @@ def markdown(args: argparse.Namespace) -> str:
 
     if args.pass_seed and args.fail_seed:
         pass_seeds = args.pass_seed
-        fail_seed = args.fail_seed
+        fail_seeds = args.fail_seed
         lines += [
             "",
             "## Pass-Consensus Versus Fail",
             "",
-            "| Category | Pass seeds same, fail different | Top types |",
+            "| Category | Pass seeds same, all fails different | Top types |",
             "| --- | ---: | --- |",
         ]
         for cat in sorted(by_category):
@@ -160,7 +160,7 @@ def markdown(args: argparse.Namespace) -> str:
                 pass_bels = {placements[seed][name]["bel"] for seed in pass_seeds}
                 if len(pass_bels) != 1:
                     continue
-                if placements[fail_seed][name]["bel"] in pass_bels:
+                if any(placements[fail_seed][name]["bel"] in pass_bels for fail_seed in fail_seeds):
                     continue
                 names.append(name)
             type_counts = Counter(placements[pass_seeds[0]][name]["type"] for name in names)
@@ -170,12 +170,55 @@ def markdown(args: argparse.Namespace) -> str:
     return "\n".join(lines) + "\n"
 
 
+def write_lock_candidate(args: argparse.Namespace) -> None:
+    if args.locks_out is None:
+        return
+    if not args.pass_seed or not args.fail_seed:
+        raise SystemExit("--locks-out requires --pass-seed and --fail-seed")
+
+    seed_paths = parse_seed_json(args.seed_json)
+    placements = {seed: load_cells(path) for seed, path in seed_paths.items()}
+    common = set.intersection(*(set(cells) for cells in placements.values()))
+    pass_seeds = args.pass_seed
+    fail_seeds = args.fail_seed
+    reference = pass_seeds[0]
+
+    locks: list[dict[str, str]] = []
+    for name in sorted(common):
+        pass_bels = {placements[seed][name]["bel"] for seed in pass_seeds}
+        if len(pass_bels) != 1:
+            continue
+        if any(placements[fail_seed][name]["bel"] in pass_bels for fail_seed in fail_seeds):
+            continue
+        cell_type = placements[reference][name]["type"]
+        locks.append({
+            "cell": name,
+            "type": cell_type,
+            "scope": category(name, cell_type),
+            "bel": placements[reference][name]["bel"],
+        })
+
+    payload = {
+        "format": "task6.nextpnr-pass-consensus-bel-locks.v1",
+        "pass_seeds": pass_seeds,
+        "fail_seeds": fail_seeds,
+        "source_jsons": {seed: str(path) for seed, path in seed_paths.items()},
+        "lock_count": len(locks),
+        "type_counts": dict(sorted(Counter(lock["type"] for lock in locks).items())),
+        "scope_counts": dict(sorted(Counter(lock["scope"] for lock in locks).items())),
+        "locks": locks,
+    }
+    args.locks_out.parent.mkdir(parents=True, exist_ok=True)
+    args.locks_out.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed-json", action="append", required=True, help="SEED:nextpnr-routed.json")
     parser.add_argument("--pass-seed", action="append", default=[])
-    parser.add_argument("--fail-seed")
+    parser.add_argument("--fail-seed", action="append", default=[])
     parser.add_argument("--out", type=Path)
+    parser.add_argument("--locks-out", type=Path, help="Optional pass-consensus BEL-lock JSON output.")
     return parser.parse_args()
 
 
@@ -187,6 +230,7 @@ def main() -> int:
     else:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(text, encoding="utf-8")
+    write_lock_candidate(args)
     return 0
 
 
