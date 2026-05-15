@@ -1116,3 +1116,69 @@ default-off shell and introduce a narrower controller-side boundary, or modify
 the DDR3 controller so the user Wishbone input path is structurally constant
 during calibration and only becomes live after `DONE_CALIBRATE` without
 changing the calibration placement neighborhood.
+
+## v95-v100 Low-Byte Command Checkpoint
+
+The v95 isolated write-only command shell is the current best command-enabled
+foothold. It keeps loader/readback debug hidden, gates the user Wishbone path
+until calibration has been seen, and uses seed 3 from the fixed synthesized
+artifact:
+
+```text
+artifacts/manual-seed/calib-v95-isolated-writeonly-command-pnr-only/seed3/calib-v95-isolated-writeonly-command-seed3.bit
+```
+
+Hardware result:
+
+```text
+state=DONE_CALIBRATE
+instruction=22
+debug1=0x000006d7
+calibration=pass
+ack_count advanced from 0 to 1 after write-lowbyte 0x40 = 0xa5
+err_count=0
+```
+
+This proves the hidden-loader command path can issue at least one real
+post-calibration write acknowledgment without disturbing calibration. It is
+not a full integrity proof, because the shell intentionally hides the loader
+payload and read data to preserve placement.
+
+The next observability experiments show how tight this shell is:
+
+| Variant | Purpose | Build result | Hardware result |
+| --- | --- | --- | --- |
+| v96 | Re-enable loader debug payload | timing-clean build | fails in `IDLE` / instruction 2 |
+| v97 | Add live 32-bit WB data debug | near-clean build | fails in `IDLE` / instruction 2 |
+| v98/v99 | Add 32-bit snapshot WB readback | fails timing around 77-78 MHz | not useful |
+| v100 seed3 | Narrow snapshot to `wb_data[7:0]` | timing pass, 103.54 MHz | fails in `READ_DATA` / instruction 22 |
+| v100 PNR seed0 | Same fixed synth, seed 0 | timing pass, 107.45 MHz | fails in `IDLE` / instruction 1 |
+
+The important result is that one byte of readback visibility is already enough
+to perturb calibration, even when nextpnr reports the 100 MHz controller clock
+as passing. This is another concrete example that visible timing closure is
+not the acceptance criterion for this board; hardware `DONE_CALIBRATE` is.
+
+Two attempted v95 soft-lock transplants were also rejected:
+
+- Adding the 38 v95 soft carry/IDELAYCTRL-adjacent locks applied 29 locks and
+  then made nextpnr abort with `unordered_map::at`.
+- Adding only the two v95 IDELAYCTRL ready LUT locks still made nextpnr abort
+  with `unordered_map::at`.
+
+Do not use those soft-lock transplants as a production path. The broad v40
+PHY/clock lock set remains usable, but further soft locking from a changed
+netlist is currently a nextpnr stability risk.
+
+The next implementation branch should keep the v95 hidden-loader seed3 shell
+as the command-enabled calibration foothold, then recover readback without
+adding live or snapshot `wb_data` fanout to the calibration neighborhood. The
+most promising directions are:
+
+1. Use a separate post-calibration readback module that is physically isolated
+   from the calibration FSM and only captures data after a command completes.
+2. Add stricter placement constraints around the readback module itself rather
+   than transplanting controller carry-chain locks.
+3. If full 64-byte readback remains placement-sensitive, move the wider
+   functionality to a MIG/LiteDRAM reference branch while preserving v95 as
+   the open-flow calibration and command-ack baseline.
