@@ -3180,6 +3180,11 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                      end
                                    
        BURST_WRITE: if(!o_wb_stall_calib) begin // Test 1: Burst write (per byte write to test datamask feature), then burst read
+                            if(BIST_MODE == 1 && BIST_ADDR_BITS == 0) begin
+                                train_delay <= 15;
+                                state_calibrate <= FINISH_READ;
+                            end
+                            else begin
                             calib_stb <= 1'b1; 
                             calib_aux <= 2; // write
                             if(TDQS == 0 && ECC_ENABLE == 0) begin //Test datamask by writing 1 byte at a time
@@ -3227,6 +3232,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                         state_calibrate_next <= BURST_READ;
                                     `endif
                                 end 
+                           end
                            end
                      end
                    

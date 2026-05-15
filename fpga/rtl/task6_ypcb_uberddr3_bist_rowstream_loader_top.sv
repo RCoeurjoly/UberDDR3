@@ -24,7 +24,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd60;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd61;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -811,7 +811,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     .DLL_OFF(1),
     .WB_ERROR(0),
     .BIST_MODE(1),
-    .BIST_ADDR_BITS(8),
+    .BIST_ADDR_BITS(0),
     .ECC_ENABLE(0)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
