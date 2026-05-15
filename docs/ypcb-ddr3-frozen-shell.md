@@ -286,13 +286,16 @@ MIG-style knobs against seed 4:
 | 82 | MIG MR1 drive/termination without TDQS | routed, timing passed at 100 MHz | regressed to `IDLE`, `instruction=1`, `debug1=0x00001420` |
 | 83 | Swap top-level DQS P/N wiring | nextpnr assertion before bitstream | no hardware result |
 | 84 | Shift capture clock phase from 90 to 270 degrees | routed, post-route `controller_clk` failed at about 95.45 MHz | still `ANALYZE_DQS`, `instruction=13`, `debug1=0x000015a4` |
+| 85 | Baseline phase, but skip appended YPCB internal-VREF FASM features | routed, post-route `controller_clk` passed at about 107.69 MHz | changed failure point to `MPR_READ`, `instruction=13`, `debug1=0x000015a2` |
 
 These trials rule out the first obvious MR1 knob set as a fix. TDQS and
 MIG-style output drive/termination make the calibration-only shell fail
 earlier, while the 270-degree capture phase does not move past DQS analysis.
-The next controlled experiments should return to the v75 source shape and
-test one physical assumption at a time: internal VREF feature handling, DQS
-lane/order visibility, and then placement/timing variants that preserve the
+Removing the explicit VREF append does not make calibration pass, but it does
+move the failure earlier from DQS analysis back to MPR read. The next
+controlled experiments should return to the VREF-enabled v75 source shape and
+expose the MPR/DQS sampled training data directly, then use that visibility to
+test DQS lane/order and placement/timing variants that preserve the
 400 MHz/100 MHz clock discipline.
 
 The v65 minimum-rate AMD-compliant experiment changed the active rowstream
