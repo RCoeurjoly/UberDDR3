@@ -3868,11 +3868,11 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // [10]    PHY IDELAYCTRL ready
     // [11]    calibration request strobe
     // [12]    calibration-side Wishbone stall
-    // [13]    reset/refresh ROM pause counter
-    // [14]    reset/refresh ROM delay counter is zero
-    // [15]    reset sequence done
-    // [31:16] reset/refresh ROM delay counter low bits
-    assign o_debug1 = {delay_counter[15:0], reset_done, delay_counter_is_zero, pause_counter, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
+    // [13]    uncalibrated Wishbone ack
+    // [19:14] correct BIST read count, saturated/truncated
+    // [25:20] wrong BIST read count, saturated/truncated
+    // [31:26] BIST check address counter low bits
+    assign o_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;

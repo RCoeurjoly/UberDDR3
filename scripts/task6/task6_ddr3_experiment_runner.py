@@ -358,7 +358,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     debug1_delay_counter_is_zero = None
     debug1_pause_counter = None
     debug1_reset_done = None
-    if version >= 71:
+    if version == 71:
         debug1_correct_bist_reads = None
         debug1_wrong_bist_reads = None
         debug1_bist_addr_low = None
