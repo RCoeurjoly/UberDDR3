@@ -876,6 +876,7 @@ The first scoped soft-lock attempts narrowed that tooling blocker further:
 | v88 hard + `RDY_AND_LUT_1` only, seed 3 | 553 locks | legal route, controller clock ~99.75 MHz | `IDLE`, instruction `1`, `debug1=0x00001420`, `ack_count=0` | fail before command gate |
 | v88 hard + `RDY_AND_LUT_1` only, seed 4 | 553 locks | legal route, controller clock ~100.39 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_1` only, seed 16 | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_1` only, seed 40 | 553 locks | legal route, controller clock ~100.48 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_2` only | 553 locks | heap placer aborts after pre-place with `unordered_map::at`; gdb backtrace reaches `HeAPPlacer::total_hpwl()` | not programmed | isolated heap-placer crash trigger |
 | v88 hard + `RDY_AND_LUT_2` only, `--placer sa` | 553 locks | avoids heap abort, then fails post-placement validity: `SLICE_X78Y393/A5FF` has no cell | not programmed | not a usable workaround |
 
@@ -896,6 +897,14 @@ nextpnr-xilinx placement bug: heap placement aborts in
 produces an invalid placement. The next experiment should expand from the hard
 + `RDY_AND_LUT_1` lock set and avoid `RDY_AND_LUT_2` until the placer bug is
 fixed or a different constraint form is available.
+
+A temporary local nextpnr-xilinx patch was tested against the packaged
+OpenXC7 source to guard missing heap-placer `cell_locs` entries and avoid
+restoring saved empty BEL bindings. That patch changed the failure mode for
+the `RDY_AND_LUT_2` lock from the original `unordered_map::at` abort to an
+unbound generated slice cell, but did not produce a valid route. The result is
+useful for upstream tooling work, but it is not yet a DDR3 fix and should not
+be treated as a proven constraint knob.
 
 ## WB2/BIST Diagnostic Variant
 
