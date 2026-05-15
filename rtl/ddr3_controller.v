@@ -87,6 +87,7 @@ module ddr3_controller #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 2, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter BIST_ADDR_BITS = 0, // 0 = use full address range; otherwise bound built-in BIST to this many low address bits
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )  (only change when you know what you are doing)
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)  (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
@@ -352,7 +353,8 @@ module ddr3_controller #(
     //plus 10 controller clocks for possible bus latency and the delay for receiving feedback DQ from IOBUF -> IDELAY -> ISERDES
     localparam ECC_INFORMATION_BITS = (ECC_ENABLE == 2)? max_information_bits(wb_data_bits) : max_information_bits(wb_data_bits/8);
     // Smaller wb_addr_bits for simulation so BIST will end faster
-    localparam wb_addr_bits_sim = MICRON_SIM? 8 : wb_addr_bits; 
+    localparam wb_addr_bits_sim = MICRON_SIM? 8 : wb_addr_bits;
+    localparam bist_addr_bits = BIST_ADDR_BITS == 0 ? wb_addr_bits_sim : BIST_ADDR_BITS;
     
     /*********************************************************************************************************************************************/
    
@@ -3178,15 +3180,6 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                      end
                                    
        BURST_WRITE: if(!o_wb_stall_calib) begin // Test 1: Burst write (per byte write to test datamask feature), then burst read
-                            // YPCB bring-up: preserve the BIST_MODE=1 path that
-                            // reaches this state after alignment, but skip the
-                            // full-address-space BIST. The JTAG wrapper runs a
-                            // bounded user-port probe for data integrity.
-                            if(BIST_MODE == 1) begin
-                                train_delay <= 15;
-                                state_calibrate <= FINISH_READ;
-                            end
-                            else begin
                             calib_stb <= 1'b1; 
                             calib_aux <= 2; // write
                             if(TDQS == 0 && ECC_ENABLE == 0) begin //Test datamask by writing 1 byte at a time
@@ -3198,7 +3191,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                 if(write_by_byte_counter == {$clog2(wb_sel_bits){1'b1}}) begin
                                     write_test_address_counter <= write_test_address_counter + 1;  
                                         /* verilator lint_off WIDTHEXPAND */
-                                    if( (write_test_address_counter == { {2{BIST_MODE[1]}} , {(wb_addr_bits_sim-2){1'b1}} }) ) begin //MUST END AT ODD NUMBER
+                                    if( (write_test_address_counter == { {2{BIST_MODE[1]}} , {(bist_addr_bits-2){1'b1}} }) ) begin //MUST END AT ODD NUMBER
                                         /* verilator lint_on WIDTHEXPAND */
                                         if(BIST_MODE == 2) begin // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
                                             write_test_address_counter <= 0;
@@ -3221,7 +3214,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                 calib_data <= calib_data_randomized;
                                 write_test_address_counter <= write_test_address_counter + 1; 
                                     /* verilator lint_off WIDTHEXPAND */
-                                if( write_test_address_counter == { {2{BIST_MODE[1]}} , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
+                                if( write_test_address_counter == { {2{BIST_MODE[1]}} , {(bist_addr_bits-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
                                     /* verilator lint_on WIDTHEXPAND */
                                     if(BIST_MODE == 2) begin // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
                                         write_test_address_counter <= 0;
@@ -3235,7 +3228,6 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                     `endif
                                 end 
                            end
-                           end
                      end
                    
          BURST_READ: if(!o_wb_stall_calib) begin
@@ -3245,7 +3237,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                             calib_addr <= read_test_address_counter;
                             read_test_address_counter <=  read_test_address_counter + 1; 
                                 /* verilator lint_off WIDTHEXPAND */
-                            if( read_test_address_counter == { {2{BIST_MODE[1]}} , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
+                            if( read_test_address_counter == { {2{BIST_MODE[1]}} , {(bist_addr_bits-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
                                 /* verilator lint_on WIDTHEXPAND */
                                 if(BIST_MODE == 2) begin  // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
                                     read_test_address_counter <= 0;
@@ -3273,7 +3265,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                             calib_data <= calib_data_randomized;
                             write_test_address_counter <= write_test_address_counter + 1; 
                                 /* verilator lint_off WIDTHEXPAND */
-                            if( write_test_address_counter == { 1'b1, BIST_MODE[1] , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
+                            if( write_test_address_counter == { 1'b1, BIST_MODE[1] , {(bist_addr_bits-2){1'b1}} } ) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
                                 /* verilator lint_on WIDTHEXPAND */
                                 if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
                                     write_test_address_counter <= 0;
@@ -3299,7 +3291,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                        <= read_test_address_counter[wb_addr_bits-1:ROW_BITS]; // bank + col
                         read_test_address_counter <=  read_test_address_counter + 1;  
                             /* verilator lint_off WIDTHEXPAND */
-                        if( read_test_address_counter == { 1'b1 , BIST_MODE[1], {(wb_addr_bits_sim-2){1'b1}} }) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
+                        if( read_test_address_counter == { 1'b1 , BIST_MODE[1], {(bist_addr_bits-2){1'b1}} }) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
                             /* verilator lint_on WIDTHEXPAND */
                             if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
                                 read_test_address_counter <= 0;
@@ -3325,7 +3317,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             write_test_address_counter <= write_test_address_counter + 1;  
                         end
                         /* verilator lint_off WIDTHEXPAND */
-                        if( write_test_address_counter == { 2'b11 , {(wb_addr_bits_sim-2){1'b1}} } ) begin
+                        if( write_test_address_counter == { 2'b11 , {(bist_addr_bits-2){1'b1}} } ) begin
                         /* verilator lint_on WIDTHEXPAND */
                             train_delay <= 15;
                             state_calibrate <= FINISH_READ;
@@ -3668,7 +3660,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                     end
                     /* verilator lint_off WIDTHEXPAND */
                     check_test_address_counter <= check_test_address_counter + 1;
-                    if(check_test_address_counter == {(wb_addr_bits_sim){1'b1}}) begin // if last address, then jump back to zero
+                    if(check_test_address_counter == {(bist_addr_bits){1'b1}}) begin // if last address, then jump back to zero
                         check_test_address_counter <= {(wb_addr_bits){1'b0}};
                     end
                     /* verilator lint_on WIDTHEXPAND */
