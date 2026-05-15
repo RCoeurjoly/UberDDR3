@@ -351,6 +351,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         run_count = (command_word >> 24) & 0xFF
     status = (raw >> 40) & 0xFF
     state = debug1 & 0x1F
+    debug1_correct_bist_reads = (debug1 >> 14) & 0x3F
+    debug1_wrong_bist_reads = (debug1 >> 20) & 0x3F
+    debug1_bist_addr_low = (debug1 >> 26) & 0x3F
     ack_count = (raw >> 144) & 0xFFFFFFFF
     err_count = (raw >> 176) & 0xFFFFFFFF
     calib_seen_cycle = (raw >> 80) & 0xFFFFFFFF
@@ -474,6 +477,9 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "cycle": f"0x{((raw >> 48) & 0xFFFFFFFF):08x}",
         "calib_seen_cycle": f"0x{calib_seen_cycle:08x}",
         "debug1": f"0x{debug1:08x}",
+        "debug1_bist_addr_low": debug1_bist_addr_low,
+        "debug1_correct_bist_reads": debug1_correct_bist_reads,
+        "debug1_wrong_bist_reads": debug1_wrong_bist_reads,
         "state": state,
         "state_name": DDR3_CALIBRATION_STATES.get(state, f"UNKNOWN_{state}"),
         "instruction": (debug1 >> 5) & 0x1F,
