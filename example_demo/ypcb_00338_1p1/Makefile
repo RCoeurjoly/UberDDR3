@@ -22,6 +22,7 @@ endif
 REPO_ROOT := ../..
 V40_BEL_LOCKS ?= ${REPO_ROOT}/artifacts/task6/baselines/uberddr3-rowstream-loader-v40-physical-stability/known-good-packed-bel-locks.json
 V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
+CALIB_PRE_PLACE_BEL_LOCKS ?= v40-calib-phy-pre-place-bel-locks.py
 ROWSTREAM_PRE_PLACE_DEPS ?= ${V40_PRE_PLACE_BEL_LOCKS}
 DDR3_CLOCK_CONSTRAINTS ?= ${REPO_ROOT}/scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py
 
@@ -133,7 +134,7 @@ rowstream-fullbeat-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_L
 rowstream-fullbeat-v40-locked: ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit
 
 .PHONY: calib-v40-locked
-calib-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+calib-v40-locked: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 calib-v40-locked: ${CALIB_PROJECT}_openxc7.bit
 
 .PHONY: rowstream-v40-json
@@ -185,7 +186,7 @@ rowstream-fullbeat-v40-json:
 	@printf 'Generated fullbeat rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS} ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS}
 
 .PHONY: calib-v40-json
-calib-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+calib-v40-json: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 calib-v40-json:
 	@mkdir -p $(dir ${CALIB_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${CALIB_BITSTREAM_OUT_ABS})
@@ -327,6 +328,9 @@ ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate
 		--skip-cell clk100_90_bufg \
 		--out-py $@
 
+${CALIB_PRE_PLACE_BEL_LOCKS}: ${V40_PRE_PLACE_BEL_LOCKS}
+	sed 's/bist_top/calib_top/g' $< > $@
+
 ${CHIPDB_BIN}:
 	${PYPY3} ${NEXTPNR_XILINX_PYTHON_DIR}/bbaexport.py --device ${PART} --bba ${DBPART}.bba
 	bbasm -l ${DBPART}.bba $@
@@ -360,7 +364,7 @@ ${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_FULLBEAT_XDC} --json ${ROWSTREAM_FULLBEAT_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
-${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
+${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vref.features ${CALIB_PRE_PLACE_BEL_LOCKS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${CALIB_XDC} --json ${CALIB_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	cat ypcb_vref.features >> $@
 
@@ -401,4 +405,4 @@ clean:
 		${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm ${ROWSTREAM_PROJECT}.json \
 		${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm ${ROWSTREAM_FULLBEAT_PROJECT}.json \
 		${CALIB_PROJECT}_openxc7.bit ${CALIB_PROJECT}.frames ${CALIB_PROJECT}.fasm ${CALIB_PROJECT}.json \
-		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${CALIB_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS}
+		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${CALIB_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS} ${CALIB_PRE_PLACE_BEL_LOCKS}
