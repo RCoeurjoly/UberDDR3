@@ -46,7 +46,7 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 63}
+ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 56, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_CHUNK = 0x01
 ROWSTREAM_OP_READ_BEAT = 0x02
@@ -267,7 +267,12 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         read_window128_offset = None
         read_window128 = None
     stream_bytes = [(read_word >> (8 * index)) & 0xFF for index in range(4)]
-    read_beat_offset = 512 if is_rowstream_loader else 480
+    if is_rowstream_loader and version >= 56:
+        read_beat_offset = 336
+    elif is_rowstream_loader:
+        read_beat_offset = 512
+    else:
+        read_beat_offset = 480
     read_beat = (raw >> read_beat_offset) & ((1 << 512) - 1) if args.bits >= read_beat_offset + 512 else None
     expected = args.expected_byte
     expected_stream_bytes = [expected & 0xFF, 0x00, 0x00, args.command_addr & 0xFF]
@@ -281,7 +286,14 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         last_magic_ok = bool(command_word & 0x2)
         last_chunk = (command_word >> 2) & 0x3
         last_opcode = (command_word >> 10) & 0xFF
-        if version >= 55:
+        if version >= 56:
+            loader_accept_seen = bool(bit(raw, 849))
+            loader_accept_we = bool(bit(raw, 850))
+            loader_accept_addr_low = (raw >> 851) & 0x3FFF
+            loader_accept_sel_low = (raw >> 865) & ((1 << 64) - 1)
+            loader_accept_data_low = (raw >> 929) & ((1 << 64) - 1)
+            active_addr = loader_accept_addr_low
+        elif version >= 55:
             loader_accept_seen = bool(bit(raw, 465))
             loader_accept_we = bool(bit(raw, 466))
             loader_accept_addr_low = (raw >> 467) & 0x3FFF
@@ -497,17 +509,30 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             else None
         ),
         "loader_accept_sel_low": (
-            f"0x{loader_accept_sel_low:04x}"
+            f"0x{loader_accept_sel_low:016x}"
+            if version >= 56
+            else f"0x{loader_accept_sel_low:04x}"
             if is_rowstream_loader and loader_accept_sel_low is not None
             else None
         ),
         "loader_accept_data_low": (
-            f"0x{loader_accept_data_low:04x}"
+            f"0x{loader_accept_data_low:016x}"
+            if version >= 56
+            else f"0x{loader_accept_data_low:04x}"
             if is_rowstream_loader and loader_accept_data_low is not None
             else None
         ),
         "clk50_count": f"0x{((raw >> 432) & 0xFFFFFFFF):08x}",
-        "sys_rstn": bool(bit(raw, 511 if is_rowstream_loader else 464)),
+        "sys_rstn": bool(
+            bit(
+                raw,
+                1010
+                if is_rowstream_loader and version >= 56
+                else 511
+                if is_rowstream_loader
+                else 464,
+            )
+        ),
         "result": {
             "calibration": "pass" if calib_complete and calib_seen else "fail",
             "command_gate": "pass" if command_gate else "fail",
