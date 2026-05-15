@@ -825,6 +825,32 @@ Do not treat visible 100 MHz controller timing as sufficient. The documented
 v75 sweep already showed seeds that met or nearly met the visible timing target
 and still failed in `IDLE` or `ANALYZE_DQS`.
 
+Initial v91 campaign results used the `calib_only` top with no global `--freq`
+argument. The seed-0 build was a fresh synth/reroute. The fixed-synth reroutes
+then copied that exact seed-0 synth JSON from:
+
+```sh
+artifacts/manual-seed/calib-v91-minimal-freq0/fixed-synth/calib-only-v88-seed0-synth.json
+```
+
+The new `calib-v40-json-pnr-only` Makefile target exists for this protocol: it
+copies `CALIB_SYNTH_JSON` into the working project JSON, reruns only
+nextpnr/fasm/bitgen, and applies `v40-calib-phy-pre-place-bel-locks.py` by
+default.
+
+| Variant | Seed | Build mode | Build result | Hardware state | Result |
+| --- | ---: | --- | --- | --- | --- |
+| `calib-v91-minimal-freq0` | 0 | fresh synth + PNR | legal route, ~92.62 MHz max controller clock | `IDLE`, instruction `2`, `ack_count=0` | fail before command gate |
+| `calib-v91-minimal-freq0-pnr-only` | 4 | fixed seed-0 synth JSON + PNR-only | stopped at router iteration 328, stuck at three overused wires | not programmed | route failure |
+| `calib-v91-minimal-freq0-pnr-only` | 16 | fixed seed-0 synth JSON + PNR-only | legal route, ~95.28 MHz max controller clock | `IDLE`, instruction `2`, `ack_count=0` | fail before command gate |
+| `calib-v88-baseline` | 4 | preserved historical artifact | pre-existing bitstream | `DONE_CALIBRATE`, instruction `22`, `calib_seen_cycle=0x000137d5` | calibration pass |
+
+The control reprogram of `calib-v88-baseline/seed4` on the same board session
+still reaches `DONE_CALIBRATE`. That keeps the hardware/programming path
+exonerated and points back to route identity: regenerated minimal-shell routes,
+even from fixed synthesis, are not yet reproducing the preserved calibrating
+placement.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
