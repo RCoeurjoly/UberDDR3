@@ -148,6 +148,36 @@ The full 64-byte path must therefore be full-beat based:
 4. expose the beat as four 128-bit chunks or one 512-bit debug payload,
 5. compare all 64 bytes in software.
 
+The v53 diagnostic shell narrowed the current failure. Hardware with the
+calibrating seed-0 bitstream reaches `DONE_CALIBRATE`, accepts rowstream
+commands, and the debug window proves that a host write-chunk payload is staged
+correctly in FPGA fabric. A direct staged write of bytes `00..0f` reports the
+same `00..0f` in the diagnostic `read_window128_bytes`. The transport and JTAG
+command packing are therefore not the immediate blocker.
+
+The same v53 shell still fails real memory writes:
+
+| Test | Address | Result |
+| --- | ---: | --- |
+| fullbeat `memtest64` | `0x0` | command ack passes, readback is existing DDR3/test pattern |
+| fullbeat `memtest64` | `0x40` | command ack passes, readback is unrelated memory contents |
+| dense-byte `memtest64` | `0x40` | command ack passes, many lanes become `0x00`; nonzero byte values do not reliably stick |
+| low-byte write/read `0x5a` | `0x40` | write command reports ack, read returns existing pattern byte |
+
+This means the next bug is at or below the rowstream-to-Wishbone DDR3 command
+boundary: write data, write strobes, stale acknowledgements, or the
+BIST-mode/user-port interaction. It is not a host packing problem.
+
+The v54 command-pulse experiment changed the wrapper to register commands for
+one controller cycle and drop `cyc` after command completion. That is a cleaner
+Wishbone contract, but it perturbed placement enough that both seed 0 and seed
+3 failed calibration in `READ_DATA`. A direct all-BEL transplant from the
+calibrating v53 seed-0 routed JSON matched only 9,266 of 34,097 locks against
+the v54 netlist; 24,831 locks were missing, mostly unstable generated packer
+cell names. The partial over-lock also produced post-placement validity errors
+and a stalled route. Full-cell locks are therefore only useful when the
+synthesis identity is preserved; they are not a general cross-RTL transplant.
+
 ## Artifact Policy
 
 There are two different artifact classes:
@@ -200,6 +230,22 @@ problem underneath it rather than mixed into the API definition.
    enough.
 7. Only after the 64-byte contract is deterministic, add higher-level DDR3
    functionality outside the frozen shell.
+
+Immediate next strategy:
+
+1. Keep the v53 calibrating diagnostic shell as the hardware base while
+   investigating the rowstream-to-Wishbone contract.
+2. Add the smallest possible diagnostics to observe the controller-side
+   accepted request: accepted `we`, `sel`, `addr`, low data bytes, and whether
+   the ack being consumed belongs to the issued command.
+3. Build those diagnostics as PNR-only seed sweeps from one synth JSON. Do not
+   treat a new RTL result as meaningful until at least one seed reaches
+   `DONE_CALIBRATE`.
+4. Once the accepted-request trace proves the bad field, fix that field with
+   the smallest RTL change and immediately hardware-test low-byte, dense-byte,
+   and fullbeat paths.
+5. After one seed passes fullbeat read/write, extract a matching placement
+   oracle from that exact routed JSON before attempting any seed-stability work.
 
 ## Driver Contract
 
@@ -296,3 +342,11 @@ full-beat write/readback test, not a byte-enable test.
 - The known hardware-passing path is the PNR-only frozen artifact family derived
   from the matching synth JSON and extracted placement oracle. Further DDR3
   functionality must preserve that shell instead of relying on fresh synthesis.
+- The v53 staged-data diagnostic proves host-to-FPGA rowstream packing is
+  correct, but DDR3 user writes still do not stick. This is now the active
+  functional blocker.
+- The v54 command-pulse fix is logically attractive but is not yet a usable
+  hardware base: seeds 0 and 3 both fail calibration in `READ_DATA`.
+- All-cell BEL locks extracted from v53 are not portable across v54 synthesis:
+  generated cell names changed too much, and the partial 9,266-lock application
+  created an invalid/stalled placement.
