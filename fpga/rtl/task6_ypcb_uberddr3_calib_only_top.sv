@@ -202,8 +202,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .WB_ERROR(0),
     .BIST_MODE(0),
     .BIST_ADDR_BITS(0),
-    .ECC_ENABLE(0),
-    .YPCB_DQS_DEBUG(0)
+    .ECC_ENABLE(0)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
     .i_ddr3_clk(ddr3_clk),

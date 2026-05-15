@@ -101,8 +101,7 @@ module ddr3_controller #(
                 cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM,
                 lanes_clog2 = $clog2(LANES) == 0? 1: $clog2(LANES),
     parameter[1:0] row_bank_col = (ECC_ENABLE == 3)? 2 : 1, // memory address mapping: 0 {bank, row, col} , 1 = {row, bank, col} , 2 = {bank[2:1]. row, bank[0], col} FOR ECC
-    parameter[0:0] ECC_TEST = 0,
-    parameter[0:0] YPCB_DQS_DEBUG = 0
+    parameter[0:0] ECC_TEST = 0
     ) 
     (
         input wire i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
@@ -3874,29 +3873,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // [25:20] wrong BIST read count, saturated/truncated
     // [31:26] BIST check address counter low bits
     wire [31:0] default_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
-    generate
-        if(YPCB_DQS_DEBUG) begin : gen_ypcb_dqs_debug1
-            wire [7:0] debug_lane_ext = lane;
-            // Optional YPCB DQS calibration debug packing:
-            // [4:0]   calibration state
-            // [9:5]   init/refresh ROM instruction address
-            // [10]    PHY IDELAYCTRL ready
-            // [13:11] active byte lane, low bits
-            // [16:14] bitslip counter
-            // [17]    reset requested from calibration
-            // [18]    reset requested from BIST/test
-            // [19]    reset requested from WB2
-            // [20]    calibration request strobe
-            // [21]    calibration-side Wishbone stall
-            // [22]    uncalibrated Wishbone ack
-            // [31:23] reserved
-            wire [31:0] ypcb_dqs_debug1 = {9'd0, o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, reset_from_wb2, reset_from_test, reset_from_calibrate, bitslip_counter[2:0], debug_lane_ext[2:0], i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
-            assign o_debug1 = ypcb_dqs_debug1;
-        end
-        else begin : gen_default_debug1
-            assign o_debug1 = default_debug1;
-        end
-    endgenerate
+    assign o_debug1 = default_debug1;
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
