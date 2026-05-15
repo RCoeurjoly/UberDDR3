@@ -237,6 +237,27 @@ traffic starts. Until placement stability improves, higher-level DDR3
 diagnostics should stay outside the controller shell or use the default
 calibrating rowstream path.
 
+The v64 clock-discipline correction changed the active rowstream shell to the
+documented 500 MHz DDR3 / 125 MHz controller PLL and matching UberDDR3 timing
+parameters. The build used seed 16 and the existing 411-lock v40 PHY pre-place
+constraints:
+
+```sh
+artifacts/manual-seed/fullbeat-v64-500mhz/seed16/rowstream-v64-500mhz-seed16.bit
+```
+
+nextpnr routed the design legally, but the controller clock did not meet the
+125 MHz target; post-route reported about 85.7 MHz max for
+`bist_top.controller_clk`. Hardware programming confirmed the risk: JTAG was
+alive and reported `version=64`, but calibration failed in `READ_DATA` with
+`ack_count=0`.
+
+That result means the high-speed direction needs either a lower AMD-compliant
+controller rate, a smaller controller critical path, or stronger placement for
+the controller-side logic. The next hardware experiment should use the
+minimum AMD-compliant 400 MHz DDR3 clock and a 100 MHz controller clock before
+attempting controller retiming.
+
 ## Artifact Policy
 
 There are two different artifact classes:
