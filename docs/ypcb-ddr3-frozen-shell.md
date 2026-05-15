@@ -399,6 +399,60 @@ not from moving the physical DDR3 I/O shell. The active calibration-only top
 keeps the controller debug parameter available but disabled by default
 (`version=78`) so future seed sweeps use the non-debug shell.
 
+The v75 source was then restored again to remove the disabled debug hook shape
+entirely. Rebuilding seed 4 reproduced the expected timing profile: placement
+timing reported about 69.6 MHz for `controller_clk`, while post-route timing
+reached about 100.05 MHz. Hardware status decoding was also fixed so
+calibration-only images use their payload version, not the default rowstream
+protocol selector, to decode `sys_rstn`.
+
+After that decoder fix, the current 400 MHz DDR3 / 100 MHz controller
+calibration-only evidence is:
+
+| Seed | Version | `sys_rstn` | `idelay_ready` | Calibration State | `debug1` | Result |
+| ---: | ---: | --- | --- | --- | ---: | --- |
+| 0 | 75 | true | true | `ANALYZE_DQS` | `0x000015a4` | fail |
+| 1 | 75 | true | true | `IDLE` | `0x00001420` | fail |
+| 2 | 75 | true | true | `IDLE` | `0x00001420` | fail |
+| 3 | 75 | true | true | `IDLE` | `0x00001420` | fail |
+| 4 | 75 | true | true | `ANALYZE_DQS` | `0x000015a4` | fail |
+
+Seed 4 proves the controller reaches the first DQS/MPR training loop. It is
+not held in reset and IDELAYCTRL is ready. The active failure is therefore
+around MPR read capture, DQS polarity/lane mapping, phase, VREF/termination, or
+mode-register configuration, before any rowstream or 64-byte write datapath can
+matter.
+
+The YPCB Vivado MIG project for channel 0 uses:
+
+| MIG setting | Value |
+| --- | --- |
+| Memory device | `MT41K256M8XX-125` |
+| Data width | 72 bits |
+| Data mask | disabled |
+| TDQS | enabled |
+| MR1 RTT_NOM | `RZQ/4` |
+| DIC | `RZQ/7` |
+| DDR3 time period | 1875 ps |
+
+LiteX models the same channel as 64 data bits plus an ECC lane and sets
+internal VREF to 0.750 on banks 11 through 18. The current YPCB OpenXC7 flow
+already appends 0.750 VREF features for those banks, but UberDDR3 previously
+hard-coded MR1 `TDQS=0`. Since YPCB exposes no DM pins and MIG enables TDQS for
+the x8 devices, the next narrow experiment is to make TDQS a controller
+parameter and enable it only in the YPCB calibration-only top.
+
+If TDQS does not move the failure, the next knobs should be tested in this
+order while keeping the top small:
+
+1. MR1 drive/termination to match MIG exactly: `DIC=RZQ/7`, `RTT_NOM=RZQ/4`.
+2. VREF feature verification against bank/HCLK rows and a controlled no-VREF
+   or alternate-VREF build.
+3. DQS polarity swap for all lanes, then targeted lane-0 DQS/DQ mapping checks.
+4. `ddr3_clk_90` phase sweep around the ODELAY-unsupported PHY path.
+5. Only after calibration passes again, reintroduce the full-beat 64-byte
+   rowstream contract around the stable shell.
+
 ## Artifact Policy
 
 There are two different artifact classes:
