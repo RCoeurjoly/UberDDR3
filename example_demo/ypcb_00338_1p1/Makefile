@@ -36,6 +36,7 @@ ADDITIONAL_SOURCES = \
 	clk_wiz.v
 
 PYPY3 ?= pypy3
+YOSYS_DEFINES ?=
 SYNTH_XILINX_FLAGS ?= -flatten -abc9 -arch xc7
 ROWSTREAM_SYNTH_PRELUDE ?=
 PNR_ARGS ?= --seed 16 --freq 25
@@ -306,19 +307,19 @@ hil-smoke-v40-locked:
 		--ftdi-serial ${FTDI_SERIAL}
 
 ${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
-	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json $@" $< ${ADDITIONAL_SOURCES}
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json $@" $< ${ADDITIONAL_SOURCES}
 
 ${BIST_PROJECT}.json: ${BIST_SOURCES} Makefile
-	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${BIST_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${BIST_SOURCES}
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${BIST_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${BIST_SOURCES}
 
 ${ROWSTREAM_PROJECT}.json: ${ROWSTREAM_SOURCES} Makefile
-	yosys -p "${ROWSTREAM_SYNTH_PRELUDE} synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_SOURCES}
+	yosys ${YOSYS_DEFINES} -p "${ROWSTREAM_SYNTH_PRELUDE} synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_SOURCES}
 
 ${ROWSTREAM_FULLBEAT_PROJECT}.json: ${ROWSTREAM_FULLBEAT_SOURCES} Makefile
-	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_FULLBEAT_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_FULLBEAT_SOURCES}
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${ROWSTREAM_FULLBEAT_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${ROWSTREAM_FULLBEAT_SOURCES}
 
 ${CALIB_PROJECT}.json: ${CALIB_SOURCES} Makefile
-	yosys -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${CALIB_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${CALIB_SOURCES}
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${CALIB_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${CALIB_SOURCES}
 
 ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py
 	python3 ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py \
