@@ -851,6 +851,21 @@ exonerated and points back to route identity: regenerated minimal-shell routes,
 even from fixed synthesis, are not yet reproducing the preserved calibrating
 placement.
 
+The first v88 lock-breadth experiments reinforce that conclusion:
+
+| Lock set | Count / coverage | Build result | Hardware state | Result |
+| --- | --- | --- | --- | --- |
+| v88 all-BEL, strict | 24,723 extracted locks | fails pre-place: 18 missing `calib_top.uberddr3.o_debug3[...]` LUT cells | not programmed | synth identity mismatch |
+| v88 all-BEL, allow-missing | 24,705 applied, 18 missing | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | tooling/over-lock failure |
+| v88 hard primitives only | 552 applied, 0 missing | legal route, ~96.26 MHz max controller clock | `IDLE`, instruction `2`, `ack_count=0` | fail before command gate |
+
+So the 411-lock v40 PHY set is too small, but locking every hard primitive
+from the preserved v88 route is still not enough. The unstable region is now
+inside the soft controller/calibration placement or route shape. A true
+maximal transplant also exposes a nextpnr crash when almost the whole previous
+placement is pre-locked, so broad soft-lock experiments must be scoped rather
+than all-or-nothing.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
