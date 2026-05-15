@@ -159,8 +159,6 @@ module ddr3_controller #(
         (* mark_debug = "true" *) output wire o_calib_complete,
         // Debug port
         output	wire	[31:0]	o_debug1,
-        output	wire	[31:0]	o_debug2,
-        output	wire	[31:0]	o_debug3,
         // User enabled self-refresh
         input wire i_user_self_refresh,
         // Display debug messages via UART
@@ -3874,8 +3872,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // [25:20] wrong BIST read count, saturated/truncated
     // [31:26] BIST check address counter low bits
     assign o_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
-    assign o_debug2 = dqs_store[31:0];
-    assign o_debug3 = {dqs_store[39:32], 1'b0, lane[2:0], dqs_start_index[5:0], dqs_start_index_stored[5:0], 1'b0, dqs_count_repeat[2:0], dqs_start_index_repeat[3:0]};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
     /*********************************************************************************************************************************************/
 
