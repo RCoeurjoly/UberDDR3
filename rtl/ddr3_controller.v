@@ -91,6 +91,7 @@ module ddr3_controller #(
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )  (only change when you know what you are doing)
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)  (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
+    parameter[0:0] TDQS_ENABLE = 1'b0, //Termination Data Strobe: x8 DRAMs without DM pins can enable TDQS instead of DM
     parameter // The next parameters act more like a localparam (since user does not have to set this manually) but was added here to simplify port declaration
                 serdes_ratio = 4, // this controller is fixed as a 4:1 memory controller (CONTROLLER_CLK_PERIOD/DDR3_CLK_PERIOD = 4)
                 wb_data_bits = DQ_BITS*LANES*serdes_ratio*2,
@@ -417,7 +418,7 @@ module ddr3_controller #(
     // localparam[2:0] RTT_NOM = 3'b001; //RTT Nominal: RZQ/4 (elevate this to parameter)
     localparam[0:0] WL_EN = 1'b1; //Write Leveling Enable: Disabled
     localparam[1:0] AL = 2'b00; //Additive Latency: Disabled
-    localparam[0:0] TDQS = 1'b0; //Termination Data Strobe: Disabled (provides additional termination resistance outputs. 
+    localparam[0:0] TDQS = TDQS_ENABLE; //Termination Data Strobe: Disabled by default (provides additional termination resistance outputs.
                                  //When the TDQS function is disabled, the DM function is provided (vice-versa).TDQS function is only 
                                  //available for X8 DRAM and must be disabled for X4 and X16. 
     localparam[0:0] QOFF = 1'b0; //Output Buffer Control: Enabled

@@ -57,6 +57,7 @@ module ddr3_top #(
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC ) 
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms) (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)  (only change when you know what you are doing)
+    parameter[0:0] TDQS_ENABLE = 1'b0, //enable MR1 TDQS mode for x8 DRAMs without DM pins
     parameter[1:0] SELF_REFRESH = 2'b00, // 0 = use i_user_self_refresh input, 1 = Self-refresh mode is enabled after 64 controller clock cycles of no requests, 2 = 128 cycles, 3 = 256 cycles
     parameter // The next parameters act more like a localparam (since user does not have to set this manually) but was added here to simplify port declaration
                 DQ_BITS = 8,  //device width (fixed to 8, if DDR3 is x16 then BYTE_LANES will be 2 while )
@@ -267,6 +268,7 @@ ddr3_top #(
             .BIST_ADDR_BITS(BIST_ADDR_BITS),
             .DIC(DIC), //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)
             .RTT_NOM(RTT_NOM), //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
+            .TDQS_ENABLE(TDQS_ENABLE),
             .DUAL_RANK_DIMM(DUAL_RANK_DIMM), // enable dual rank DIMM (1 =  enable, 0 = disable)
             .SPEED_BIN(SPEED_BIN), // 0 = Use top-level parameters , 1 = DDR3-1066 (7-7-7) , 2 = DR3-1333 (9-9-9) , 3 = DDR3-1600 (11-11-11)
             .SDRAM_CAPACITY(SDRAM_CAPACITY), // 0 = 256Mb, 1 = 512Mb, 2 = 1Gb, 3 = 2Gb, 4 = 4Gb, 5 = 8Gb, 6 = 16Gb
