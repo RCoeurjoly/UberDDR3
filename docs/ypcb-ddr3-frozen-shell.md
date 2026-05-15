@@ -877,6 +877,7 @@ The first scoped soft-lock attempts narrowed that tooling blocker further:
 | v88 hard + `RDY_AND_LUT_1` only, seed 4 | 553 locks | legal route, controller clock ~100.39 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_1` only, seed 16 | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_1` only, seed 40 | 553 locks | legal route, controller clock ~100.48 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_1` only, seed 44 | 553 locks | legal route, controller clock ~89.11 MHz | `IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0` | timing-poor early failure |
 | v88 hard + `RDY_AND_LUT_2` only | 553 locks | heap placer aborts after pre-place with `unordered_map::at`; gdb backtrace reaches `HeAPPlacer::total_hpwl()` | not programmed | isolated heap-placer crash trigger |
 | v88 hard + `RDY_AND_LUT_2` only, `--placer sa` | 553 locks | avoids heap abort, then fails post-placement validity: `SLICE_X78Y393/A5FF` has no cell | not programmed | not a usable workaround |
 
