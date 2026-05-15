@@ -46,7 +46,7 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 56, 57, 63}
+ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 56, 57, 58, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_CHUNK = 0x01
 ROWSTREAM_OP_READ_BEAT = 0x02
@@ -286,14 +286,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         last_magic_ok = bool(command_word & 0x2)
         last_chunk = (command_word >> 2) & 0x3
         last_opcode = (command_word >> 10) & 0xFF
-        if version >= 57:
-            loader_accept_seen = bool(bit(raw, 849))
-            loader_accept_we = bool(bit(raw, 850))
-            loader_accept_addr_low = (raw >> 851) & 0x3FFF
-            loader_accept_sel_low = (raw >> 865) & ((1 << 64) - 1)
-            loader_accept_data_low = (raw >> 929) & ((1 << 64) - 1)
-            active_addr = loader_accept_addr_low
-        elif version >= 56:
+        if version in (56, 57):
             loader_accept_seen = bool(bit(raw, 849))
             loader_accept_we = bool(bit(raw, 850))
             loader_accept_addr_low = (raw >> 851) & 0x3FFF
@@ -517,14 +510,14 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         ),
         "loader_accept_sel_low": (
             f"0x{loader_accept_sel_low:016x}"
-            if version >= 56
+            if version in (56, 57)
             else f"0x{loader_accept_sel_low:04x}"
             if is_rowstream_loader and loader_accept_sel_low is not None
             else None
         ),
         "loader_accept_data_low": (
             f"0x{loader_accept_data_low:016x}"
-            if version >= 56
+            if version in (56, 57)
             else f"0x{loader_accept_data_low:04x}"
             if is_rowstream_loader and loader_accept_data_low is not None
             else None
@@ -534,7 +527,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
             bit(
                 raw,
                 1010
-                if is_rowstream_loader and version >= 56
+                if is_rowstream_loader and version in (56, 57)
                 else 511
                 if is_rowstream_loader
                 else 464,
