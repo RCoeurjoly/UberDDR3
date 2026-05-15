@@ -358,22 +358,6 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     debug1_delay_counter_is_zero = None
     debug1_pause_counter = None
     debug1_reset_done = None
-    debug1_dqs_lane = None
-    debug1_dqs_data_start_index = None
-    debug1_dqs_start_index_check = None
-    debug1_reset_from_calibrate = None
-    debug1_reset_from_test = None
-    debug1_reset_from_wb2 = None
-    debug1_lane_write_dq_late = None
-    debug1_lane_read_dq_early = None
-    debug1_write_pattern_matches = None
-    debug1_dqs_count_repeat = None
-    debug1_dqs_start_index_repeat = None
-    debug1_dqs_pattern_found = None
-    debug1_bitslip_counter_low = None
-    debug1_calib_stb = None
-    debug1_calib_stall = None
-    debug1_uncalibrated_ack = None
     if version == 71:
         debug1_correct_bist_reads = None
         debug1_wrong_bist_reads = None
@@ -382,28 +366,6 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         debug1_delay_counter_is_zero = bool(bit(debug1, 14))
         debug1_reset_done = bool(bit(debug1, 15))
         debug1_delay_counter_low = (debug1 >> 16) & 0xFFFF
-    elif version >= 76:
-        debug1_correct_bist_reads = None
-        debug1_wrong_bist_reads = None
-        debug1_bist_addr_low = None
-        debug1_dqs_lane = (debug1 >> 11) & 0x7
-        if version >= 77:
-            debug1_bitslip_counter_low = (debug1 >> 14) & 0x7
-            debug1_reset_from_calibrate = bool(bit(debug1, 17))
-            debug1_reset_from_test = bool(bit(debug1, 18))
-            debug1_reset_from_wb2 = bool(bit(debug1, 19))
-            debug1_calib_stb = bool(bit(debug1, 20))
-            debug1_calib_stall = bool(bit(debug1, 21))
-            debug1_uncalibrated_ack = bool(bit(debug1, 22))
-        else:
-            debug1_dqs_data_start_index = (debug1 >> 14) & 0x3F
-            debug1_dqs_start_index_check = (debug1 >> 20) & 0x3F
-            debug1_reset_from_calibrate = bool(bit(debug1, 26))
-            debug1_reset_from_test = bool(bit(debug1, 27))
-            debug1_reset_from_wb2 = bool(bit(debug1, 28))
-            debug1_lane_write_dq_late = bool(bit(debug1, 29))
-            debug1_lane_read_dq_early = bool(bit(debug1, 30))
-            debug1_write_pattern_matches = bool(bit(debug1, 31))
     ack_count = (raw >> 144) & 0xFFFFFFFF
     err_count = (raw >> 176) & 0xFFFFFFFF
     calib_seen_cycle = (raw >> 80) & 0xFFFFFFFF
@@ -534,22 +496,6 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "debug1_delay_counter_is_zero": debug1_delay_counter_is_zero,
         "debug1_pause_counter": debug1_pause_counter,
         "debug1_reset_done": debug1_reset_done,
-        "debug1_dqs_lane": debug1_dqs_lane,
-        "debug1_dqs_data_start_index": debug1_dqs_data_start_index,
-        "debug1_dqs_start_index_check": debug1_dqs_start_index_check,
-        "debug1_reset_from_calibrate": debug1_reset_from_calibrate,
-        "debug1_reset_from_test": debug1_reset_from_test,
-        "debug1_reset_from_wb2": debug1_reset_from_wb2,
-        "debug1_lane_write_dq_late": debug1_lane_write_dq_late,
-        "debug1_lane_read_dq_early": debug1_lane_read_dq_early,
-        "debug1_write_pattern_matches": debug1_write_pattern_matches,
-        "debug1_dqs_count_repeat": debug1_dqs_count_repeat,
-        "debug1_dqs_start_index_repeat": debug1_dqs_start_index_repeat,
-        "debug1_dqs_pattern_found": debug1_dqs_pattern_found,
-        "debug1_bitslip_counter_low": debug1_bitslip_counter_low,
-        "debug1_calib_stb": debug1_calib_stb,
-        "debug1_calib_stall": debug1_calib_stall,
-        "debug1_uncalibrated_ack": debug1_uncalibrated_ack,
         "state": state,
         "state_name": DDR3_CALIBRATION_STATES.get(state, f"UNKNOWN_{state}"),
         "instruction": (debug1 >> 5) & 0x1F,
