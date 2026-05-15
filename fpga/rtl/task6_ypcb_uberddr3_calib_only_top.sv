@@ -10,6 +10,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   parameter bit COMMAND_FULLBEAT_ENABLE = 1'b1,
   parameter bit COMMAND_READBACK_ENABLE = 1'b1,
   parameter bit DEBUG_WB_DATA_ENABLE = 1'b1,
+  parameter bit DEBUG_WB_DATA_SNAPSHOT_ENABLE = 1'b0,
   parameter bit ISOLATE_WB_UNTIL_CALIB_DONE = 1'b0
 ) (
   input  wire        clk50,
@@ -33,6 +34,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   localparam bit COMMAND_PORT_ENABLE =
     COMMAND_WB_ENABLE || COMMAND_JTAG_ENABLE || DEBUG_LOADER_PAYLOAD_ENABLE;
   localparam logic [7:0] JTAG_DEBUG_VERSION =
+    (COMMAND_PORT_ENABLE && DEBUG_WB_DATA_SNAPSHOT_ENABLE) ? 8'd90 :
     COMMAND_PORT_ENABLE ? 8'd89 : 8'd88;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam int ROW_BITS = 15;
@@ -156,6 +158,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   logic [31:0] wb_ack_count_q;
   logic [31:0] wb_err_count_q;
   logic [31:0] wb_stall_count_q;
+  logic [31:0] wb_data_snapshot_q;
   logic calib_seen_q;
   logic [JTAG_DEBUG_WIDTH - 1:0] jtag_debug_payload_q;
 
@@ -166,6 +169,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
       wb_ack_count_q <= 32'd0;
       wb_err_count_q <= 32'd0;
       wb_stall_count_q <= 32'd0;
+      wb_data_snapshot_q <= 32'd0;
       calib_seen_q <= 1'b0;
       jtag_debug_payload_q <= '0;
     end else begin
@@ -180,6 +184,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
         wb_err_count_q <= wb_err_count_q + 32'd1;
       if (wb_stall)
         wb_stall_count_q <= wb_stall_count_q + 32'd1;
+      if (DEBUG_WB_DATA_SNAPSHOT_ENABLE && wb_ack && !command_wb_we)
+        wb_data_snapshot_q <= wb_data[31:0];
 
       jtag_debug_payload_q <= '0;
       jtag_debug_payload_q[0 +: 32] <= JTAG_DEBUG_MAGIC;
@@ -201,7 +207,9 @@ module task6_ypcb_uberddr3_calib_only_top #(
       jtag_debug_payload_q[144 +: 32] <= wb_ack_count_q;
       jtag_debug_payload_q[176 +: 32] <= wb_err_count_q;
       jtag_debug_payload_q[208 +: 32] <= wb_stall_count_q;
-      if (DEBUG_WB_DATA_ENABLE)
+      if (DEBUG_WB_DATA_SNAPSHOT_ENABLE)
+        jtag_debug_payload_q[240 +: 32] <= wb_data_snapshot_q;
+      else if (DEBUG_WB_DATA_ENABLE)
         jtag_debug_payload_q[240 +: 32] <= wb_data[31:0];
       if (DEBUG_LOADER_PAYLOAD_ENABLE) begin
         jtag_debug_payload_q[272 +: 32] <= command_debug_word;

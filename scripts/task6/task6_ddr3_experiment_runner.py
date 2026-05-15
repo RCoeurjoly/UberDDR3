@@ -70,6 +70,7 @@ ROWSTREAM_DEBUG_VERSIONS = {
     64,
     74,
     89,
+    90,
 }
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_CHUNK = 0x01
@@ -284,11 +285,19 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     debug3 = (raw >> 336) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
     if is_rowstream_loader:
-        read_byte = (raw >> 336) & 0xFF
-        read_word = (raw >> 336) & 0xFFFFFFFF
+        if version == 90:
+            read_byte = (raw >> 240) & 0xFF
+            read_word = (raw >> 240) & 0xFFFFFFFF
+        else:
+            read_byte = (raw >> 336) & 0xFF
+            read_word = (raw >> 336) & 0xFFFFFFFF
         wb2_debug_word = (raw >> 240) & 0xFFFFFFFF
-        read_window128_offset = 336
-        read_window128 = (raw >> read_window128_offset) & ((1 << 128) - 1)
+        if version == 90:
+            read_window128_offset = None
+            read_window128 = None
+        else:
+            read_window128_offset = 336
+            read_window128 = (raw >> read_window128_offset) & ((1 << 128) - 1)
     else:
         read_byte = (raw >> 240) & 0xFF
         read_word = (raw >> 240) & 0xFFFFFFFF
