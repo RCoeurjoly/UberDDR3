@@ -178,6 +178,33 @@ cell names. The partial over-lock also produced post-placement validity errors
 and a stalled route. Full-cell locks are therefore only useful when the
 synthesis identity is preserved; they are not a general cross-RTL transplant.
 
+The v55 accepted-request diagnostic narrowed the failure further. With the same
+RTL build, seeds 0 and 3 still fail calibration in `READ_DATA`, but seed 16
+reaches `DONE_CALIBRATE` with `ack_count=9`. On that seed, a fresh hardware
+programming run shows low-byte DDR3 writes are real: writing and reading `0xa5`
+at beat addresses `0, 64, 128, 192, 256, 512, 1024` returns `0xa5` at each
+address. Some of those reads still trip the older command-gate/integrity
+decoder, so the observed byte and decoded calibration state are the decisive
+signals for this diagnostic shell.
+
+The same v55 seed-16 hardware run does not make the 64-byte contract pass:
+
+| Test | Address | Accepted Request | Result |
+| --- | ---: | --- | --- |
+| low-byte write/read `0x5a` | `0x40` | `we=1`, `sel[0]=1`, low data `0x005a` | pass |
+| fullbeat `memtest64 increment` | `0x0` | `we=1`, low 15 `sel` bits set, low data `0x0100` | fail |
+| dense-byte `memtest64 increment` | `0x80` | one-hot commands accepted | fail |
+| dense-byte lane 0 direct `0x5a` | `0x180` | accepted low data becomes `0x002d` | fail |
+| dense-byte lane 0 direct `0xb4` | `0x180` | accepted low data becomes `0x005a` | fail |
+
+That evidence changes the active hypothesis: the low-byte rowstream user port
+is capable of writing and reading DDR3 on the seed-16 shell, but dense one-hot
+byte writes and full 64-byte writes are not correct. Dense-byte remains a
+diagnostic path only. The next useful RTL diagnostics should expose complete
+fullbeat accepted fields and readback chunks, then isolate whether the
+fullbeat failure is staging, byte-lane/select handling, or controller write
+semantics.
+
 ## Artifact Policy
 
 There are two different artifact classes:
