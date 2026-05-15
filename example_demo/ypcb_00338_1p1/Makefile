@@ -123,7 +123,7 @@ rowstream-v40-json:
 	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
 	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT_ABS})
-	$(MAKE) clean
+	$(MAKE) clean-rowstream-pnr
 	@printf 'rowstream-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
 	$(MAKE) rowstream-v40-locked \
@@ -147,7 +147,7 @@ rowstream-fullbeat-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOC
 rowstream-fullbeat-v40-json:
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS})
-	$(MAKE) clean
+	$(MAKE) clean-rowstream-fullbeat-pnr
 	@printf 'rowstream-fullbeat-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_FULLBEAT_ROUTED_JSON}" "${ROWSTREAM_FULLBEAT_BITSTREAM_OUT}"
 	$(MAKE) rowstream-fullbeat-v40-locked \
@@ -169,6 +169,11 @@ rowstream-fullbeat-v40-json:
 clean-rowstream-pnr:
 	rm -f ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm \
 		${ROWSTREAM_XDC}
+
+.PHONY: clean-rowstream-fullbeat-pnr
+clean-rowstream-fullbeat-pnr:
+	rm -f ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm \
+		${ROWSTREAM_FULLBEAT_XDC}
 
 .PHONY: rowstream-v40-json-pnr-only
 rowstream-v40-json-pnr-only:
