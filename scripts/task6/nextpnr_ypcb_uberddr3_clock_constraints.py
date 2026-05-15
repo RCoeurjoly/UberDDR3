@@ -38,3 +38,4 @@ for name, mhz in [
 ]:
     ctx.addClock(name, mhz)
     ctx.addClock("bist_top." + name, mhz)
+    ctx.addClock("calib_top." + name, mhz)
