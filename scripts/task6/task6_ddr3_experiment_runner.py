@@ -46,7 +46,7 @@ DDR3_CALIBRATION_STATES = {
     24: "ANALYZE_DATA_LOW_FREQ",
 }
 
-ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 63}
+ROWSTREAM_DEBUG_VERSIONS = {31, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55, 63}
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_OP_WRITE_CHUNK = 0x01
 ROWSTREAM_OP_READ_BEAT = 0x02
@@ -281,12 +281,30 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         last_magic_ok = bool(command_word & 0x2)
         last_chunk = (command_word >> 2) & 0x3
         last_opcode = (command_word >> 10) & 0xFF
+        if version >= 55:
+            loader_accept_seen = bool(bit(raw, 465))
+            loader_accept_we = bool(bit(raw, 466))
+            loader_accept_addr_low = (raw >> 467) & 0x3FFF
+            loader_accept_sel_low = (raw >> 481) & 0x7FFF
+            loader_accept_data_low = (raw >> 496) & 0xFFFF
+            active_addr = loader_accept_addr_low
+        else:
+            loader_accept_seen = None
+            loader_accept_we = None
+            loader_accept_addr_low = None
+            loader_accept_sel_low = None
+            loader_accept_data_low = None
     else:
         active_byte = command_word & 0xFF
         last_accepted = False
         last_magic_ok = False
         last_chunk = 0
         last_opcode = 0
+        loader_accept_seen = None
+        loader_accept_we = None
+        loader_accept_addr_low = None
+        loader_accept_sel_low = None
+        loader_accept_data_low = None
     if version <= 23 and not is_rowstream_loader:
         active_addr = 0
         command_count = (command_word >> 8) & 0xFF
@@ -466,7 +484,28 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "err_seen": err_seen,
         "stall_seen": stall_seen,
         "mismatch": mismatch,
-        "wait_cycles": f"0x{((raw >> (464 if is_rowstream_loader else 400)) & 0xFFFFFFFF):08x}",
+        "wait_cycles": (
+            None
+            if is_rowstream_loader and version >= 55
+            else f"0x{((raw >> (464 if is_rowstream_loader else 400)) & 0xFFFFFFFF):08x}"
+        ),
+        "loader_accept_seen": loader_accept_seen if is_rowstream_loader else None,
+        "loader_accept_we": loader_accept_we if is_rowstream_loader else None,
+        "loader_accept_addr_low": (
+            f"0x{loader_accept_addr_low:04x}"
+            if is_rowstream_loader and loader_accept_addr_low is not None
+            else None
+        ),
+        "loader_accept_sel_low": (
+            f"0x{loader_accept_sel_low:04x}"
+            if is_rowstream_loader and loader_accept_sel_low is not None
+            else None
+        ),
+        "loader_accept_data_low": (
+            f"0x{loader_accept_data_low:04x}"
+            if is_rowstream_loader and loader_accept_data_low is not None
+            else None
+        ),
         "clk50_count": f"0x{((raw >> 432) & 0xFFFFFFFF):08x}",
         "sys_rstn": bool(bit(raw, 511 if is_rowstream_loader else 464)),
         "result": {
