@@ -308,6 +308,18 @@ It may be an upstream/tooling project, but the active YPCB shell must remain
 `ODELAY_SUPPORTED=0` unless the pin/bank mapping or nextpnr/OpenXC7 support
 changes. v73 restored the buildable no-ODELAY shell.
 
+The v73 seed sweep with v40 PHY locks kept failing calibration. Seed 3 routed
+at about 84.9 MHz against the 100 MHz controller target, seed 16 at about
+82.1 MHz, and seed 40 at about 96.6 MHz. Hardware testing seed 40 still
+reported `version=73`, `state=IDLE`, `instruction=2`, and `ack_count=0`.
+
+The next isolation step is v74: keep the AMD-compliant 400 MHz DDR3 / 100 MHz
+controller clocks and the no-ODELAY YPCB PHY mode, but instantiate UberDDR3
+with `BIST_MODE=0`. The rowstream shell is host-driven, so built-in BIST is not
+part of the final contract. Removing it should reduce controller-domain timing
+load while still requiring the same DLL-on read calibration path to pass before
+JTAG Wishbone commands are accepted.
+
 ## Artifact Policy
 
 There are two different artifact classes:
