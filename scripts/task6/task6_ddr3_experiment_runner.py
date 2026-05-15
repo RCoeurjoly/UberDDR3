@@ -275,7 +275,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     raw_hex = readback["raw_hex"]
     raw = int(raw_hex, 16)
     version = (raw >> 32) & 0xFF
-    is_rowstream_loader = args.command_protocol == "rowstream192" or version in ROWSTREAM_DEBUG_VERSIONS
+    is_rowstream_loader = version in ROWSTREAM_DEBUG_VERSIONS
     debug1 = (raw >> 112) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
     if is_rowstream_loader:
