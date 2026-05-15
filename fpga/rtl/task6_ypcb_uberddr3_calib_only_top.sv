@@ -22,7 +22,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd82;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd83;
   localparam int ROW_BITS = 15;
   localparam int COL_BITS = 10;
   localparam int BA_BITS = 3;
@@ -202,10 +202,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .WB_ERROR(0),
     .BIST_MODE(0),
     .BIST_ADDR_BITS(0),
-    .ECC_ENABLE(0),
-    .DIC(2'b01),
-    .RTT_NOM(3'b001),
-    .TDQS_ENABLE(1'b0)
+    .ECC_ENABLE(0)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
     .i_ddr3_clk(ddr3_clk),
@@ -244,8 +241,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .o_ddr3_addr(ddram_a),
     .o_ddr3_ba_addr(ddram_ba),
     .io_ddr3_dq(ddram_dq),
-    .io_ddr3_dqs(ddram_dqs_p),
-    .io_ddr3_dqs_n(ddram_dqs_n),
+    .io_ddr3_dqs(ddram_dqs_n),
+    .io_ddr3_dqs_n(ddram_dqs_p),
     .o_ddr3_dm(ddr3_dm_w),
     .o_ddr3_odt(ddr3_odt_w),
     .o_calib_complete(calib_complete),
