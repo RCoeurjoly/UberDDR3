@@ -584,7 +584,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
                 if is_rowstream_loader and version in (56, 57)
                 else 511
                 if is_rowstream_loader
-                else 464,
+                else 47,
             )
         ),
         "result": {
