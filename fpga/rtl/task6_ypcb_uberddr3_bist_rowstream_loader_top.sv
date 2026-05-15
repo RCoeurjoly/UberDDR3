@@ -26,7 +26,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd63;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd64;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -55,9 +55,9 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   wire ddr3_clk;
   wire ddr3_clk_90;
   wire ref_clk;
-  wire clk100_raw;
-  wire clk100_90_raw;
-  wire clk25_raw;
+  wire clk500_raw;
+  wire clk500_90_raw;
+  wire clk125_raw;
   wire clk200_raw;
   wire pll_clkfb;
   wire mmcm_locked;
@@ -73,13 +73,13 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     .CLKFBOUT_MULT(20),
     .CLKFBOUT_PHASE(0.000),
     .CLKIN1_PERIOD(20.000),
-    .CLKOUT0_DIVIDE(10),
+    .CLKOUT0_DIVIDE(2),
     .CLKOUT0_DUTY_CYCLE(0.500),
     .CLKOUT0_PHASE(0.000),
-    .CLKOUT1_DIVIDE(10),
+    .CLKOUT1_DIVIDE(2),
     .CLKOUT1_DUTY_CYCLE(0.500),
     .CLKOUT1_PHASE(90.000),
-    .CLKOUT2_DIVIDE(40),
+    .CLKOUT2_DIVIDE(8),
     .CLKOUT2_DUTY_CYCLE(0.500),
     .CLKOUT2_PHASE(0.000),
     .CLKOUT3_DIVIDE(5),
@@ -90,9 +90,9 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     .STARTUP_WAIT("FALSE")
   ) clock_pll (
     .CLKFBOUT(pll_clkfb),
-    .CLKOUT0(clk100_raw),
-    .CLKOUT1(clk100_90_raw),
-    .CLKOUT2(clk25_raw),
+    .CLKOUT0(clk500_raw),
+    .CLKOUT1(clk500_90_raw),
+    .CLKOUT2(clk125_raw),
     .CLKOUT3(clk200_raw),
     .CLKOUT4(),
     .CLKOUT5(),
@@ -104,17 +104,17 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   );
 
   BUFG clk100_bufg (
-    .I(clk100_raw),
+    .I(clk500_raw),
     .O(ddr3_clk)
   );
 
   BUFG clk100_90_bufg (
-    .I(clk100_90_raw),
+    .I(clk500_90_raw),
     .O(ddr3_clk_90)
   );
 
   BUFG clk25_bufg (
-    .I(clk25_raw),
+    .I(clk125_raw),
     .O(controller_clk)
   );
 
@@ -854,8 +854,8 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   end
 
   ddr3_top #(
-    .CONTROLLER_CLK_PERIOD(40_000),
-    .DDR3_CLK_PERIOD(10_000),
+    .CONTROLLER_CLK_PERIOD(8_000),
+    .DDR3_CLK_PERIOD(2_000),
     .ROW_BITS(ROW_BITS),
     .COL_BITS(COL_BITS),
     .BA_BITS(BA_BITS),
