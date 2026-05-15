@@ -332,13 +332,21 @@ back in smaller timing-controlled blocks.
 The v75 calibration-only shell removes the rowstream Wishbone command/readback
 state machine but preserves the same DDR3 PHY clocks, `DLL_OFF=0`,
 `ODELAY_SUPPORTED=0`, and v40 PHY BEL locks remapped from `bist_top` to
-`calib_top`. Seed 40 built cleanly and met timing with about 114.6 MHz
-post-route max for the 100 MHz controller clock. Hardware still failed
-calibration with `version=75`, `state=IDLE`, `instruction=2`, and
-`ack_count=0`. That rules out rowstream driver timing as the sole root cause.
-The next step is a seed sweep on this smaller shell to find whether any
-high-speed no-ODELAY placement calibrates and can serve as a fresh placement
-oracle.
+`calib_top`. The first seed-40 run appeared to meet timing, but the clock
+constraint script only constrained `bist_top.*`; that build was invalid as a
+timing experiment and hardware failed in early init.
+
+After adding explicit `calib_top.*` clocks, seed 40 routed cleanly with
+`controller_clk` reported at 106.30 MHz against the 100 MHz constraint while
+the DDR3 clocks were constrained to 400 MHz. Hardware still did not reach
+`DONE_CALIBRATE`: JTAG reported `version=75`, `state=ANALYZE_DQS`,
+`instruction=13`, `idelay_ready=true`, `ack_count=0`, and `calibration=fail`.
+That rules out rowstream driver timing as the sole root cause and confirms the
+current high-speed no-ODELAY shell is failing inside the DLL-on DQS/read
+calibration path. The next step is to find whether any placement/router/seed
+combination on this smaller shell can pass calibration; if none does, the
+project needs either an ODELAY-capable YPCB open-flow fix or a controller/PHY
+calibration change instead of more rowstream wrapper work.
 
 ## Artifact Policy
 
