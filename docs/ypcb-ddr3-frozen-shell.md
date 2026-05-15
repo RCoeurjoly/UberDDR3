@@ -258,6 +258,26 @@ the controller-side logic. The next hardware experiment should use the
 minimum AMD-compliant 400 MHz DDR3 clock and a 100 MHz controller clock before
 attempting controller retiming.
 
+The v65 minimum-rate AMD-compliant experiment changed the active rowstream
+shell to 400 MHz DDR3 / 100 MHz controller with matching UberDDR3 timing
+parameters and nextpnr clock constraints. The build used seed 16 and the same
+v40 PHY pre-place constraints:
+
+```sh
+artifacts/manual-seed/fullbeat-v65-400mhz/seed16/rowstream-v65-400mhz-seed16.bit
+```
+
+nextpnr routed the design legally, but still did not meet the controller clock;
+post-route reported about 76.3 MHz max for `bist_top.controller_clk` against
+the 100 MHz target. Hardware programming confirmed this is not a usable shell:
+JTAG was alive and reported `version=65`, but calibration failed in
+`READ_DATA` with `ack_count=0`.
+
+The v65 timing report points at controller-side debug/readback fanout, including
+wide `jtag_debug_payload` paths. The next targeted RTL change is to snapshot the
+debug payload on `controller_clk` and keep live `wb_data`/readback paths out of
+the asynchronous BSCAN capture cone.
+
 ## Artifact Policy
 
 There are two different artifact classes:
