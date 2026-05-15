@@ -5,7 +5,8 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
   parameter int JTAG_CHAIN = 1,
   parameter int JTAG_COMMAND_CHAIN = 2,
   parameter int PROBE_BYTE = 165,
-  parameter bit COMMAND_WB_ENABLE = 1'b1
+  parameter bit COMMAND_WB_ENABLE = 1'b1,
+  parameter bit COMMAND_JTAG_ENABLE = 1'b1
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -592,16 +593,24 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
     .payload_i(jtag_debug_payload_q)
   );
 
-  task6_uberddr3_loader_jtag_command_shift #(
-    .WIDTH(JTAG_COMMAND_WIDTH),
-    .JTAG_CHAIN(JTAG_COMMAND_CHAIN)
-  ) jtag_command_shift (
-    .controller_clk_i(controller_clk),
-    .rst_ni(rst_n),
-    .payload_o(jtag_command_payload),
-    .event_o(jtag_command_event),
-    .command_count_o(jtag_command_count)
-  );
+  generate
+    if (COMMAND_JTAG_ENABLE) begin : gen_jtag_command
+      task6_uberddr3_loader_jtag_command_shift #(
+        .WIDTH(JTAG_COMMAND_WIDTH),
+        .JTAG_CHAIN(JTAG_COMMAND_CHAIN)
+      ) jtag_command_shift (
+        .controller_clk_i(controller_clk),
+        .rst_ni(rst_n),
+        .payload_o(jtag_command_payload),
+        .event_o(jtag_command_event),
+        .command_count_o(jtag_command_count)
+      );
+    end else begin : gen_no_jtag_command
+      assign jtag_command_payload = '0;
+      assign jtag_command_event = 1'b0;
+      assign jtag_command_count = 16'd0;
+    end
+  endgenerate
 endmodule
 
 module task6_uberddr3_loader_jtag_command_shift #(
