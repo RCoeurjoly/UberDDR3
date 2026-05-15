@@ -377,3 +377,48 @@ full-beat write/readback test, not a byte-enable test.
 - All-cell BEL locks extracted from v53 are not portable across v54 synthesis:
   generated cell names changed too much, and the partial 9,266-lock application
   created an invalid/stalled placement.
+- The v58 aux-contract fix restored the active rowstream wrapper to the
+  controller contract: write commands use `i_aux[0]=0` and read commands use
+  `i_aux[0]=1`. Hardware with seed 16 reached `DONE_CALIBRATE`, advanced
+  `ack_count`, and passed the low-byte write/read smoke test.
+- The v59 fullbeat staging fix latched the complete 512-bit write payload before
+  issuing the final bus write. Hardware still failed `memtest64` fullbeat:
+  commands were accepted, but readback remained calibration-pattern data. This
+  proves the remaining issue is below host command packing.
+- The v60 bounded controller BIST experiment enabled an internal all-lane BIST
+  by setting `BIST_ADDR_BITS=8`. It did not reach `DONE_CALIBRATE`, which is
+  useful evidence: the controller's own BIST catches the same full-lane failure
+  that host `memtest64` sees.
+- The default rowstream shell now keeps bounded BIST opt-in. With
+  `BIST_ADDR_BITS=0`, the controller skips the post-calibration BIST and keeps
+  the calibrated rowstream foothold usable for further hardware iteration.
+- The v62 always-on WB2 debug attempt exposed the controller's second Wishbone
+  debug path but broke calibration (`state=ISSUE_WRITE_1`, `ack_count=0`).
+  Therefore WB2 debug is not part of the default shell.
+- The v63 shell makes WB2/BIST debug build-time opt-in through
+  `ENABLE_WB2_DEBUG` and `CONTROLLER_BIST_ADDR_BITS`. The default seed-16 v63
+  bitstream reached `DONE_CALIBRATE` with `ack_count=9`; low-byte readback at
+  address `0x40` returned `0x5a`; fullbeat `memtest64` still failed with
+  calibration-pattern readback.
+
+## WB2/BIST Diagnostic Variant
+
+The default shell must keep `ENABLE_WB2_DEBUG=0` and
+`CONTROLLER_BIST_ADDR_BITS=0` so it remains a calibrated foothold. For a
+diagnostic build that intentionally runs bounded BIST and exposes the
+controller's WB2 debug registers, synthesize the rowstream target with:
+
+```sh
+ROWSTREAM_SYNTH_PRELUDE="chparam -set ENABLE_WB2_DEBUG 1 ypcb_00338_1p1_uberddr3_rowstream_loader; chparam -set CONTROLLER_BIST_ADDR_BITS 8 ypcb_00338_1p1_uberddr3_rowstream_loader;"
+```
+
+Then query WB2 registers with:
+
+```sh
+python3 scripts/task6/ypcb_ddr3_driver.py --timeout 20 --command-repeats 2 debug-wb2 --addr 15
+python3 scripts/task6/ypcb_ddr3_driver.py --timeout 20 --command-repeats 2 debug-wb2 --addr 16
+```
+
+Addresses `15` and `16` expose `correct_read_data` and `wrong_read_data`.
+Additional controller debug words are available through the WB2 register map in
+`rtl/ddr3_controller.v`.
