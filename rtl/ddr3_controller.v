@@ -3880,15 +3880,15 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // [9:5]   init/refresh ROM instruction address
     // [10]    PHY IDELAYCTRL ready
     // [13:11] active byte lane, low bits
-    // [19:14] data_start_index for active lane
-    // [25:20] start_index_check
-    // [26]    reset requested from calibration
-    // [27]    reset requested from BIST/test
-    // [28]    reset requested from WB2
-    // [29]    active lane write-DQ-late assumption is set
-    // [30]    active lane read-DQ-early assumption is set
-    // [31]    current write/read lane pattern matches
-    wire [31:0] ypcb_dqs_debug1 = {write_pattern_matches, lane_read_dq_early[lane], lane_write_dq_late[lane], reset_from_wb2, reset_from_test, reset_from_calibrate, start_index_check[5:0], data_start_index[lane][5:0], debug_lane_ext[2:0], i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
+    // [16:14] bitslip counter
+    // [17]    reset requested from calibration
+    // [18]    reset requested from BIST/test
+    // [19]    reset requested from WB2
+    // [20]    calibration request strobe
+    // [21]    calibration-side Wishbone stall
+    // [22]    uncalibrated Wishbone ack
+    // [31:23] reserved
+    wire [31:0] ypcb_dqs_debug1 = {9'd0, o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, reset_from_wb2, reset_from_test, reset_from_calibrate, bitslip_counter[2:0], debug_lane_ext[2:0], i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
     assign o_debug1 = YPCB_DQS_DEBUG ? ypcb_dqs_debug1 : default_debug1;
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
