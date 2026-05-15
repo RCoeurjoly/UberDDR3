@@ -760,6 +760,70 @@ full-beat write/readback test, not a byte-enable test.
   That rules out the top-level debug scan as the decisive blocker. The next
   high-speed work must either preserve a known-calibrating shell more strictly
   or change the controller/calibration read path itself.
+- The v89 stripped/fullbeat diagnostic showed that disabling the command
+  Wishbone path, command JTAG path, and loader debug payload still failed
+  calibration. Therefore the second BSCAN, host command bus, and debug readback
+  fanout are not sufficient explanations for the fresh-shell regression.
+- A fresh v88 `calib_only` seed-4 control reroute was stopped after 5,047
+  router iterations because it remained at three overused wires. This is a
+  routing failure, not a hardware calibration result. The existing
+  `calib-v88-baseline/seed4` artifact remains the relevant hardware baseline:
+  it reports `DONE_CALIBRATE`, `calibration=pass`, and `state=23`.
+- The v90 experiment aligned the fullbeat wrapper hierarchy to `calib_top` and
+  made the fullbeat target use the generated `v40-calib-phy-pre-place-bel-locks.py`
+  dependency. This fixed the wrapper/lock mismatch and produced legal routed
+  seed-4 and seed-16 bitstreams, but both failed hardware calibration in `IDLE`
+  before the command gate:
+
+| Variant | Seed | Controller timing | Hardware state | Result |
+| --- | ---: | --- | --- | --- |
+| `fullbeat-v90-calibtop` | 4 | ~80.28 MHz max, fail at 100 MHz | `IDLE`, instruction `1`, `ack_count=0` | fail before command gate |
+| `fullbeat-v90-calibtop` | 16 | ~80.75 MHz max, fail at 100 MHz | `IDLE`, instruction `2`, `ack_count=0` | fail before command gate |
+
+The conclusion is now sharper: fullbeat feature work on fresh rowstream shells
+is paused. The next high-value work is not another non-minimal shell mutation;
+it is a controlled minimal-shell calibration campaign.
+
+## Minimal-Shell Calibration Campaign
+
+The calibration campaign must keep synthesis identity and experiment inputs
+explicit. Every row must record:
+
+- git commit SHA,
+- `flake.lock` identity,
+- top-level target,
+- synthesis flags,
+- synth JSON path,
+- routed JSON path,
+- pre-pack clock script,
+- pre-place lock script or lock JSON,
+- whether `ypcb_vref.features` was appended,
+- nextpnr seed and router/frequency arguments,
+- bitstream path,
+- hardware `status.json`,
+- low-byte and fullbeat test logs if calibration passes.
+
+The default campaign target is `ypcb_00338_1p1_uberddr3_calib_only`, not
+fullbeat rowstream. Use the smallest `calib_only` top to search for a stable
+high-speed calibration point, then reintroduce fullbeat command logic only
+around a calibrating shell.
+
+The first campaign questions are:
+
+1. Can the current `calib_only` source shape route and calibrate under any seed
+   when global `--freq` pressure is removed and explicit `addClock` constraints
+   are the only timing declaration?
+2. If not, can a fixed `calib_only` synth JSON produce any calibrating seed
+   under PNR-only variation?
+3. If a seed reaches `MPR_READ` or `ANALYZE_DQS`, what DQS/MPR snapshot fields
+   can be added without changing the failure class?
+4. Only after one source shape is fixed, sweep board-specific parameters one at
+   a time: TDQS, MR1 drive/termination, VREF append, and small
+   `ddr3_clk_90` phase offsets.
+
+Do not treat visible 100 MHz controller timing as sufficient. The documented
+v75 sweep already showed seeds that met or nearly met the visible timing target
+and still failed in `IDLE` or `ANALYZE_DQS`.
 
 ## WB2/BIST Diagnostic Variant
 
