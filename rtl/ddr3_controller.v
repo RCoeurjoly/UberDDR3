@@ -102,7 +102,8 @@ module ddr3_controller #(
                 cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM,
                 lanes_clog2 = $clog2(LANES) == 0? 1: $clog2(LANES),
     parameter[1:0] row_bank_col = (ECC_ENABLE == 3)? 2 : 1, // memory address mapping: 0 {bank, row, col} , 1 = {row, bank, col} , 2 = {bank[2:1]. row, bank[0], col} FOR ECC
-    parameter[0:0] ECC_TEST = 0
+    parameter[0:0] ECC_TEST = 0,
+    parameter[0:0] ISOLATE_WB_UNTIL_CALIB_DONE = 0
     ) 
     (
         input wire i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
@@ -610,6 +611,15 @@ module ddr3_controller #(
     reg initial_calibration_done = 0;
     reg final_calibration_done = 0;
     assign o_calib_complete = final_calibration_done;
+
+    wire user_wb_visible = !ISOLATE_WB_UNTIL_CALIB_DONE || final_calibration_done;
+    wire user_wb_cyc = user_wb_visible ? i_wb_cyc : 1'b0;
+    wire user_wb_stb = user_wb_visible ? i_wb_stb : 1'b0;
+    wire user_wb_we = user_wb_visible ? i_wb_we : 1'b0;
+    wire[wb_addr_bits - 1:0] user_wb_addr = user_wb_visible ? i_wb_addr : {wb_addr_bits{1'b0}};
+    wire[wb_data_bits - 1:0] user_wb_data = user_wb_visible ? i_wb_data : {wb_data_bits{1'b0}};
+    wire[wb_sel_bits - 1:0] user_wb_sel = user_wb_visible ? i_wb_sel : {wb_sel_bits{1'b0}};
+    wire[AUX_WIDTH - 1:0] user_aux = user_wb_visible ? i_aux : {AUX_WIDTH{1'b0}};
     // Wishbone 2
     reg wb2_stb = 0;
     reg wb2_update = 0;
@@ -1290,10 +1300,10 @@ module ddr3_controller #(
 
             // if ECC_ENABLE != 3, then stage1 will always receive wishbone interface
             if(ECC_ENABLE != 3) begin
-                stage1_pending_d = i_wb_stb;//actual request flag
-                stage1_aux_d = i_aux; //aux ID for AXI compatibility
-                stage1_we_d = i_wb_we; //write-enable
-                stage1_dm_d = (ECC_ENABLE == 0)? i_wb_sel : {wb_sel_bits{1'b1}}; // no data masking when ECC is enabled
+                stage1_pending_d = user_wb_stb;//actual request flag
+                stage1_aux_d = user_aux; //aux ID for AXI compatibility
+                stage1_we_d = user_wb_we; //write-enable
+                stage1_dm_d = (ECC_ENABLE == 0)? user_wb_sel : {wb_sel_bits{1'b1}}; // no data masking when ECC is enabled
             end
             // ECC_ENABLE == 3
             else begin // if ECC_ENABLE = 3 (inline ECC), then stage1 will either receive stage0 or wishbone
@@ -1305,12 +1315,12 @@ module ddr3_controller #(
 
             if(row_bank_col == 1) begin // memory address mapping: {row, bank, col}
                 if(DUAL_RANK_DIMM[0]) begin
-                    stage1_bank_d[(DUAL_RANK_DIMM[0]? BA_BITS : 0)] = i_wb_addr[DUAL_RANK_DIMM[0]? (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2)) : 0]; // msb determines rank
+                    stage1_bank_d[(DUAL_RANK_DIMM[0]? BA_BITS : 0)] = user_wb_addr[DUAL_RANK_DIMM[0]? (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2)) : 0]; // msb determines rank
                     stage1_next_bank_d[(DUAL_RANK_DIMM[0]? BA_BITS : 0)] = wb_addr_plus_anticipate[DUAL_RANK_DIMM[0]? (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2)) : 0]; // msb determines rank
                 end
-                stage1_row_d = i_wb_addr[ (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (BA_BITS + COL_BITS - $clog2(serdes_ratio*2)) ]; //row_address
-                stage1_bank_d[BA_BITS-1:0] =  i_wb_addr[ (BA_BITS + COL_BITS - $clog2(serdes_ratio*2) - 1) : (COL_BITS- $clog2(serdes_ratio*2)) ]; //bank_address
-                stage1_col_d = { i_wb_addr[ (COL_BITS- $clog2(serdes_ratio*2)-1) : 0 ], {{$clog2(serdes_ratio*2)}{1'b0}} }; //column address (n-burst word-aligned)
+                stage1_row_d = user_wb_addr[ (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (BA_BITS + COL_BITS - $clog2(serdes_ratio*2)) ]; //row_address
+                stage1_bank_d[BA_BITS-1:0] =  user_wb_addr[ (BA_BITS + COL_BITS - $clog2(serdes_ratio*2) - 1) : (COL_BITS- $clog2(serdes_ratio*2)) ]; //bank_address
+                stage1_col_d = { user_wb_addr[ (COL_BITS- $clog2(serdes_ratio*2)-1) : 0 ], {{$clog2(serdes_ratio*2)}{1'b0}} }; //column address (n-burst word-aligned)
                 //stage1_next_bank will not increment unless stage1_next_col
                 //overwraps due to MARGIN_BEFORE_ANTICIPATE. Thus, anticipated
                 //precharge and activate will happen only at the end of the
@@ -1320,13 +1330,13 @@ module ddr3_controller #(
                 {stage1_next_row_d , stage1_next_bank_d[BA_BITS-1:0]} = wb_addr_plus_anticipate >> (COL_BITS- $clog2(serdes_ratio*2));
                 //anticipated next row and bank to be accessed 
                 /* verilator lint_on WIDTH */
-                stage1_data_d = i_wb_data;
+                stage1_data_d = user_wb_data;
             end
 
             else if(row_bank_col == 0) begin // memory address mapping: {bank, row, col}
-                stage1_bank_d[BA_BITS-1:0] = i_wb_addr[ (BA_BITS + ROW_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (ROW_BITS + COL_BITS- $clog2(serdes_ratio*2))]; //bank_address
-                stage1_row_d = i_wb_addr[ (ROW_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (COL_BITS- $clog2(serdes_ratio*2)) ]; //row_address
-                stage1_col_d = { i_wb_addr[(COL_BITS- $clog2(serdes_ratio*2)-1) : 0] , {{$clog2(serdes_ratio*2)}{1'b0}} }; //column address (n-burst word-aligned)
+                stage1_bank_d[BA_BITS-1:0] = user_wb_addr[ (BA_BITS + ROW_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (ROW_BITS + COL_BITS- $clog2(serdes_ratio*2))]; //bank_address
+                stage1_row_d = user_wb_addr[ (ROW_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1) : (COL_BITS- $clog2(serdes_ratio*2)) ]; //row_address
+                stage1_col_d = { user_wb_addr[(COL_BITS- $clog2(serdes_ratio*2)-1) : 0] , {{$clog2(serdes_ratio*2)}{1'b0}} }; //column address (n-burst word-aligned)
                 //stage1_next_row will not increment unless stage1_next_col
                 //overwraps due to MARGIN_BEFORE_ANTICIPATE. Thus, anticipated
                 //precharge and activate will happen only at the end of the
@@ -1336,7 +1346,7 @@ module ddr3_controller #(
                 {stage1_next_bank_d, stage1_next_row_d} = wb_addr_plus_anticipate >> (COL_BITS- $clog2(serdes_ratio*2));
                 //anticipated next row and bank to be accessed 
                 /* verilator lint_on WIDTH */
-                stage1_data_d = i_wb_data;
+                stage1_data_d = user_wb_data;
             end
 
             else if(row_bank_col == 2) begin // memory address mapping: {bank[2:1], row, bank[0], col} , used for ECC_ENABLE = 3 (Inline ECC)
@@ -1438,7 +1448,7 @@ module ddr3_controller #(
         end
         
         //abort any outgoing ack when cyc is low
-        if(!i_wb_cyc && final_calibration_done) begin
+        if(!user_wb_cyc && final_calibration_done) begin
             stage2_pending_d = 0;
             stage1_pending_d = 0;
         end
@@ -1508,8 +1518,8 @@ module ddr3_controller #(
             // when not in refresh, transaction can only be processed when i_wb_cyc is high and not stall 
             // OR stage0 is pending and stage2 is about to be empty
             // AND ecc_stage1_stall low (if high then stage2 will have ECC operation while stage1 remains)
-            assign stage0_update = ((i_wb_cyc && !o_wb_stall) || (!final_calibration_done && !o_wb_stall_calib)) && ecc_stage1_stall; // stage0 is only used when ECC will be inserted next cycle (stage1 must remain)
-            assign stage1_update = ( (i_wb_cyc && !o_wb_stall) || (stage0_pending && !ecc_stage2_stall) ) && !ecc_stage1_stall;
+            assign stage0_update = ((user_wb_cyc && !o_wb_stall) || (!final_calibration_done && !o_wb_stall_calib)) && ecc_stage1_stall; // stage0 is only used when ECC will be inserted next cycle (stage1 must remain)
+            assign stage1_update = ( (user_wb_cyc && !o_wb_stall) || (stage0_pending && !ecc_stage2_stall) ) && !ecc_stage1_stall;
             assign stage1_update_calib = ( ((!final_calibration_done) && !o_wb_stall_calib) || (stage0_pending && !ecc_stage2_stall) ) && !ecc_stage1_stall;
             /* verilator lint_off WIDTH */
             assign wb_addr_plus_anticipate = wb_addr_mux + MARGIN_BEFORE_ANTICIPATE; // wb_addr_plus_anticipate determines if it is near the end of column by checking if it jumps to next row
@@ -1539,11 +1549,11 @@ module ddr3_controller #(
                     calib_aux_mux = stage0_aux; 
                 end
                 else begin
-                    wb_stb_mux = i_wb_stb;
-                    aux_mux = i_aux;
-                    wb_we_mux = i_wb_we;
-                    wb_addr_mux = i_wb_addr;
-                    wb_data_mux = i_wb_data;
+                    wb_stb_mux = user_wb_stb;
+                    aux_mux = user_aux;
+                    wb_we_mux = user_wb_we;
+                    wb_addr_mux = user_wb_addr;
+                    wb_data_mux = user_wb_data;
                     calib_data_mux = calib_data;
                     calib_addr_mux = calib_addr;
                     calib_stb_mux = calib_stb;
@@ -1572,19 +1582,19 @@ module ddr3_controller #(
                     if(stage0_update) begin
                         // wishbone req wil only be stored to stage0 if there will be ecc write/read next clock cycle
                         if(final_calibration_done) begin
-                            stage0_pending <= i_wb_stb && ecc_stage1_stall; 
+                            stage0_pending <= user_wb_stb && ecc_stage1_stall;
                         end
                         else begin
                             stage0_pending <= calib_stb && ecc_stage1_stall; 
                         end
-                        stage0_addr <= final_calibration_done? i_wb_addr : calib_addr; //address
-                        stage0_aux <= final_calibration_done? i_aux : calib_aux; //aux ID for AXI compatibility
-                        stage0_we <= final_calibration_done? i_wb_we : calib_we; //write-enable
-                        stage0_data <= final_calibration_done? i_wb_data : calib_data; //data
+                        stage0_addr <= final_calibration_done? user_wb_addr : calib_addr; //address
+                        stage0_aux <= final_calibration_done? user_aux : calib_aux; //aux ID for AXI compatibility
+                        stage0_we <= final_calibration_done? user_wb_we : calib_we; //write-enable
+                        stage0_data <= final_calibration_done? user_wb_data : calib_data; //data
                     end
                     // if there is already request on stage2 then only ecc_stage2_stall going low AND current ecc_stage1_stall is low can make this low
                     else if(stage0_pending) begin
-                        stage0_pending <= (ecc_stage2_stall || ecc_stage1_stall) && (i_wb_cyc || !final_calibration_done); // stage0_pending will go low when cyc is low
+                        stage0_pending <= (ecc_stage2_stall || ecc_stage1_stall) && (user_wb_cyc || !final_calibration_done); // stage0_pending will go low when cyc is low
                     end
                     // if stage1 will be updated, then stage0 will be empty
                     else if(stage1_update || stage1_update_calib) begin
@@ -1608,7 +1618,7 @@ module ddr3_controller #(
                     // if data received from wishbone is for ECC read, update stage2_ecc_read_data_q 
                     stage2_ecc_read_data_q <= (o_aux[AUX_WIDTH-1 : AUX_WIDTH-2] == 2'b11)? o_wb_data_q_current : stage2_ecc_read_data_q;
                     // abort any ECC request when cyc is low
-                    if(!i_wb_cyc && final_calibration_done) begin
+                    if(!user_wb_cyc && final_calibration_done) begin
                         ecc_req_stage2 <= 0;
                     end
                     // ecc_req_stage2 will only be high when stage2 will have ECC read/write operation
@@ -1622,10 +1632,10 @@ module ddr3_controller #(
         else begin : ecc_not_3_pipeline_control
             // logic when to update stage 1:
             // when not in refresh, transaction can only be processed when i_wb_cyc is high and not stall 
-            assign stage1_update = i_wb_cyc && !o_wb_stall;
+            assign stage1_update = user_wb_cyc && !o_wb_stall;
             assign stage1_update_calib = !final_calibration_done && !o_wb_stall_calib;
             /* verilator lint_off WIDTH */
-            assign wb_addr_plus_anticipate = i_wb_addr + MARGIN_BEFORE_ANTICIPATE; // wb_addr_plus_anticipate determines if it is near the end of column by checking if it jumps to next row
+            assign wb_addr_plus_anticipate = user_wb_addr + MARGIN_BEFORE_ANTICIPATE; // wb_addr_plus_anticipate determines if it is near the end of column by checking if it jumps to next row
             assign calib_addr_plus_anticipate = calib_addr + MARGIN_BEFORE_ANTICIPATE; // just same as wb_addr_plus_anticipate but while doing calibration
             /* verilator lint_on WIDTH */
             // default 0 
@@ -2075,10 +2085,10 @@ module ddr3_controller #(
         // pipeline control for ECC_ENABLE != 3
 
         if(ECC_ENABLE != 3) begin
-            if(!i_wb_cyc && final_calibration_done) begin
+            if(!user_wb_cyc && final_calibration_done) begin
                 o_wb_stall_int_d = 0;
             end
-            else if(!o_wb_stall_int_q && ( (!i_wb_stb && final_calibration_done) || (!calib_stb && !final_calibration_done) )) begin
+            else if(!o_wb_stall_int_q && ( (!user_wb_stb && final_calibration_done) || (!calib_stb && !final_calibration_done) )) begin
                 o_wb_stall_int_d = 0;
             end
             else if(o_wb_stall_int_q || !stage1_pending)  begin
@@ -2090,13 +2100,13 @@ module ddr3_controller #(
         end
         // pipeline control for ECC_ENABLE = 3
         else begin
-            if(!i_wb_cyc && final_calibration_done) begin
+            if(!user_wb_cyc && final_calibration_done) begin
                 o_wb_stall_int_d = 1'b0;
             end
             else if(ecc_stage1_stall) begin
                 o_wb_stall_int_d = 1'b1;
             end
-            else if(!o_wb_stall_int_q && ( (!i_wb_stb && final_calibration_done) || (!calib_stb && !final_calibration_done) )) begin
+            else if(!o_wb_stall_int_q && ( (!user_wb_stb && final_calibration_done) || (!calib_stb && !final_calibration_done) )) begin
                 o_wb_stall_int_d = 1'b0;
             end
             else if(stage0_pending) begin
@@ -2309,7 +2319,7 @@ module ddr3_controller #(
             //                of shift_reg_read_pipe_q        to delay_read_pipe          to o_wb_ack_read_q        high thus ready for wishbone ack
             
             // abort any outgoing ack when cyc is low
-            if(!i_wb_cyc && final_calibration_done) begin
+            if(!user_wb_cyc && final_calibration_done) begin
                 for(index = 0; index < MAX_ADDED_READ_ACK_DELAY; index = index + 1) begin
                     o_wb_ack_read_q[index] <= 0;
                 end
@@ -2322,7 +2332,7 @@ module ddr3_controller #(
                 o_aux <= o_wb_ack_read_q[0][AUX_WIDTH:1]; // Aux output
                 o_wb_data_uncalibrated <= o_wb_data_q_current; // Data is not ECC decoded when not yet done calibration
                 o_wb_ack_uncalibrated <= o_wb_ack_read_q[0][0] && !final_calibration_done; // ack used during calibration
-                o_wb_ack_q <= o_wb_ack_read_q[0][0] && final_calibration_done && i_wb_cyc; // ack used during normal operation
+                o_wb_ack_q <= o_wb_ack_read_q[0][0] && final_calibration_done && user_wb_cyc; // ack used during normal operation
                 o_wb_err_q <= db_err_o; // flag Wishbone error due to double bit error
             end
        end

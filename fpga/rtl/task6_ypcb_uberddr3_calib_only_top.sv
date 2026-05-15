@@ -9,7 +9,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
   parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b0,
   parameter bit COMMAND_FULLBEAT_ENABLE = 1'b1,
   parameter bit COMMAND_READBACK_ENABLE = 1'b1,
-  parameter bit DEBUG_WB_DATA_ENABLE = 1'b1
+  parameter bit DEBUG_WB_DATA_ENABLE = 1'b1,
+  parameter bit ISOLATE_WB_UNTIL_CALIB_DONE = 1'b0
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -234,7 +235,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .WB_ERROR(0),
     .BIST_MODE(0),
     .BIST_ADDR_BITS(0),
-    .ECC_ENABLE(0)
+    .ECC_ENABLE(0),
+    .ISOLATE_WB_UNTIL_CALIB_DONE(ISOLATE_WB_UNTIL_CALIB_DONE)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
     .i_ddr3_clk(ddr3_clk),
