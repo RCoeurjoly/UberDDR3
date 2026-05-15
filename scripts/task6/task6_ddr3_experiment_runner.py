@@ -354,6 +354,18 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     debug1_correct_bist_reads = (debug1 >> 14) & 0x3F
     debug1_wrong_bist_reads = (debug1 >> 20) & 0x3F
     debug1_bist_addr_low = (debug1 >> 26) & 0x3F
+    debug1_delay_counter_low = None
+    debug1_delay_counter_is_zero = None
+    debug1_pause_counter = None
+    debug1_reset_done = None
+    if version >= 71:
+        debug1_correct_bist_reads = None
+        debug1_wrong_bist_reads = None
+        debug1_bist_addr_low = None
+        debug1_pause_counter = bool(bit(debug1, 13))
+        debug1_delay_counter_is_zero = bool(bit(debug1, 14))
+        debug1_reset_done = bool(bit(debug1, 15))
+        debug1_delay_counter_low = (debug1 >> 16) & 0xFFFF
     ack_count = (raw >> 144) & 0xFFFFFFFF
     err_count = (raw >> 176) & 0xFFFFFFFF
     calib_seen_cycle = (raw >> 80) & 0xFFFFFFFF
@@ -480,6 +492,10 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "debug1_bist_addr_low": debug1_bist_addr_low,
         "debug1_correct_bist_reads": debug1_correct_bist_reads,
         "debug1_wrong_bist_reads": debug1_wrong_bist_reads,
+        "debug1_delay_counter_low": debug1_delay_counter_low,
+        "debug1_delay_counter_is_zero": debug1_delay_counter_is_zero,
+        "debug1_pause_counter": debug1_pause_counter,
+        "debug1_reset_done": debug1_reset_done,
         "state": state,
         "state_name": DDR3_CALIBRATION_STATES.get(state, f"UNKNOWN_{state}"),
         "instruction": (debug1 >> 5) & 0x1F,
