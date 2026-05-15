@@ -165,7 +165,7 @@ rowstream-v40-json:
 	@mkdir -p ../../artifacts/manual-seed/seed${SEED}
 	@mkdir -p $(dir ${ROWSTREAM_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${ROWSTREAM_BITSTREAM_OUT_ABS})
-	$(MAKE) clean-rowstream-pnr
+	$(MAKE) clean-rowstream-fresh
 	@printf 'rowstream-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
 	$(MAKE) rowstream-v40-locked \
@@ -189,7 +189,7 @@ rowstream-fullbeat-v40-json: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_L
 rowstream-fullbeat-v40-json:
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS})
-	$(MAKE) clean-rowstream-fullbeat-pnr
+	$(MAKE) clean-rowstream-fullbeat-fresh
 	@printf 'rowstream-fullbeat-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_FULLBEAT_ROUTED_JSON}" "${ROWSTREAM_FULLBEAT_BITSTREAM_OUT}"
 	$(MAKE) rowstream-fullbeat-v40-locked \
@@ -212,7 +212,7 @@ calib-v40-json: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 calib-v40-json:
 	@mkdir -p $(dir ${CALIB_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${CALIB_BITSTREAM_OUT_ABS})
-	rm -f ${CALIB_PROJECT}_openxc7.bit ${CALIB_PROJECT}.frames ${CALIB_PROJECT}.fasm ${CALIB_XDC}
+	$(MAKE) clean-calib-fresh
 	@printf 'calib-v40-json: seed=%s freq=%s chipdb=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${CALIB_ROUTED_JSON}" "${CALIB_BITSTREAM_OUT}"
 	$(MAKE) calib-v40-locked \
@@ -242,15 +242,27 @@ clean-rowstream-pnr:
 	rm -f ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm \
 		${ROWSTREAM_XDC}
 
+.PHONY: clean-rowstream-fresh
+clean-rowstream-fresh: clean-rowstream-pnr
+	rm -f ${ROWSTREAM_PROJECT}.json
+
 .PHONY: clean-rowstream-fullbeat-pnr
 clean-rowstream-fullbeat-pnr:
 	rm -f ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm \
 		${ROWSTREAM_FULLBEAT_XDC}
 
+.PHONY: clean-rowstream-fullbeat-fresh
+clean-rowstream-fullbeat-fresh: clean-rowstream-fullbeat-pnr
+	rm -f ${ROWSTREAM_FULLBEAT_PROJECT}.json
+
 .PHONY: clean-calib-pnr
 clean-calib-pnr:
 	rm -f ${CALIB_PROJECT}_openxc7.bit ${CALIB_PROJECT}.frames ${CALIB_PROJECT}.fasm \
 		${CALIB_XDC}
+
+.PHONY: clean-calib-fresh
+clean-calib-fresh: clean-calib-pnr
+	rm -f ${CALIB_PROJECT}.json
 
 .PHONY: rowstream-v40-json-pnr-only
 rowstream-v40-json-pnr-only:
