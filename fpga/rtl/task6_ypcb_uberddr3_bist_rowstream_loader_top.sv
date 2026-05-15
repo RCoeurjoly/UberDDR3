@@ -26,7 +26,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd66;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd67;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -793,72 +793,119 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     end
   end
 
-  logic [JTAG_DEBUG_WIDTH - 1:0] jtag_debug_payload_next;
   logic [JTAG_DEBUG_WIDTH - 1:0] jtag_debug_payload_q;
-
-  always_comb begin
-    jtag_debug_payload_next = '0;
-    jtag_debug_payload_next[0 +: 32] = JTAG_DEBUG_MAGIC;
-    jtag_debug_payload_next[32 +: 8] = JTAG_DEBUG_VERSION;
-    jtag_debug_payload_next[40 +: 8] = {
-      1'b0,
-      uart_tx,
-      wb2_ack,
-      wb2_stall,
-      wb_err,
-      wb_ack,
-      calib_seen_q,
-      calib_complete
-    };
-    jtag_debug_payload_next[47] = mmcm_locked;
-    jtag_debug_payload_next[48 +: 32] = cycle_count_q;
-    jtag_debug_payload_next[80 +: 32] = calib_seen_cycle_q;
-    jtag_debug_payload_next[112 +: 32] = debug1;
-    jtag_debug_payload_next[144 +: 32] = wb_ack_count_q;
-    jtag_debug_payload_next[176 +: 32] = wb_err_count_q;
-    jtag_debug_payload_next[208 +: 32] = wb_stall_count_q;
-    jtag_debug_payload_next[240 +: 32] =
-      wb2_debug_done_q ? wb2_debug_data_q :
-      read_probe_done_q ? loader_read_data_q[31:0] : read_probe_data_q[31:0];
-    jtag_debug_payload_next[272 +: 32] =
-      {jtag_command_count[7:0], loader_last_opcode_q,
-       6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
-    jtag_debug_payload_next[304 +: 32] = {
-      15'd0,
-      read_probe_done_q && (read_probe_stream_mismatch_q != 4'd0),
-      read_probe_stall_seen_q,
-      read_probe_err_seen_q,
-      read_probe_read_ack_seen_q,
-      read_probe_write_ack_seen_q,
-      read_probe_done_q,
-      loader_stall_seen_q,
-      loader_error_q,
-      loader_read_ack_seen_q,
-      loader_write_ack_seen_q,
-      loader_done_q,
-      read_probe_cyc_q,
-      read_probe_stb_q,
-      loader_debug_state
-    };
-    jtag_debug_payload_next[336 +: 128] =
-      loader_last_opcode_q == LOADER_OP_WRITE_CHUNK ?
-      loader_bus_write_data_q[loader_last_chunk_q * 128 +: 128] :
-      loader_read_data_q[loader_read_chunk_q * 128 +: 128];
-    jtag_debug_payload_next[464] = loader_dense_write_seen_q;
-    jtag_debug_payload_next[465] = loader_accept_seen_q;
-    jtag_debug_payload_next[466] = loader_accept_we_q;
-    jtag_debug_payload_next[467 +: 14] = loader_accept_addr_low_q;
-    jtag_debug_payload_next[481 +: 15] = loader_accept_sel_low_q[14:0];
-    jtag_debug_payload_next[496 +: 16] = loader_accept_data_low_q;
-    if (!read_probe_done_q)
-      jtag_debug_payload_next[240 +: 32] = read_probe_stream_bytes_q;
-  end
+  logic [7:0] debug_flags8_q;
+  logic [31:0] debug_cycle_q;
+  logic [31:0] debug_calib_seen_cycle_q;
+  logic [31:0] debug_debug1_q;
+  logic [31:0] debug_ack_count_q;
+  logic [31:0] debug_err_count_q;
+  logic [31:0] debug_stall_count_q;
+  logic [31:0] debug_word240_q;
+  logic [31:0] debug_command_word_q;
+  logic [31:0] debug_status_word_q;
+  logic [127:0] debug_window_q;
+  logic debug_dense_write_seen_q;
+  logic debug_accept_seen_q;
+  logic debug_accept_we_q;
+  logic [13:0] debug_accept_addr_low_q;
+  logic [14:0] debug_accept_sel_low_q;
+  logic [15:0] debug_accept_data_low_q;
 
   always_ff @(posedge controller_clk or negedge rst_n) begin
-    if (!rst_n)
+    if (!rst_n) begin
+      debug_flags8_q <= '0;
+      debug_cycle_q <= '0;
+      debug_calib_seen_cycle_q <= '0;
+      debug_debug1_q <= '0;
+      debug_ack_count_q <= '0;
+      debug_err_count_q <= '0;
+      debug_stall_count_q <= '0;
+      debug_word240_q <= '0;
+      debug_command_word_q <= '0;
+      debug_status_word_q <= '0;
+      debug_window_q <= '0;
+      debug_dense_write_seen_q <= 1'b0;
+      debug_accept_seen_q <= 1'b0;
+      debug_accept_we_q <= 1'b0;
+      debug_accept_addr_low_q <= '0;
+      debug_accept_sel_low_q <= '0;
+      debug_accept_data_low_q <= '0;
       jtag_debug_payload_q <= '0;
-    else
-      jtag_debug_payload_q <= jtag_debug_payload_next;
+    end else begin
+      debug_flags8_q <= {
+        1'b0,
+        uart_tx,
+        wb2_ack,
+        wb2_stall,
+        wb_err,
+        wb_ack,
+        calib_seen_q,
+        calib_complete
+      };
+      debug_cycle_q <= cycle_count_q;
+      debug_calib_seen_cycle_q <= calib_seen_cycle_q;
+      debug_debug1_q <= debug1;
+      debug_ack_count_q <= wb_ack_count_q;
+      debug_err_count_q <= wb_err_count_q;
+      debug_stall_count_q <= wb_stall_count_q;
+      debug_word240_q <=
+        !read_probe_done_q ? read_probe_stream_bytes_q :
+        wb2_debug_done_q ? wb2_debug_data_q :
+        read_probe_done_q ? loader_read_data_q[31:0] : read_probe_data_q[31:0];
+      debug_command_word_q <=
+        {jtag_command_count[7:0], loader_last_opcode_q,
+         6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
+      debug_status_word_q <= {
+        15'd0,
+        read_probe_done_q && (read_probe_stream_mismatch_q != 4'd0),
+        read_probe_stall_seen_q,
+        read_probe_err_seen_q,
+        read_probe_read_ack_seen_q,
+        read_probe_write_ack_seen_q,
+        read_probe_done_q,
+        loader_stall_seen_q,
+        loader_error_q,
+        loader_read_ack_seen_q,
+        loader_write_ack_seen_q,
+        loader_done_q,
+        read_probe_cyc_q,
+        read_probe_stb_q,
+        loader_debug_state
+      };
+      debug_window_q <=
+        loader_last_opcode_q == LOADER_OP_WRITE_CHUNK ?
+        loader_bus_write_data_q[loader_last_chunk_q * 128 +: 128] :
+        loader_read_data_q[loader_read_chunk_q * 128 +: 128];
+      debug_dense_write_seen_q <= loader_dense_write_seen_q;
+      debug_accept_seen_q <= loader_accept_seen_q;
+      debug_accept_we_q <= loader_accept_we_q;
+      debug_accept_addr_low_q <= loader_accept_addr_low_q;
+      debug_accept_sel_low_q <= loader_accept_sel_low_q[14:0];
+      debug_accept_data_low_q <= loader_accept_data_low_q;
+
+      jtag_debug_payload_q <= '0;
+      jtag_debug_payload_q[0 +: 32] <= JTAG_DEBUG_MAGIC;
+      jtag_debug_payload_q[32 +: 8] <= JTAG_DEBUG_VERSION;
+      jtag_debug_payload_q[40 +: 8] <= debug_flags8_q;
+      jtag_debug_payload_q[47] <= mmcm_locked;
+      jtag_debug_payload_q[48 +: 32] <= debug_cycle_q;
+      jtag_debug_payload_q[80 +: 32] <= debug_calib_seen_cycle_q;
+      jtag_debug_payload_q[112 +: 32] <= debug_debug1_q;
+      jtag_debug_payload_q[144 +: 32] <= debug_ack_count_q;
+      jtag_debug_payload_q[176 +: 32] <= debug_err_count_q;
+      jtag_debug_payload_q[208 +: 32] <= debug_stall_count_q;
+      jtag_debug_payload_q[240 +: 32] <= debug_word240_q;
+      jtag_debug_payload_q[272 +: 32] <= debug_command_word_q;
+      jtag_debug_payload_q[304 +: 32] <= debug_status_word_q;
+      jtag_debug_payload_q[336 +: 128] <= debug_window_q;
+      jtag_debug_payload_q[464] <= debug_dense_write_seen_q;
+      jtag_debug_payload_q[465] <= debug_accept_seen_q;
+      jtag_debug_payload_q[466] <= debug_accept_we_q;
+      jtag_debug_payload_q[467 +: 14] <= debug_accept_addr_low_q;
+      jtag_debug_payload_q[481 +: 15] <= debug_accept_sel_low_q;
+      jtag_debug_payload_q[496 +: 16] <= debug_accept_data_low_q;
+    end
   end
 
   ddr3_top #(
