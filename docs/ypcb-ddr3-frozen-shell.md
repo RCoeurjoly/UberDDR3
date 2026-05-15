@@ -1055,3 +1055,64 @@ python3 scripts/task6/ypcb_ddr3_driver.py --timeout 20 --command-repeats 2 debug
 Addresses `15` and `16` expose `correct_read_data` and `wrong_read_data`.
 Additional controller debug words are available through the WB2 register map in
 `rtl/ddr3_controller.v`.
+
+## v93-v94 Command Boundary Results
+
+The v93 low-byte command variant proved that simply removing fullbeat staging
+does not preserve calibration. With command WB, command JTAG, loader debug, and
+`FULLBEAT_ENABLE=0`, seed 5 failed in `IDLE` / instruction `2`
+(`debug1=0x00001440`). Disabling the extra loader debug but keeping low-byte
+WB live moved the failure later, to `BITSLIP_DQS_TRAIN_1` / instruction `13`
+(`debug1=0x000015a1`), but still did not calibrate.
+
+A fixed-synth PNR-only sweep of that low-byte/no-loader-debug netlist found
+timing-clean or near-clean bitstreams for seeds 2, 3, and 4:
+
+```text
+seed2: controller_clk 100.58 MHz PASS
+seed3: controller_clk 101.68 MHz PASS
+seed4: controller_clk 100.95 MHz PASS
+```
+
+Hardware testing all three showed the same failure class:
+`version=89`, `state=IDLE`, instruction `2`, `debug1=0x00001440`,
+`calib_seen_cycle=0`, and `ack_count=0`. That is stronger evidence than a
+single bad seed: once the primary Wishbone inputs are live, timing-clean PNR is
+still insufficient to preserve the frozen calibration shell.
+
+The v94 experiment split command readback from command issue. It added
+build-time `COMMAND_READBACK_ENABLE` and `DEBUG_WB_DATA_ENABLE` parameters so
+a write-only command path can be built without exporting `wb_data` through the
+JTAG debug payload or command readback chunk. A Makefile bug was found and
+fixed at the same time: `YPCB_CALIB_COMMAND_*` variables are now converted into
+actual Yosys `-D` defines by `CALIB_YOSYS_DEFINES`; passing those variables
+without this plumbing had silently built a disabled-command `version=88`
+control shell.
+
+With the define plumbing fixed, the real write-only seed-5 build instantiated
+two BSCANs but did not converge in router2: it plateaued at three overused
+wires beyond 2,400 iterations. Reusing the same synthesized JSON with
+PNR-only seed 3 routed successfully:
+
+```text
+artifacts/manual-seed/calib-v94-writeonly-command-real-pnr-only/seed3/calib-v94-writeonly-command-real-seed3.bit
+```
+
+That bitstream still failed on hardware with `version=89`, `state=IDLE`,
+instruction `2`, `debug1=0x00001440`, `calib_seen_cycle=0`, and `ack_count=0`.
+Therefore the current instability boundary is not fullbeat staging and not
+readback fanout alone. Making the primary Wishbone command inputs live is
+enough to disturb calibration.
+
+A maximal v88 all-lock transplant is not a viable shortcut for this changed
+netlist. The all-lock pre-place script applied only 6,483 locks and missed
+18,240 cells, then nextpnr aborted with `unordered_map::at`. This confirms the
+earlier rule: all-BEL lock files are only meaningful for closely matching
+synthesis identity.
+
+The next implementation direction should not keep pushing wider command logic
+into the calibration shell. The stable path is to preserve the v88/v92
+default-off shell and introduce a narrower controller-side boundary, or modify
+the DDR3 controller so the user Wishbone input path is structurally constant
+during calibration and only becomes live after `DONE_CALIBRATE` without
+changing the calibration placement neighborhood.
