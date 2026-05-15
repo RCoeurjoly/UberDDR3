@@ -941,6 +941,24 @@ production shell because its post-route controller timing is only about
 90.05 MHz against the 100 MHz constraint and this calibration-only image has
 no command path.
 
+The first attempt to carry seed 5 into the current rowstream/fullbeat wrapper
+used the same 553-lock hard + `RDY_AND_LUT_1` set with `--allow-missing`
+enabled for wrapper-specific cells. The build routed legally and produced:
+
+```text
+artifacts/manual-seed/fullbeat-v91-v88hard-lut1-allowmissing/seed5/rowstream-fullbeat-v91-v88hard-lut1-allowmissing-seed5.bit
+```
+
+but hardware did not calibrate. The status payload reported `version=89`,
+`state=IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0`, and
+`calib_seen_cycle=0x00000000`. The routed design was also timing-poor on the
+visible controller clock: nextpnr reported about 82.98 MHz against the 100 MHz
+explicit clock. This result means the repeatable seed-5 `calib_only` oracle
+does not survive the current fullbeat command/debug wrapper. The next
+implementation work should keep the seed-5 calibration shell as the reference
+and add command functionality in smaller increments, not continue feature work
+on the present monolithic fullbeat wrapper.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
