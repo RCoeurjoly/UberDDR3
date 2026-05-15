@@ -547,6 +547,7 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
     .DLL_OFF(0),
     .WB_ERROR(0),
     .BIST_MODE(0),
+    .BIST_ADDR_BITS(0),
     .ECC_ENABLE(0)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
