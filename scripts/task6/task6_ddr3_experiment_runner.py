@@ -277,6 +277,7 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
     version = (raw >> 32) & 0xFF
     is_rowstream_loader = version in ROWSTREAM_DEBUG_VERSIONS
     debug1 = (raw >> 112) & 0xFFFFFFFF
+    debug2 = (raw >> 272) & 0xFFFFFFFF
     probe = (raw >> 304) & 0xFFFFFFFF
     if is_rowstream_loader:
         read_byte = (raw >> 336) & 0xFF
@@ -489,6 +490,12 @@ def decode_uberddr3_payload(readback: dict[str, Any], args: argparse.Namespace) 
         "cycle": f"0x{((raw >> 48) & 0xFFFFFFFF):08x}",
         "calib_seen_cycle": f"0x{calib_seen_cycle:08x}",
         "debug1": f"0x{debug1:08x}",
+        "debug2": f"0x{debug2:08x}" if not is_rowstream_loader and version >= 86 else None,
+        "debug2_dqs_store_low": (
+            hex_words(raw, 272, 8, 4)
+            if not is_rowstream_loader and version >= 86
+            else []
+        ),
         "debug1_bist_addr_low": debug1_bist_addr_low,
         "debug1_correct_bist_reads": debug1_correct_bist_reads,
         "debug1_wrong_bist_reads": debug1_wrong_bist_reads,
