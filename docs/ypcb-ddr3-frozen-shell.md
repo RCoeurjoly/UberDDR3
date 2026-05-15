@@ -372,6 +372,33 @@ pattern matched the read lane. That is the information needed to distinguish a
 placement/timing reset loop from a missing PHY capability or a calibration
 algorithm assumption that is wrong for the YPCB no-ODELAY path.
 
+The v76/v77 debug attempts showed that this observability has to be treated as
+a placement perturbation, not a passive probe. v76 exposed live per-lane DQS
+search fields and built successfully, but the seed-4 hardware result regressed
+from the v75 `ANALYZE_DQS` stop to `IDLE` / instruction 2. A trimmed v77 debug
+word only exposed active lane, bitslip count, reset sources, and calibration
+Wishbone handshake bits; seed 4 routed timing-clean at 111.96 MHz, but hardware
+still failed earlier than v75: `version=77`, `state=IDLE`, `instruction=1`,
+`debug1=0x00200420`, `calib_stall=true`, and no reset-source bits set.
+
+Comparing the v75 seed-4 routed JSON with the v77 seed-4 routed JSON showed
+all high-risk hard primitives remained fixed:
+
+| Category | Stable cells |
+| --- | ---: |
+| clock/IO/PHY primitives | 539 / 539 |
+| BUFGCTRL | 4 / 4 |
+| IDELAYCTRL | 3 / 3 |
+| IDELAYE2 | 72 / 72 |
+| ISERDESE2 | 72 / 72 |
+| OSERDESE2 | 97 / 97 |
+| PAD/IOB primitives | all equal |
+
+The regression therefore came from soft controller placement and timing shape,
+not from moving the physical DDR3 I/O shell. The active calibration-only top
+keeps the controller debug parameter available but disabled by default
+(`version=78`) so future seed sweeps use the non-debug shell.
+
 ## Artifact Policy
 
 There are two different artifact classes:
