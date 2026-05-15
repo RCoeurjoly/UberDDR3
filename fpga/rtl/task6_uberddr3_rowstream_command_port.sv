@@ -5,7 +5,8 @@ module task6_uberddr3_rowstream_command_port #(
   parameter int JTAG_COMMAND_CHAIN = 2,
   parameter int WB_ADDR_BITS = 25,
   parameter int WB_DATA_BITS = 512,
-  parameter int WB_SEL_BITS = 64
+  parameter int WB_SEL_BITS = 64,
+  parameter bit FULLBEAT_ENABLE = 1'b1
 ) (
   input  logic                      controller_clk_i,
   input  logic                      rst_ni,
@@ -73,7 +74,8 @@ module task6_uberddr3_rowstream_command_port #(
 
   always_comb begin
     stage_data_next = stage_data_q;
-    stage_data_next[cmd_chunk_q * 128 +: 128] = cmd_data_q;
+    if (FULLBEAT_ENABLE)
+      stage_data_next[cmd_chunk_q * 128 +: 128] = cmd_data_q;
   end
 
   always_ff @(posedge controller_clk_i or negedge rst_ni) begin
@@ -139,26 +141,36 @@ module task6_uberddr3_rowstream_command_port #(
           stall_seen_q <= 1'b0;
           wait_cycles_o <= 32'd0;
           if (cmd_opcode_q == LOADER_OP_WRITE_CHUNK) begin
-            stage_data_q <= stage_data_next;
-            if (cmd_chunk_q == 2'd3) begin
+            if (FULLBEAT_ENABLE) begin
+              stage_data_q <= stage_data_next;
+              if (cmd_chunk_q == 2'd3) begin
+                wb_addr_o <= cmd_addr_q[WB_ADDR_BITS - 1:0];
+                wb_data_o <= stage_data_next;
+                wb_sel_o <= {WB_SEL_BITS{1'b1}};
+                wb_we_o <= 1'b1;
+                wb_cyc_o <= 1'b1;
+                wb_stb_o <= 1'b1;
+                state_q <= LOADER_ISSUE;
+              end else begin
+                done_q <= 1'b1;
+              end
+            end else begin
+              error_q <= 1'b1;
+              state_q <= LOADER_ERROR;
+            end
+          end else if (cmd_opcode_q == LOADER_OP_READ_BEAT) begin
+            if (FULLBEAT_ENABLE) begin
               wb_addr_o <= cmd_addr_q[WB_ADDR_BITS - 1:0];
-              wb_data_o <= stage_data_next;
+              read_chunk_q <= cmd_chunk_q;
               wb_sel_o <= {WB_SEL_BITS{1'b1}};
-              wb_we_o <= 1'b1;
+              wb_we_o <= 1'b0;
               wb_cyc_o <= 1'b1;
               wb_stb_o <= 1'b1;
               state_q <= LOADER_ISSUE;
             end else begin
-              done_q <= 1'b1;
+              error_q <= 1'b1;
+              state_q <= LOADER_ERROR;
             end
-          end else if (cmd_opcode_q == LOADER_OP_READ_BEAT) begin
-            wb_addr_o <= cmd_addr_q[WB_ADDR_BITS - 1:0];
-            read_chunk_q <= cmd_chunk_q;
-            wb_sel_o <= {WB_SEL_BITS{1'b1}};
-            wb_we_o <= 1'b0;
-            wb_cyc_o <= 1'b1;
-            wb_stb_o <= 1'b1;
-            state_q <= LOADER_ISSUE;
           end else if (cmd_opcode_q == LOADER_OP_WRITE_LOWBYTE) begin
             wb_addr_o <= cmd_addr_q[WB_ADDR_BITS - 1:0];
             wb_data_o <= {{(WB_DATA_BITS - 8){1'b0}}, cmd_data_q[7:0]};
@@ -220,7 +232,10 @@ module task6_uberddr3_rowstream_command_port #(
               write_ack_seen_q <= 1'b1;
             end else begin
               read_ack_seen_q <= 1'b1;
-              read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
+              if (FULLBEAT_ENABLE)
+                read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
+              else
+                read_chunk_o <= {{120{1'b0}}, wb_data_i[7:0]};
             end
             done_q <= 1'b1;
             state_q <= LOADER_IDLE;
@@ -239,7 +254,10 @@ module task6_uberddr3_rowstream_command_port #(
               write_ack_seen_q <= 1'b1;
             end else begin
               read_ack_seen_q <= 1'b1;
-              read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
+              if (FULLBEAT_ENABLE)
+                read_chunk_o <= wb_data_i[read_chunk_q * 128 +: 128];
+              else
+                read_chunk_o <= {{120{1'b0}}, wb_data_i[7:0]};
             end
             done_q <= 1'b1;
             state_q <= LOADER_IDLE;

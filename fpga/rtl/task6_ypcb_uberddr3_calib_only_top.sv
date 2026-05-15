@@ -6,7 +6,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
   parameter int JTAG_COMMAND_CHAIN = 2,
   parameter bit COMMAND_WB_ENABLE = 1'b0,
   parameter bit COMMAND_JTAG_ENABLE = 1'b0,
-  parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b0
+  parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b0,
+  parameter bit COMMAND_FULLBEAT_ENABLE = 1'b1
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -286,7 +287,8 @@ module task6_ypcb_uberddr3_calib_only_top #(
         .JTAG_COMMAND_CHAIN(JTAG_COMMAND_CHAIN),
         .WB_ADDR_BITS(WB_ADDR_BITS),
         .WB_DATA_BITS(WB_DATA_BITS),
-        .WB_SEL_BITS(WB_SEL_BITS)
+        .WB_SEL_BITS(WB_SEL_BITS),
+        .FULLBEAT_ENABLE(COMMAND_FULLBEAT_ENABLE)
       ) command_port (
         .controller_clk_i(controller_clk),
         .rst_ni(rst_n),

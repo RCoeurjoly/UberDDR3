@@ -12,6 +12,10 @@
 `define YPCB_CALIB_DEBUG_LOADER_PAYLOAD_ENABLE 0
 `endif
 
+`ifndef YPCB_CALIB_COMMAND_FULLBEAT_ENABLE
+`define YPCB_CALIB_COMMAND_FULLBEAT_ENABLE 1
+`endif
+
 module ypcb_00338_1p1_uberddr3_calib_only (
     input  wire        clk50,
     input  wire        rst_n,
@@ -34,7 +38,8 @@ module ypcb_00338_1p1_uberddr3_calib_only (
   task6_ypcb_uberddr3_calib_only_top #(
         .COMMAND_WB_ENABLE(`YPCB_CALIB_COMMAND_WB_ENABLE),
         .COMMAND_JTAG_ENABLE(`YPCB_CALIB_COMMAND_JTAG_ENABLE),
-        .DEBUG_LOADER_PAYLOAD_ENABLE(`YPCB_CALIB_DEBUG_LOADER_PAYLOAD_ENABLE)
+        .DEBUG_LOADER_PAYLOAD_ENABLE(`YPCB_CALIB_DEBUG_LOADER_PAYLOAD_ENABLE),
+        .COMMAND_FULLBEAT_ENABLE(`YPCB_CALIB_COMMAND_FULLBEAT_ENABLE)
     ) calib_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),
