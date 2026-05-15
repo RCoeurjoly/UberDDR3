@@ -875,6 +875,7 @@ The first scoped soft-lock attempts narrowed that tooling blocker further:
 | v88 hard + `RDY_AND_LUT_1` only, seed 0 | 553 locks | legal route, controller clock ~95.43 MHz | `IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0` | fail before command gate |
 | v88 hard + `RDY_AND_LUT_1` only, seed 3 | 553 locks | legal route, controller clock ~99.75 MHz | `IDLE`, instruction `1`, `debug1=0x00001420`, `ack_count=0` | fail before command gate |
 | v88 hard + `RDY_AND_LUT_1` only, seed 4 | 553 locks | legal route, controller clock ~100.39 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_1` only, seed 5 | 553 locks | legal route, controller clock ~90.05 MHz | `DONE_CALIBRATE`, instruction `22`, `debug1=0x000006d7`, `calib_seen_cycle=0x0001394f` | calibration pass despite timing miss |
 | v88 hard + `RDY_AND_LUT_1` only, seed 16 | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_1` only, seed 40 | 553 locks | legal route, controller clock ~100.48 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_1` only, seed 44 | 553 locks | legal route, controller clock ~89.11 MHz | `IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0` | timing-poor early failure |
@@ -891,13 +892,18 @@ The two IDELAYCTRL ready soft locks are:
 This changes the immediate plan. Hard-only locks are insufficient on hardware,
 and `RDY_AND_LUT_1` is relevant because it moves seeds 4 and 16 from early
 `IDLE` into the DQS/MPR calibration neighborhood. It is not sufficient for
-deterministic calibration: seeds 0 and 3 still fail early, and seeds 4 and 16
-still stop before `DONE_CALIBRATE`. `RDY_AND_LUT_2` is currently blocked by a
-nextpnr-xilinx placement bug: heap placement aborts in
+deterministic calibration: seeds 0, 3, and 44 still fail early, while seeds 4,
+16, and 40 stop in the DQS/MPR neighborhood before `DONE_CALIBRATE`. Seed 5 is
+the first regenerated fixed-synth route in this campaign that reaches
+`DONE_CALIBRATE`, but it does so with the visible controller clock failing at
+about 90 MHz. That makes it a new placement oracle for calibration behavior,
+not yet a timing-clean production basis. `RDY_AND_LUT_2` is currently blocked
+by a nextpnr-xilinx placement bug: heap placement aborts in
 `HeAPPlacer::total_hpwl()`, and the `sa` placer gets past that point but
 produces an invalid placement. The next experiment should expand from the hard
-+ `RDY_AND_LUT_1` lock set and avoid `RDY_AND_LUT_2` until the placer bug is
-fixed or a different constraint form is available.
++ `RDY_AND_LUT_1` lock set, compare the seed-5 passing route against failing
+seeds, and avoid `RDY_AND_LUT_2` until the placer bug is fixed or a different
+constraint form is available.
 
 A temporary local nextpnr-xilinx patch was tested against the packaged
 OpenXC7 source to guard missing heap-placer `cell_locs` entries and avoid
