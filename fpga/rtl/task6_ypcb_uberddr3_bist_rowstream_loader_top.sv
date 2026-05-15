@@ -24,7 +24,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd52;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd53;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -751,6 +751,8 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
       loader_debug_state
     };
     jtag_debug_payload[336 +: 128] =
+      loader_last_opcode_q == LOADER_OP_WRITE_CHUNK ?
+      loader_write_data_q[loader_last_chunk_q * 128 +: 128] :
       loader_read_data_q[loader_read_chunk_q * 128 +: 128];
     jtag_debug_payload[464] = loader_dense_write_seen_q;
     jtag_debug_payload[465 +: 16] = loader_dense_write_addr_q;
