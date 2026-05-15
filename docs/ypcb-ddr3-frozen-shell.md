@@ -270,6 +270,7 @@ the command gate:
 | command-WB disabled | 4 | on | off | on | `IDLE`, instruction 2, `ack_count=0` |
 | command-JTAG and command-WB disabled | 4 | off | off | on | `IDLE`, instruction 2, `ack_count=0` |
 | calibration-shape stripped | 4 | off | off | off | `IDLE`, instruction 1/2, `ack_count=0` |
+| fullbeat command-enabled, BIST address width aligned | 16 | on | on | on | `MPR_READ`/`IDLE`, instruction 13, `ack_count=0` |
 
 The stripped calibration-shape build has only one BSCAN, five BUFGs, and no
 command or loader-observation fanout. It still fails. That rules out the second
