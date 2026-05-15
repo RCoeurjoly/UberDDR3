@@ -872,7 +872,10 @@ The first scoped soft-lock attempts narrowed that tooling blocker further:
 | --- | --- | --- | --- | --- |
 | v88 hard + soft calibration roots | 590 locks: 552 hard, 36 `CARRY4`, 2 `SLICE_LUTX` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | tooling failure |
 | v88 hard + IDELAYCTRL ready LUTs only | 554 locks: 552 hard plus `RDY_AND_LUT_1` and `RDY_AND_LUT_2` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | smallest current tooling failure |
-| v88 hard + `RDY_AND_LUT_1` only | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_1` only, seed 0 | 553 locks | legal route, controller clock ~95.43 MHz | `IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0` | fail before command gate |
+| v88 hard + `RDY_AND_LUT_1` only, seed 3 | 553 locks | legal route, controller clock ~99.75 MHz | `IDLE`, instruction `1`, `debug1=0x00001420`, `ack_count=0` | fail before command gate |
+| v88 hard + `RDY_AND_LUT_1` only, seed 4 | 553 locks | legal route, controller clock ~100.39 MHz | `ANALYZE_DQS`, instruction `13`, `debug1=0x000015a4`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_1` only, seed 16 | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
 | v88 hard + `RDY_AND_LUT_2` only | 553 locks | heap placer aborts after pre-place with `unordered_map::at`; gdb backtrace reaches `HeAPPlacer::total_hpwl()` | not programmed | isolated heap-placer crash trigger |
 | v88 hard + `RDY_AND_LUT_2` only, `--placer sa` | 553 locks | avoids heap abort, then fails post-placement validity: `SLICE_X78Y393/A5FF` has no cell | not programmed | not a usable workaround |
 
@@ -884,13 +887,15 @@ The two IDELAYCTRL ready soft locks are:
 | `calib_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_2` | `SLICE_X22Y121/A6LUT` |
 
 This changes the immediate plan. Hard-only locks are insufficient on hardware,
-and `RDY_AND_LUT_1` is relevant because it moves seed 16 from early `IDLE` to
-`MPR_READ`. `RDY_AND_LUT_2` is currently blocked by a nextpnr-xilinx placement
-bug: heap placement aborts in `HeAPPlacer::total_hpwl()`, and the `sa` placer
-gets past that point but produces an invalid placement. The next experiment
-should expand from the hard + `RDY_AND_LUT_1` lock set and avoid
-`RDY_AND_LUT_2` until the placer bug is fixed or a different constraint form is
-available.
+and `RDY_AND_LUT_1` is relevant because it moves seeds 4 and 16 from early
+`IDLE` into the DQS/MPR calibration neighborhood. It is not sufficient for
+deterministic calibration: seeds 0 and 3 still fail early, and seeds 4 and 16
+still stop before `DONE_CALIBRATE`. `RDY_AND_LUT_2` is currently blocked by a
+nextpnr-xilinx placement bug: heap placement aborts in
+`HeAPPlacer::total_hpwl()`, and the `sa` placer gets past that point but
+produces an invalid placement. The next experiment should expand from the hard
++ `RDY_AND_LUT_1` lock set and avoid `RDY_AND_LUT_2` until the placer bug is
+fixed or a different constraint form is available.
 
 ## WB2/BIST Diagnostic Variant
 
