@@ -101,7 +101,8 @@ module ddr3_controller #(
                 cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM,
                 lanes_clog2 = $clog2(LANES) == 0? 1: $clog2(LANES),
     parameter[1:0] row_bank_col = (ECC_ENABLE == 3)? 2 : 1, // memory address mapping: 0 {bank, row, col} , 1 = {row, bank, col} , 2 = {bank[2:1]. row, bank[0], col} FOR ECC
-    parameter[0:0] ECC_TEST = 0
+    parameter[0:0] ECC_TEST = 0,
+    parameter[0:0] YPCB_DQS_DEBUG = 0
     ) 
     (
         input wire i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
@@ -3872,7 +3873,23 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // [19:14] correct BIST read count, saturated/truncated
     // [25:20] wrong BIST read count, saturated/truncated
     // [31:26] BIST check address counter low bits
-    assign o_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
+    wire [31:0] default_debug1 = {check_test_address_counter[5:0], wrong_read_data[5:0], correct_read_data[5:0], o_wb_ack_uncalibrated, o_wb_stall_calib, calib_stb, i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
+    wire [7:0] debug_lane_ext = lane;
+    // Optional YPCB DQS calibration debug packing:
+    // [4:0]   calibration state
+    // [9:5]   init/refresh ROM instruction address
+    // [10]    PHY IDELAYCTRL ready
+    // [13:11] active byte lane, low bits
+    // [19:14] data_start_index for active lane
+    // [25:20] start_index_check
+    // [26]    reset requested from calibration
+    // [27]    reset requested from BIST/test
+    // [28]    reset requested from WB2
+    // [29]    active lane write-DQ-late assumption is set
+    // [30]    active lane read-DQ-early assumption is set
+    // [31]    current write/read lane pattern matches
+    wire [31:0] ypcb_dqs_debug1 = {write_pattern_matches, lane_read_dq_early[lane], lane_write_dq_late[lane], reset_from_wb2, reset_from_test, reset_from_calibrate, start_index_check[5:0], data_start_index[lane][5:0], debug_lane_ext[2:0], i_phy_idelayctrl_rdy, instruction_address, state_calibrate[4:0]};
+    assign o_debug1 = YPCB_DQS_DEBUG ? ypcb_dqs_debug1 : default_debug1;
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;

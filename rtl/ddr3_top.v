@@ -58,6 +58,7 @@ module ddr3_top #(
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms) (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)  (only change when you know what you are doing)
     parameter[1:0] SELF_REFRESH = 2'b00, // 0 = use i_user_self_refresh input, 1 = Self-refresh mode is enabled after 64 controller clock cycles of no requests, 2 = 128 cycles, 3 = 256 cycles
+    parameter[0:0] YPCB_DQS_DEBUG = 0,
     parameter // The next parameters act more like a localparam (since user does not have to set this manually) but was added here to simplify port declaration
                 DQ_BITS = 8,  //device width (fixed to 8, if DDR3 is x16 then BYTE_LANES will be 2 while )
                 serdes_ratio = 4, // this controller is fixed as a 4:1 memory controller (CONTROLLER_CLK_PERIOD/DDR3_CLK_PERIOD = 4)
@@ -272,7 +273,8 @@ ddr3_top #(
             .SDRAM_CAPACITY(SDRAM_CAPACITY), // 0 = 256Mb, 1 = 512Mb, 2 = 1Gb, 3 = 2Gb, 4 = 4Gb, 5 = 8Gb, 6 = 16Gb
             .TRCD(TRCD), // ps Active to Read/Write command time (only used if SPEED_BIN = 0)
             .TRP(TRP), // ps Precharge command period (only used if SPEED_BIN = 0)
-            .TRAS(TRAS) // ps ACT to PRE command period (only used if SPEED_BIN = 0)
+            .TRAS(TRAS), // ps ACT to PRE command period (only used if SPEED_BIN = 0)
+            .YPCB_DQS_DEBUG(YPCB_DQS_DEBUG)
         ) ddr3_controller_inst (
             .i_controller_clk(i_controller_clk), //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
             .i_rst_n(i_rst_n), //200MHz input clock
