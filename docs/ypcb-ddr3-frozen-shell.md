@@ -320,6 +320,15 @@ part of the final contract. Removing it should reduce controller-domain timing
 load while still requiring the same DLL-on read calibration path to pass before
 JTAG Wishbone commands are accepted.
 
+v74 did not improve the shell. Seed 40 routed at about 85.8 MHz against the
+100 MHz controller target and hardware still failed before the command gate:
+`version=74`, `state=IDLE`, `instruction=1`, `ack_count=0`. This makes
+`BIST_MODE=0` useful for the final host-driven contract but not sufficient as a
+calibration-stability knob. The next isolation step is a calibration-only
+high-speed shell with the rowstream Wishbone command/readback logic removed
+from synthesis; if that shell calibrates, the 64-byte driver path can be added
+back in smaller timing-controlled blocks.
+
 ## Artifact Policy
 
 There are two different artifact classes:
