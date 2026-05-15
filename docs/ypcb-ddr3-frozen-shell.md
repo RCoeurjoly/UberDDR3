@@ -913,6 +913,26 @@ unbound generated slice cell, but did not produce a valid route. The result is
 useful for upstream tooling work, but it is not yet a DDR3 fix and should not
 be treated as a proven constraint knob.
 
+The first seed-5 comparison produced a new small candidate, but not a working
+one. After fixing `compare_routed_placements.py` so repeated `--fail-seed`
+arguments are honored, the two calibrating placements (`calib-v88-baseline`
+seed 4 and regenerated seed 5) shared 67 soft BEL assignments that differed in
+all three failing DQS-neighborhood seeds 4, 16, and 40:
+
+| Candidate | Contents | Build result on seed 4 | Hardware result |
+| --- | --- | --- | --- |
+| pass-consensus all | 67 locks: 40 `SLICE_LUTX`, 14 `SELMUX2_1`, 13 `SLICE_FFX` | nextpnr aborts after pre-place with `map::at` | not programmed |
+| pass-consensus `SLICE_LUTX` only | 40 locks | nextpnr aborts after pre-place with `unordered_map::at` | not programmed |
+| pass-consensus `SELMUX2_1` only | 14 locks | nextpnr aborts after pre-place with `unordered_map::at` | not programmed |
+| pass-consensus `SLICE_FFX` only | 13 locks | legal route, controller clock ~96.64 MHz | `IDLE`, instruction `2`, `debug1=0x00001440`, `ack_count=0` |
+
+So seed 5 is a useful new calibration oracle, but the obvious pass-consensus
+soft locks are either blocked by the nextpnr pre-placement bug or harmful when
+reduced to the legal FF-only subset. The next useful comparison should focus
+on what seed 5 has in common with the historical preserved route at the net or
+FASM feature level, or use seed 5 itself as the next preserved shell while
+searching for a timing-clean variant.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
