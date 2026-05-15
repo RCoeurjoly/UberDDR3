@@ -205,6 +205,38 @@ fullbeat accepted fields and readback chunks, then isolate whether the
 fullbeat failure is staging, byte-lane/select handling, or controller write
 semantics.
 
+The v63 opt-in debug experiments showed that controller-side instrumentation is
+not a neutral diagnostic on this shell. The default v63 seed-16 bitstream, with
+WB2 debug disabled and controller BIST disabled, reaches `DONE_CALIBRATE`,
+advances `ack_count`, and still passes low-byte write/read. Its fullbeat
+`memtest64` accepts commands but reads back calibration-pattern-like data
+instead of the written `00..3f` byte stream.
+
+Two v63 diagnostic variants failed before useful fullbeat evidence:
+
+| Variant | Build knobs | Hardware result |
+| --- | --- | --- |
+| WB2 + bounded BIST | `ENABLE_WB2_DEBUG=1`, `CONTROLLER_BIST_ADDR_BITS=8` | fails calibration in `READ_DATA` / `ANALYZE_DATA_LOW_FREQ`, `ack_count=0` |
+| bounded BIST only | `CONTROLLER_BIST_ADDR_BITS=8` | fails calibration in `READ_DATA`, `ack_count=0`, BIST counters remain zero |
+
+The bounded-BIST-only bitstream was:
+
+```sh
+artifacts/manual-seed/fullbeat-v63-bist-debug1/seed16/rowstream-v63-bist-debug1-seed16.bit
+```
+
+Its routed JSON was:
+
+```sh
+artifacts/manual-seed/fullbeat-v63-bist-debug1/seed16/nextpnr-routed.json
+```
+
+The diagnostic conclusion is that adding the controller BIST datapath, even
+without WB2 debug, perturbs the calibrated shell enough to fail before BIST
+traffic starts. Until placement stability improves, higher-level DDR3
+diagnostics should stay outside the controller shell or use the default
+calibrating rowstream path.
+
 ## Artifact Policy
 
 There are two different artifact classes:
