@@ -24,7 +24,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd58;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd59;
   localparam int JTAG_COMMAND_WIDTH = 192;
   localparam logic [31:0] LOADER_COMMAND_MAGIC = 32'h33445244;
   localparam logic [7:0] LOADER_OP_WRITE_CHUNK = 8'h01;
@@ -188,6 +188,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   logic [15:0] read_probe_run_count_q;
   logic [WB_ADDR_BITS - 1:0] loader_addr_q;
   logic [WB_DATA_BITS - 1:0] loader_write_data_q;
+  logic [WB_DATA_BITS - 1:0] loader_bus_write_data_q;
   logic [WB_DATA_BITS - 1:0] loader_read_data_q;
   logic [1:0] loader_read_chunk_q;
   logic [WB_SEL_BITS - 1:0] loader_sel_q;
@@ -294,6 +295,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
       read_probe_run_count_q <= 16'd0;
       loader_addr_q <= '0;
       loader_write_data_q <= '0;
+      loader_bus_write_data_q <= '0;
       loader_read_data_q <= '0;
       loader_read_chunk_q <= 2'd0;
       loader_sel_q <= '0;
@@ -357,6 +359,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           loader_write_data_q[jtag_command_chunk * 128 +: 128] <= jtag_command_data;
           if (jtag_command_chunk == 2'd3) begin
             loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
+            loader_bus_write_data_q <= {jtag_command_data, loader_write_data_q[383:0]};
             loader_sel_q <= {WB_SEL_BITS{1'b1}};
             read_probe_cyc_q <= 1'b1;
             read_probe_stb_q <= 1'b1;
@@ -377,6 +380,8 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           loader_addr_q <= jtag_command_addr[WB_ADDR_BITS - 1:0];
           loader_write_data_q <= '0;
           loader_write_data_q[7:0] <= jtag_command_data_byte;
+          loader_bus_write_data_q <= '0;
+          loader_bus_write_data_q[7:0] <= jtag_command_data_byte;
           loader_sel_q <= {{(WB_SEL_BITS - 1){1'b0}}, 1'b1};
           read_probe_cyc_q <= 1'b1;
           read_probe_stb_q <= 1'b1;
@@ -393,6 +398,9 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
           loader_addr_q <= jtag_command_dense_addr;
           loader_write_data_q <= '0;
           loader_write_data_q[jtag_command_addr[5:0] * 8 +: 8] <=
+            jtag_command_data_byte;
+          loader_bus_write_data_q <= '0;
+          loader_bus_write_data_q[jtag_command_addr[5:0] * 8 +: 8] <=
             jtag_command_data_byte;
           loader_sel_q <= jtag_command_dense_sel;
           loader_dense_write_seen_q <= 1'b1;
@@ -634,7 +642,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
             loader_accept_we_q <= read_probe_we_q;
             loader_accept_addr_low_q <= loader_addr_q[13:0];
             loader_accept_sel_low_q <= loader_sel_q[15:0];
-            loader_accept_data_low_q <= loader_write_data_q[15:0];
+            loader_accept_data_low_q <= loader_bus_write_data_q[15:0];
           end
           if (wb_stall) begin
             loader_stall_seen_q <= 1'b1;
@@ -770,7 +778,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     };
     jtag_debug_payload[336 +: 128] =
       loader_last_opcode_q == LOADER_OP_WRITE_CHUNK ?
-      loader_write_data_q[loader_last_chunk_q * 128 +: 128] :
+      loader_bus_write_data_q[loader_last_chunk_q * 128 +: 128] :
       loader_read_data_q[loader_read_chunk_q * 128 +: 128];
     jtag_debug_payload[464] = loader_dense_write_seen_q;
     jtag_debug_payload[465] = loader_accept_seen_q;
@@ -816,7 +824,7 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
     .i_wb_addr(read_probe_state_q == LOADER_ISSUE ||
                read_probe_state_q == LOADER_WAIT_ACK ? loader_addr_q : read_probe_addr),
     .i_wb_data(read_probe_state_q == LOADER_ISSUE ||
-               read_probe_state_q == LOADER_WAIT_ACK ? loader_write_data_q :
+               read_probe_state_q == LOADER_WAIT_ACK ? loader_bus_write_data_q :
                {WB_SEL_BITS{read_probe_write_byte}}),
     .i_wb_sel(read_probe_state_q == LOADER_ISSUE ||
               read_probe_state_q == LOADER_WAIT_ACK ? loader_sel_q : {WB_SEL_BITS{1'b1}}),
