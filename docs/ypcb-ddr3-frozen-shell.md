@@ -1000,6 +1000,40 @@ stripped-wrapper explanation: applying the intended 553-lock oracle is not
 enough to make the rowstream/fullbeat source shape inherit the seed-5
 `calib_only` calibration pass.
 
+The v92 optional-command experiment then moved the command path into the
+known-calibrating `calib_only` top behind build-time parameters. The default
+disabled build is a control for source-shape perturbation: it synthesized the
+new command source but instantiated no command bus, no command JTAG chain, and
+no loader-payload debug fields. With seed 5, no global `--freq`, and the
+hard + `RDY_AND_LUT_1` lock set, hardware still reached `DONE_CALIBRATE`:
+
+```text
+artifacts/manual-seed/calib-v92-optional-command-defaultoff/seed5/calib-v92-defaultoff-seed5.bit
+```
+
+The status payload matched the earlier seed-5 oracle: `version=88`,
+instruction `22`, `debug1=0x000006d7`, `calib_seen_cycle=0x000138f0`, and
+`calibration=pass`. That proves the optional command source can be present in
+the repo without disturbing the frozen calibration shell when disabled.
+
+Enabling the optional command path is not yet usable. The enabled seed-5 build
+instantiated the command Wishbone path, a second BSCAN command chain, and the
+rowstream-compatible loader debug payload:
+
+```text
+artifacts/manual-seed/calib-v92-optional-command-enabled/seed5/calib-v92-command-enabled-seed5.bit
+```
+
+nextpnr routed it legally but reported only about 82.81 MHz for
+`calib_top.controller_clk` against the 100 MHz clock. Hardware reported
+`version=89`, `state=IDLE`, instruction `1`, `debug1=0x00001420`,
+`ack_count=0`, and `calib_seen_cycle=0x00000000`. This makes the current live
+command path too intrusive for the seed-5 shell. The next implementation
+direction is to keep the v92 default-off shell as the calibration-preserving
+base and add command access through a smaller post-calibration mechanism or a
+less intrusive shared JTAG/debug boundary, not through the current always-live
+wide command/readback fabric.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
