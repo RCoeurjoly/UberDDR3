@@ -8,6 +8,10 @@
 `define YPCB_FULLBEAT_COMMAND_JTAG_ENABLE 1
 `endif
 
+`ifndef YPCB_FULLBEAT_DEBUG_LOADER_PAYLOAD_ENABLE
+`define YPCB_FULLBEAT_DEBUG_LOADER_PAYLOAD_ENABLE 1
+`endif
+
 module ypcb_00338_1p1_uberddr3_rowstream_fullbeat (
     input  wire        clk50,
     input  wire        rst_n,
@@ -29,7 +33,8 @@ module ypcb_00338_1p1_uberddr3_rowstream_fullbeat (
 );
   task6_ypcb_uberddr3_rowstream_loader_top #(
         .COMMAND_WB_ENABLE(`YPCB_FULLBEAT_COMMAND_WB_ENABLE),
-        .COMMAND_JTAG_ENABLE(`YPCB_FULLBEAT_COMMAND_JTAG_ENABLE)
+        .COMMAND_JTAG_ENABLE(`YPCB_FULLBEAT_COMMAND_JTAG_ENABLE),
+        .DEBUG_LOADER_PAYLOAD_ENABLE(`YPCB_FULLBEAT_DEBUG_LOADER_PAYLOAD_ENABLE)
     ) bist_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),

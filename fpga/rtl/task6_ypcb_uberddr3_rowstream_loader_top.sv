@@ -6,7 +6,8 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
   parameter int JTAG_COMMAND_CHAIN = 2,
   parameter int PROBE_BYTE = 165,
   parameter bit COMMAND_WB_ENABLE = 1'b1,
-  parameter bit COMMAND_JTAG_ENABLE = 1'b1
+  parameter bit COMMAND_JTAG_ENABLE = 1'b1,
+  parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b1
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -475,25 +476,34 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
       debug_ack_count_q <= wb_ack_count_q;
       debug_err_count_q <= wb_err_count_q;
       debug_stall_count_q <= wb_stall_count_q;
-      debug_read_low_q <= loader_read_data_q[31:0];
-      debug_command_word_q <=
-        {jtag_command_count[7:0], loader_last_opcode_q,
-         6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
-      debug_status_word_q <= {
-        16'd0,
-        calib_seen_q,
-        loader_stall_seen_q,
-        loader_error_q,
-        loader_read_ack_seen_q,
-        loader_write_ack_seen_q,
-        loader_done_q,
-        loader_cyc_q,
-        loader_stb_q,
-        loader_state_q
-      };
-      debug_read_chunk_q <= loader_read_data_q[loader_read_chunk_q * 128 +: 128];
-      debug_wait_cycles_q <= loader_wait_cycles_q;
-      debug_command_addr_low_q <= loader_command_payload_addr_q[14:0];
+      if (DEBUG_LOADER_PAYLOAD_ENABLE) begin
+        debug_read_low_q <= loader_read_data_q[31:0];
+        debug_command_word_q <=
+          {jtag_command_count[7:0], loader_last_opcode_q,
+           6'd0, loader_last_chunk_q, loader_last_magic_ok_q, loader_last_accepted_q};
+        debug_status_word_q <= {
+          16'd0,
+          calib_seen_q,
+          loader_stall_seen_q,
+          loader_error_q,
+          loader_read_ack_seen_q,
+          loader_write_ack_seen_q,
+          loader_done_q,
+          loader_cyc_q,
+          loader_stb_q,
+          loader_state_q
+        };
+        debug_read_chunk_q <= loader_read_data_q[loader_read_chunk_q * 128 +: 128];
+        debug_wait_cycles_q <= loader_wait_cycles_q;
+        debug_command_addr_low_q <= loader_command_payload_addr_q[14:0];
+      end else begin
+        debug_read_low_q <= '0;
+        debug_command_word_q <= '0;
+        debug_status_word_q <= {31'd0, calib_seen_q};
+        debug_read_chunk_q <= '0;
+        debug_wait_cycles_q <= '0;
+        debug_command_addr_low_q <= '0;
+      end
 
       jtag_debug_payload_q <= '0;
       jtag_debug_payload_q[0 +: 32] <= JTAG_DEBUG_MAGIC;
