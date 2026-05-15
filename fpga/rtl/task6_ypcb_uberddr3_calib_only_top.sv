@@ -22,7 +22,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd77;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd78;
   localparam int ROW_BITS = 15;
   localparam int COL_BITS = 10;
   localparam int BA_BITS = 3;
@@ -203,7 +203,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .BIST_MODE(0),
     .BIST_ADDR_BITS(0),
     .ECC_ENABLE(0),
-    .YPCB_DQS_DEBUG(1)
+    .YPCB_DQS_DEBUG(0)
   ) uberddr3 (
     .i_controller_clk(controller_clk),
     .i_ddr3_clk(ddr3_clk),
