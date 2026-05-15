@@ -35,7 +35,7 @@ module ypcb_00338_1p1_uberddr3_rowstream_fullbeat (
         .COMMAND_WB_ENABLE(`YPCB_FULLBEAT_COMMAND_WB_ENABLE),
         .COMMAND_JTAG_ENABLE(`YPCB_FULLBEAT_COMMAND_JTAG_ENABLE),
         .DEBUG_LOADER_PAYLOAD_ENABLE(`YPCB_FULLBEAT_DEBUG_LOADER_PAYLOAD_ENABLE)
-    ) bist_top (
+    ) calib_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),
         .ddram_a(ddr3_addr),

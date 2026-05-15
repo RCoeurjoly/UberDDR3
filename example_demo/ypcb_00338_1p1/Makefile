@@ -132,7 +132,7 @@ rowstream-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-locked: ${ROWSTREAM_PROJECT}_openxc7.bit
 
 .PHONY: rowstream-fullbeat-v40-locked
-rowstream-fullbeat-v40-locked: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+rowstream-fullbeat-v40-locked: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 rowstream-fullbeat-v40-locked: ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit
 
 .PHONY: calib-v40-locked
@@ -165,7 +165,7 @@ rowstream-v40-json:
 	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT_ABS} ${ROWSTREAM_ROUTED_JSON_ABS}
 
 .PHONY: rowstream-fullbeat-v40-json
-rowstream-fullbeat-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
+rowstream-fullbeat-v40-json: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 rowstream-fullbeat-v40-json:
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS})
 	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS})
