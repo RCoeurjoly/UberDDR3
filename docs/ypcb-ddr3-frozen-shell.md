@@ -473,6 +473,18 @@ full-beat write/readback test, not a byte-enable test.
   bitstream reached `DONE_CALIBRATE` with `ack_count=9`; low-byte readback at
   address `0x40` returned `0x5a`; fullbeat `memtest64` still failed with
   calibration-pattern readback.
+- The v66/v67/v68/v69 high-speed 400 MHz shell experiments all failed before
+  calibration completed. Hardware reported `READ_DATA`, `debug1=0x000006cc`,
+  and `ack_count=0`.
+- v66 registered the 512-bit JTAG debug payload; v67 added a deeper debug
+  snapshot pipeline; v68 narrowed the probe/debug readback to 32 bits; v69
+  replaced the full 512-bit loader readback capture with a selected 128-bit
+  chunk. None of those changes made the 400/100 MHz shell calibrate.
+- The v68/v69 routed critical path remains rooted at the controller read-data
+  mux: `ddr3_controller_inst.index_wb_data -> wb_data[...] -> downstream CE`.
+  That rules out the top-level debug scan as the decisive blocker. The next
+  high-speed work must either preserve a known-calibrating shell more strictly
+  or change the controller/calibration read path itself.
 
 ## WB2/BIST Diagnostic Variant
 
