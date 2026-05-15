@@ -4,7 +4,8 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
   parameter int JTAG_DEBUG_WIDTH = 512,
   parameter int JTAG_CHAIN = 1,
   parameter int JTAG_COMMAND_CHAIN = 2,
-  parameter int PROBE_BYTE = 165
+  parameter int PROBE_BYTE = 165,
+  parameter bit COMMAND_WB_ENABLE = 1'b1
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -120,11 +121,27 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
 
   assign rst_n = mmcm_locked;
 
-  wire wb_stall;
-  wire wb_ack;
-  wire wb_err;
-  wire [WB_DATA_BITS - 1:0] wb_data;
-  wire [3:0] wb_aux;
+  wire ddr3_wb_cyc = COMMAND_WB_ENABLE ? loader_cyc_q : 1'b0;
+  wire ddr3_wb_stb = COMMAND_WB_ENABLE ? loader_stb_q : 1'b0;
+  wire ddr3_wb_we = COMMAND_WB_ENABLE ? loader_we_q : 1'b0;
+  wire [WB_ADDR_BITS - 1:0] ddr3_wb_addr =
+    COMMAND_WB_ENABLE ? loader_addr_q : {WB_ADDR_BITS{1'b0}};
+  wire [WB_DATA_BITS - 1:0] ddr3_wb_write_data =
+    COMMAND_WB_ENABLE ? loader_write_data_q : {WB_DATA_BITS{1'b0}};
+  wire [WB_SEL_BITS - 1:0] ddr3_wb_sel =
+    COMMAND_WB_ENABLE ? loader_sel_q : {WB_SEL_BITS{1'b0}};
+  wire [3:0] ddr3_wb_aux = COMMAND_WB_ENABLE ? 4'd1 : 4'd0;
+  wire wb_stall_raw;
+  wire wb_ack_raw;
+  wire wb_err_raw;
+  wire [WB_DATA_BITS - 1:0] wb_data_raw;
+  wire [3:0] wb_aux_raw;
+  wire wb_stall = COMMAND_WB_ENABLE ? wb_stall_raw : 1'b0;
+  wire wb_ack = COMMAND_WB_ENABLE ? wb_ack_raw : 1'b0;
+  wire wb_err = COMMAND_WB_ENABLE ? wb_err_raw : 1'b0;
+  wire [WB_DATA_BITS - 1:0] wb_data =
+    COMMAND_WB_ENABLE ? wb_data_raw : {WB_DATA_BITS{1'b0}};
+  wire [3:0] wb_aux = COMMAND_WB_ENABLE ? wb_aux_raw : 4'd0;
   wire wb2_stall;
   wire wb2_ack;
   wire [31:0] wb2_data;
@@ -526,18 +543,18 @@ module task6_ypcb_uberddr3_rowstream_loader_top #(
     .i_ref_clk(ref_clk),
     .i_ddr3_clk_90(ddr3_clk_90),
     .i_rst_n(rst_n),
-    .i_wb_cyc(loader_cyc_q),
-    .i_wb_stb(loader_stb_q),
-    .i_wb_we(loader_we_q),
-    .i_wb_addr(loader_addr_q),
-    .i_wb_data(loader_write_data_q),
-    .i_wb_sel(loader_sel_q),
-    .i_aux(4'd1),
-    .o_wb_stall(wb_stall),
-    .o_wb_ack(wb_ack),
-    .o_wb_err(wb_err),
-    .o_wb_data(wb_data),
-    .o_aux(wb_aux),
+    .i_wb_cyc(ddr3_wb_cyc),
+    .i_wb_stb(ddr3_wb_stb),
+    .i_wb_we(ddr3_wb_we),
+    .i_wb_addr(ddr3_wb_addr),
+    .i_wb_data(ddr3_wb_write_data),
+    .i_wb_sel(ddr3_wb_sel),
+    .i_aux(ddr3_wb_aux),
+    .o_wb_stall(wb_stall_raw),
+    .o_wb_ack(wb_ack_raw),
+    .o_wb_err(wb_err_raw),
+    .o_wb_data(wb_data_raw),
+    .o_aux(wb_aux_raw),
     .i_wb2_cyc(1'b0),
     .i_wb2_stb(1'b0),
     .i_wb2_we(1'b0),
