@@ -258,6 +258,35 @@ the controller-side logic. The next hardware experiment should use the
 minimum AMD-compliant 400 MHz DDR3 clock and a 100 MHz controller clock before
 attempting controller retiming.
 
+The v89 400 MHz / 100 MHz fullbeat work narrowed the current calibration
+instability further. A clean command-enabled seed-3 build still failed before
+the command gate:
+
+| Variant | Seed | Command JTAG | Command WB | Loader debug payload | Hardware result |
+| --- | ---: | --- | --- | --- | --- |
+| fullbeat command-enabled | 3 | on | on | on | `IDLE`, instruction 2, `ack_count=0` |
+| fullbeat BIST off | 4 | on | on | on | `ANALYZE_DQS`, instruction 13, `ack_count=0` |
+| fullbeat registered debug | 4 | on | on | on | `IDLE`, instruction 2, `ack_count=0` |
+| command-WB disabled | 4 | on | off | on | `IDLE`, instruction 2, `ack_count=0` |
+| command-JTAG and command-WB disabled | 4 | off | off | on | `IDLE`, instruction 2, `ack_count=0` |
+| calibration-shape stripped | 4 | off | off | off | `IDLE`, instruction 1/2, `ack_count=0` |
+
+The stripped calibration-shape build has only one BSCAN, five BUFGs, and no
+command or loader-observation fanout. It still fails. That rules out the second
+BSCAN, the command Wishbone bus, and loader debug fanout as the sole cause of
+the v89 calibration failure.
+
+The `calib_only` shell differs in one explicit `ddr3_top` parameter:
+`BIST_ADDR_BITS(0)`. Adding the same parameter to the rowstream top did not
+change the packed shape of the stripped diagnostic and did not recover
+calibration. The remaining productive directions are:
+
+1. keep testing known useful seeds with the corrected fullbeat shell,
+2. compare routed placement between the passing `calib_only` target and the
+   stripped fullbeat target, and
+3. add the command path around the known-passing `calib_only` shell shape
+   instead of continuing to grow the historically unstable rowstream wrapper.
+
 The v75 calibration-only baseline moved to the minimum AMD-compliant clocking:
 400 MHz DDR3, 100 MHz controller, and 200 MHz reference. It uses the same
 411-lock v40 PHY pre-place constraints and appends the YPCB internal-VREF
