@@ -25,6 +25,7 @@ V40_PRE_PLACE_BEL_LOCKS ?= v40-phy-pre-place-bel-locks.py
 CALIB_PRE_PLACE_BEL_LOCKS ?= v40-calib-phy-pre-place-bel-locks.py
 ROWSTREAM_PRE_PLACE_DEPS ?= ${V40_PRE_PLACE_BEL_LOCKS}
 DDR3_CLOCK_CONSTRAINTS ?= ${REPO_ROOT}/scripts/task6/nextpnr_ypcb_uberddr3_clock_constraints.py
+APPEND_YPCB_VREF ?= 1
 
 ADDITIONAL_SOURCES = \
 	../../rtl/ddr3_controller.v \
@@ -338,7 +339,7 @@ ${CHIPDB_BIN}:
 
 ${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB_BIN} ${XDC} ypcb_vref.features
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
-	cat ypcb_vref.features >> $@
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
 ${BIST_XDC}: ${XDC}
 	sed '/led/d' $< > $@
@@ -354,19 +355,19 @@ ${CALIB_XDC}: ${XDC}
 
 ${BIST_PROJECT}.fasm: ${BIST_PROJECT}.json ${CHIPDB_BIN} ${BIST_XDC} ypcb_vref.features ${V40_PRE_PLACE_BEL_LOCKS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${BIST_XDC} --json ${BIST_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
-	cat ypcb_vref.features >> $@
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
 ${ROWSTREAM_PROJECT}.fasm: ${ROWSTREAM_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_XDC} --json ${ROWSTREAM_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
-	cat ypcb_vref.features >> $@
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
 ${ROWSTREAM_FULLBEAT_PROJECT}.fasm: ${ROWSTREAM_FULLBEAT_PROJECT}.json ${CHIPDB_BIN} ${ROWSTREAM_FULLBEAT_XDC} ypcb_vref.features ${ROWSTREAM_PRE_PLACE_DEPS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${ROWSTREAM_FULLBEAT_XDC} --json ${ROWSTREAM_FULLBEAT_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
-	cat ypcb_vref.features >> $@
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
 ${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vref.features ${CALIB_PRE_PLACE_BEL_LOCKS}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${CALIB_XDC} --json ${CALIB_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
-	cat ypcb_vref.features >> $@
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
