@@ -128,6 +128,30 @@ def main() -> int:
         default=[],
         help="Optional label prefix filter, repeatable (e.g. --only scope-ddr3_controller_soft).",
     )
+    parser.add_argument(
+        "--include-type",
+        action="append",
+        default=[],
+        help="Keep only these BEL types before writing variants. Repeatable.",
+    )
+    parser.add_argument(
+        "--exclude-type",
+        action="append",
+        default=[],
+        help="Drop these BEL types before writing variants. Repeatable.",
+    )
+    parser.add_argument(
+        "--include-scope",
+        action="append",
+        default=[],
+        help="Keep only these lock scopes before writing variants. Repeatable.",
+    )
+    parser.add_argument(
+        "--exclude-scope",
+        action="append",
+        default=[],
+        help="Drop these lock scopes before writing variants. Repeatable.",
+    )
     args = parser.parse_args()
 
     source_files = [str(path) for path in args.locks_json]
@@ -144,6 +168,18 @@ def main() -> int:
         }.values(),
         key=lambda lock: (lock["scope"], lock["type"], lock["cell"]),
     )
+    include_types = set(args.include_type)
+    exclude_types = set(args.exclude_type)
+    include_scopes = set(args.include_scope)
+    exclude_scopes = set(args.exclude_scope)
+    all_locks = [
+        lock
+        for lock in all_locks
+        if (not include_types or lock["type"] in include_types)
+        and lock["type"] not in exclude_types
+        and (not include_scopes or lock["scope"] in include_scopes)
+        and lock["scope"] not in exclude_scopes
+    ]
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     full_label = "full"
