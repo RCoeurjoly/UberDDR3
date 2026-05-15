@@ -22,7 +22,7 @@ module task6_ypcb_uberddr3_calib_only_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd87;
+  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd88;
   localparam int ROW_BITS = 15;
   localparam int COL_BITS = 10;
   localparam int BA_BITS = 3;
@@ -118,8 +118,6 @@ module task6_ypcb_uberddr3_calib_only_top #(
   wire [BYTE_LANES - 1:0] ddr3_dm_w;
   wire calib_complete;
   wire [31:0] debug1;
-  wire [31:0] debug2;
-  wire [31:0] debug3;
   wire uart_tx;
 
   assign ddram_clk_p = ddr3_clk_p_w[0];
@@ -179,8 +177,6 @@ module task6_ypcb_uberddr3_calib_only_top #(
       jtag_debug_payload_q[176 +: 32] <= wb_err_count_q;
       jtag_debug_payload_q[208 +: 32] <= wb_stall_count_q;
       jtag_debug_payload_q[240 +: 32] <= wb_data[31:0];
-      jtag_debug_payload_q[272 +: 32] <= debug2;
-      jtag_debug_payload_q[336 +: 32] <= debug3;
     end
   end
 
@@ -251,8 +247,6 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .o_ddr3_odt(ddr3_odt_w),
     .o_calib_complete(calib_complete),
     .o_debug1(debug1),
-    .o_debug2(debug2),
-    .o_debug3(debug3),
     .i_user_self_refresh(1'b0),
     .uart_tx(uart_tx)
   );
