@@ -258,6 +258,43 @@ the controller-side logic. The next hardware experiment should use the
 minimum AMD-compliant 400 MHz DDR3 clock and a 100 MHz controller clock before
 attempting controller retiming.
 
+The v75 calibration-only baseline moved to the minimum AMD-compliant clocking:
+400 MHz DDR3, 100 MHz controller, and 200 MHz reference. It uses the same
+411-lock v40 PHY pre-place constraints and appends the YPCB internal-VREF
+features. A seed sweep over seeds 0..4 did not reach `DONE_CALIBRATE`, but it
+did show two repeatable failure classes:
+
+| Seed | Version | Calibration State | `debug1` | Result |
+| ---: | ---: | --- | ---: | --- |
+| 0 | 75 | `ANALYZE_DQS` | `0x000015a4` | fail |
+| 1 | 75 | `IDLE` | `0x00001420` | fail |
+| 2 | 75 | `IDLE` | `0x00001420` | fail |
+| 3 | 75 | `IDLE` | `0x00001420` | fail |
+| 4 | 75 | `ANALYZE_DQS` | `0x000015a4` | fail |
+
+That makes the active blocker narrower than generic reset or IDELAY startup:
+the better class reaches MPR/DQS analysis with `sys_rstn=true` and
+`idelay_ready=true`, but does not find the expected DQS training pattern.
+
+The v80-v84 calibration-only experiments tested the first board-specific
+MIG-style knobs against seed 4:
+
+| Version | Change | Build Result | Hardware Result |
+| ---: | --- | --- | --- |
+| 80 | Enable DDR3 TDQS mode | routed, timing passed at 100 MHz | regressed to `IDLE`, `instruction=1`, `debug1=0x00001420` |
+| 81 | TDQS plus MIG MR1 drive/termination (`DIC=RZQ/7`, `RTT_NOM=RZQ/4`) | routed, timing passed at 100 MHz | regressed to `IDLE`, `instruction=1`, `debug1=0x00001420` |
+| 82 | MIG MR1 drive/termination without TDQS | routed, timing passed at 100 MHz | regressed to `IDLE`, `instruction=1`, `debug1=0x00001420` |
+| 83 | Swap top-level DQS P/N wiring | nextpnr assertion before bitstream | no hardware result |
+| 84 | Shift capture clock phase from 90 to 270 degrees | routed, post-route `controller_clk` failed at about 95.45 MHz | still `ANALYZE_DQS`, `instruction=13`, `debug1=0x000015a4` |
+
+These trials rule out the first obvious MR1 knob set as a fix. TDQS and
+MIG-style output drive/termination make the calibration-only shell fail
+earlier, while the 270-degree capture phase does not move past DQS analysis.
+The next controlled experiments should return to the v75 source shape and
+test one physical assumption at a time: internal VREF feature handling, DQS
+lane/order visibility, and then placement/timing variants that preserve the
+400 MHz/100 MHz clock discipline.
+
 The v65 minimum-rate AMD-compliant experiment changed the active rowstream
 shell to 400 MHz DDR3 / 100 MHz controller with matching UberDDR3 timing
 parameters and nextpnr clock constraints. The build used seed 16 and the same
