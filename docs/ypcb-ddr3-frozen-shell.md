@@ -866,6 +866,28 @@ maximal transplant also exposes a nextpnr crash when almost the whole previous
 placement is pre-locked, so broad soft-lock experiments must be scoped rather
 than all-or-nothing.
 
+The first scoped soft-lock attempts narrowed that tooling blocker further:
+
+| Lock set | Count / coverage | Build result | Hardware state | Result |
+| --- | --- | --- | --- | --- |
+| v88 hard + soft calibration roots | 590 locks: 552 hard, 36 `CARRY4`, 2 `SLICE_LUTX` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | tooling failure |
+| v88 hard + IDELAYCTRL ready LUTs only | 554 locks: 552 hard plus `RDY_AND_LUT_1` and `RDY_AND_LUT_2` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | smallest current tooling failure |
+
+The 554-lock failure is the smallest useful reproducer so far. The two added
+soft locks are:
+
+| Cell | BEL |
+| --- | --- |
+| `calib_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_1` | `SLICE_X1Y74/C6LUT` |
+| `calib_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_2` | `SLICE_X22Y121/A6LUT` |
+
+This changes the immediate plan. Hard-only locks are insufficient on hardware,
+but adding even two preserved soft LUT placements crashes the current
+nextpnr-xilinx flow before routing. The next step is therefore either to fix or
+work around that pre-place crash, then resume scoped soft-lock expansion. Until
+that is resolved, calibration work should avoid treating soft pre-place locks
+as a validated knob.
+
 ## WB2/BIST Diagnostic Variant
 
 The default shell must keep `ENABLE_WB2_DEBUG=0` and
