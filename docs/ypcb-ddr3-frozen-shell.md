@@ -287,6 +287,8 @@ MIG-style knobs against seed 4:
 | 83 | Swap top-level DQS P/N wiring | nextpnr assertion before bitstream | no hardware result |
 | 84 | Shift capture clock phase from 90 to 270 degrees | routed, post-route `controller_clk` failed at about 95.45 MHz | still `ANALYZE_DQS`, `instruction=13`, `debug1=0x000015a4` |
 | 85 | Baseline phase, but skip appended YPCB internal-VREF FASM features | routed, post-route `controller_clk` passed at about 107.69 MHz | changed failure point to `MPR_READ`, `instruction=13`, `debug1=0x000015a2` |
+| 86 | Expose low 32 bits of `dqs_store` in JTAG payload | routed, post-route `controller_clk` failed at about 98.24 MHz | still `ANALYZE_DQS`; `dqs_store[31:0] = 0x00000000` |
+| 87 | Expose full DQS-store window plus lane/index fields | routed, post-route `controller_clk` failed at about 94.50 MHz | diagnostic fanout perturbed calibration back to `IDLE`; not a valid DQS sample |
 
 These trials rule out the first obvious MR1 knob set as a fix. TDQS and
 MIG-style output drive/termination make the calibration-only shell fail
@@ -297,6 +299,29 @@ controlled experiments should return to the VREF-enabled v75 source shape and
 expose the MPR/DQS sampled training data directly, then use that visibility to
 test DQS lane/order and placement/timing variants that preserve the
 400 MHz/100 MHz clock discipline.
+
+The v86 diagnostic is useful despite the small timing miss: it preserved the
+same `ANALYZE_DQS` failure class and showed no sampled DQS activity in the low
+32 bits of the 40-bit DQS store. The v87 full-window diagnostic is too
+intrusive to use as a basis; the extra fanout changed the failure class to
+`IDLE`. Do not continue functional DDR3 work with the v87 debug fanout enabled.
+
+The current YPCB DQS constraints match LiteX for the eight non-ECC lanes:
+
+| Lane | DQS P | DQS N |
+| ---: | --- | --- |
+| 0 | `AK16` | `AK17` |
+| 1 | `AM17` | `AM18` |
+| 2 | `AP21` | `AP22` |
+| 3 | `AH20` | `AJ20` |
+| 4 | `AK33` | `AL33` |
+| 5 | `AG33` | `AH33` |
+| 6 | `AE34` | `AF34` |
+| 7 | `AE27` | `AE28` |
+
+The next experiment should therefore not start by changing the DQS pin list.
+More likely knobs are command/address/MPR mode visibility, DQS input buffer
+mode/termination, or a less intrusive way to read training samples.
 
 The v65 minimum-rate AMD-compliant experiment changed the active rowstream
 shell to 400 MHz DDR3 / 100 MHz controller with matching UberDDR3 timing
