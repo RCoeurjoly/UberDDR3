@@ -2,7 +2,11 @@
 
 module task6_ypcb_uberddr3_calib_only_top #(
   parameter int JTAG_DEBUG_WIDTH = 512,
-  parameter int JTAG_CHAIN = 1
+  parameter int JTAG_CHAIN = 1,
+  parameter int JTAG_COMMAND_CHAIN = 2,
+  parameter bit COMMAND_WB_ENABLE = 1'b0,
+  parameter bit COMMAND_JTAG_ENABLE = 1'b0,
+  parameter bit DEBUG_LOADER_PAYLOAD_ENABLE = 1'b0
 ) (
   input  wire        clk50,
   input  wire        SYS_RSTN,
@@ -22,7 +26,11 @@ module task6_ypcb_uberddr3_calib_only_top #(
   output wire        ddram_we_n
 );
   localparam logic [31:0] JTAG_DEBUG_MAGIC = 32'h54364a44;
-  localparam logic [7:0] JTAG_DEBUG_VERSION = 8'd88;
+  localparam bit COMMAND_PORT_ENABLE =
+    COMMAND_WB_ENABLE || COMMAND_JTAG_ENABLE || DEBUG_LOADER_PAYLOAD_ENABLE;
+  localparam logic [7:0] JTAG_DEBUG_VERSION =
+    COMMAND_PORT_ENABLE ? 8'd89 : 8'd88;
+  localparam int JTAG_COMMAND_WIDTH = 192;
   localparam int ROW_BITS = 15;
   localparam int COL_BITS = 10;
   localparam int BA_BITS = 3;
@@ -110,6 +118,19 @@ module task6_ypcb_uberddr3_calib_only_top #(
   wire wb_err;
   wire [WB_DATA_BITS - 1:0] wb_data;
   wire [3:0] wb_aux;
+  wire command_wb_cyc;
+  wire command_wb_stb;
+  wire command_wb_we;
+  wire [WB_ADDR_BITS - 1:0] command_wb_addr;
+  wire [WB_DATA_BITS - 1:0] command_wb_data;
+  wire [WB_SEL_BITS - 1:0] command_wb_sel;
+  wire [3:0] command_wb_aux;
+  wire [31:0] command_debug_word;
+  wire [31:0] command_status_word;
+  wire [127:0] command_read_chunk;
+  wire [31:0] command_wait_cycles;
+  wire [14:0] command_addr_low;
+  wire [15:0] command_count;
   wire [0:0] ddr3_clk_p_w;
   wire [0:0] ddr3_clk_n_w;
   wire [0:0] ddr3_cke_w;
@@ -177,6 +198,13 @@ module task6_ypcb_uberddr3_calib_only_top #(
       jtag_debug_payload_q[176 +: 32] <= wb_err_count_q;
       jtag_debug_payload_q[208 +: 32] <= wb_stall_count_q;
       jtag_debug_payload_q[240 +: 32] <= wb_data[31:0];
+      if (DEBUG_LOADER_PAYLOAD_ENABLE) begin
+        jtag_debug_payload_q[272 +: 32] <= command_debug_word;
+        jtag_debug_payload_q[304 +: 32] <= command_status_word;
+        jtag_debug_payload_q[336 +: 128] <= command_read_chunk;
+        jtag_debug_payload_q[464 +: 32] <= command_wait_cycles;
+        jtag_debug_payload_q[496 +: 15] <= command_addr_low;
+      end
     end
   end
 
@@ -209,13 +237,13 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .i_ref_clk(ref_clk),
     .i_ddr3_clk_90(ddr3_clk_90),
     .i_rst_n(rst_n),
-    .i_wb_cyc(1'b0),
-    .i_wb_stb(1'b0),
-    .i_wb_we(1'b0),
-    .i_wb_addr({WB_ADDR_BITS{1'b0}}),
-    .i_wb_data({WB_DATA_BITS{1'b0}}),
-    .i_wb_sel({WB_SEL_BITS{1'b0}}),
-    .i_aux(4'd0),
+    .i_wb_cyc(COMMAND_WB_ENABLE ? command_wb_cyc : 1'b0),
+    .i_wb_stb(COMMAND_WB_ENABLE ? command_wb_stb : 1'b0),
+    .i_wb_we(COMMAND_WB_ENABLE ? command_wb_we : 1'b0),
+    .i_wb_addr(COMMAND_WB_ENABLE ? command_wb_addr : {WB_ADDR_BITS{1'b0}}),
+    .i_wb_data(COMMAND_WB_ENABLE ? command_wb_data : {WB_DATA_BITS{1'b0}}),
+    .i_wb_sel(COMMAND_WB_ENABLE ? command_wb_sel : {WB_SEL_BITS{1'b0}}),
+    .i_aux(COMMAND_WB_ENABLE ? command_wb_aux : 4'd0),
     .o_wb_stall(wb_stall),
     .o_wb_ack(wb_ack),
     .o_wb_err(wb_err),
@@ -250,6 +278,53 @@ module task6_ypcb_uberddr3_calib_only_top #(
     .i_user_self_refresh(1'b0),
     .uart_tx(uart_tx)
   );
+
+  generate
+    if (COMMAND_PORT_ENABLE) begin : gen_command_port
+      task6_uberddr3_rowstream_command_port #(
+        .JTAG_COMMAND_WIDTH(JTAG_COMMAND_WIDTH),
+        .JTAG_COMMAND_CHAIN(JTAG_COMMAND_CHAIN),
+        .WB_ADDR_BITS(WB_ADDR_BITS),
+        .WB_DATA_BITS(WB_DATA_BITS),
+        .WB_SEL_BITS(WB_SEL_BITS)
+      ) command_port (
+        .controller_clk_i(controller_clk),
+        .rst_ni(rst_n),
+        .calib_seen_i(calib_seen_q),
+        .wb_stall_i(wb_stall),
+        .wb_ack_i(wb_ack),
+        .wb_err_i(wb_err),
+        .wb_data_i(wb_data),
+        .wb_cyc_o(command_wb_cyc),
+        .wb_stb_o(command_wb_stb),
+        .wb_we_o(command_wb_we),
+        .wb_addr_o(command_wb_addr),
+        .wb_data_o(command_wb_data),
+        .wb_sel_o(command_wb_sel),
+        .wb_aux_o(command_wb_aux),
+        .command_word_o(command_debug_word),
+        .status_word_o(command_status_word),
+        .read_chunk_o(command_read_chunk),
+        .wait_cycles_o(command_wait_cycles),
+        .command_addr_low_o(command_addr_low),
+        .command_count_o(command_count)
+      );
+    end else begin : gen_no_command_port
+      assign command_wb_cyc = 1'b0;
+      assign command_wb_stb = 1'b0;
+      assign command_wb_we = 1'b0;
+      assign command_wb_addr = '0;
+      assign command_wb_data = '0;
+      assign command_wb_sel = '0;
+      assign command_wb_aux = 4'd0;
+      assign command_debug_word = 32'd0;
+      assign command_status_word = 32'd0;
+      assign command_read_chunk = 128'd0;
+      assign command_wait_cycles = 32'd0;
+      assign command_addr_low = 15'd0;
+      assign command_count = 16'd0;
+    end
+  endgenerate
 
   task6_uberddr3_calib_jtag_debug_shift #(
     .WIDTH(JTAG_DEBUG_WIDTH),

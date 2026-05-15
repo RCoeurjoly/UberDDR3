@@ -115,6 +115,7 @@ ROWSTREAM_FULLBEAT_SOURCES = \
 CALIB_SOURCES = \
 	${CALIB_PROJECT}.v \
 	../../fpga/rtl/task6_ypcb_uberddr3_calib_only_top.sv \
+	../../fpga/rtl/task6_uberddr3_rowstream_command_port.sv \
 	../../rtl/ddr3_controller.v \
 	../../rtl/ddr3_phy.v \
 	../../rtl/ddr3_top.v \
