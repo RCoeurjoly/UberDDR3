@@ -872,9 +872,11 @@ The first scoped soft-lock attempts narrowed that tooling blocker further:
 | --- | --- | --- | --- | --- |
 | v88 hard + soft calibration roots | 590 locks: 552 hard, 36 `CARRY4`, 2 `SLICE_LUTX` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | tooling failure |
 | v88 hard + IDELAYCTRL ready LUTs only | 554 locks: 552 hard plus `RDY_AND_LUT_1` and `RDY_AND_LUT_2` | nextpnr aborts after pre-place with `unordered_map::at` | not programmed | smallest current tooling failure |
+| v88 hard + `RDY_AND_LUT_1` only | 553 locks | legal route, controller clock ~104.61 MHz | `MPR_READ`, instruction `13`, `debug1=0x000015a2`, `ack_count=0` | later failure class, still no calibration |
+| v88 hard + `RDY_AND_LUT_2` only | 553 locks | heap placer aborts after pre-place with `unordered_map::at`; gdb backtrace reaches `HeAPPlacer::total_hpwl()` | not programmed | isolated heap-placer crash trigger |
+| v88 hard + `RDY_AND_LUT_2` only, `--placer sa` | 553 locks | avoids heap abort, then fails post-placement validity: `SLICE_X78Y393/A5FF` has no cell | not programmed | not a usable workaround |
 
-The 554-lock failure is the smallest useful reproducer so far. The two added
-soft locks are:
+The two IDELAYCTRL ready soft locks are:
 
 | Cell | BEL |
 | --- | --- |
@@ -882,11 +884,13 @@ soft locks are:
 | `calib_top.uberddr3.ddr3_phy_inst.IDELAYCTRL_inst/RDY_AND_LUT_2` | `SLICE_X22Y121/A6LUT` |
 
 This changes the immediate plan. Hard-only locks are insufficient on hardware,
-but adding even two preserved soft LUT placements crashes the current
-nextpnr-xilinx flow before routing. The next step is therefore either to fix or
-work around that pre-place crash, then resume scoped soft-lock expansion. Until
-that is resolved, calibration work should avoid treating soft pre-place locks
-as a validated knob.
+and `RDY_AND_LUT_1` is relevant because it moves seed 16 from early `IDLE` to
+`MPR_READ`. `RDY_AND_LUT_2` is currently blocked by a nextpnr-xilinx placement
+bug: heap placement aborts in `HeAPPlacer::total_hpwl()`, and the `sa` placer
+gets past that point but produces an invalid placement. The next experiment
+should expand from the hard + `RDY_AND_LUT_1` lock set and avoid
+`RDY_AND_LUT_2` until the placer bug is fixed or a different constraint form is
+available.
 
 ## WB2/BIST Diagnostic Variant
 
