@@ -329,6 +329,17 @@ high-speed shell with the rowstream Wishbone command/readback logic removed
 from synthesis; if that shell calibrates, the 64-byte driver path can be added
 back in smaller timing-controlled blocks.
 
+The v75 calibration-only shell removes the rowstream Wishbone command/readback
+state machine but preserves the same DDR3 PHY clocks, `DLL_OFF=0`,
+`ODELAY_SUPPORTED=0`, and v40 PHY BEL locks remapped from `bist_top` to
+`calib_top`. Seed 40 built cleanly and met timing with about 114.6 MHz
+post-route max for the 100 MHz controller clock. Hardware still failed
+calibration with `version=75`, `state=IDLE`, `instruction=2`, and
+`ack_count=0`. That rules out rowstream driver timing as the sole root cause.
+The next step is a seed sweep on this smaller shell to find whether any
+high-speed no-ODELAY placement calibrates and can serve as a fresh placement
+oracle.
+
 ## Artifact Policy
 
 There are two different artifact classes:
