@@ -214,15 +214,28 @@ def write_command(
     data: int = 0,
     addr: int = 0,
 ) -> None:
-    command = (
-        WRITE_MAGIC
-        | (opcode << 32)
-        | ((addr & 0xFFFFFFFF) << 40)
-        | ((data & 0xFFFFFFFF) << 72)
-    )
+    command = encode_command(opcode, addr=addr, data=data)
     reset_tap(client)
     shift_ir(client, args.write_ir, args.ir_len)
     shift_dr_write(client, command, args.write_bits, args.update_mode)
+
+
+def encode_command(opcode: int, addr: int = 0, data: int = 0) -> int:
+    return (
+        WRITE_MAGIC
+        | ((opcode & 0xFF) << 32)
+        | ((addr & 0xFFFFFFFF) << 40)
+        | ((data & 0xFFFFFFFF) << 72)
+    )
+
+
+def decode_command(command: int) -> dict[str, int | bool]:
+    return {
+        "magic_ok": (command & 0xFFFFFFFF) == WRITE_MAGIC,
+        "opcode": (command >> 32) & 0xFF,
+        "addr": (command >> 40) & 0xFFFFFFFF,
+        "data": (command >> 72) & 0xFFFFFFFF,
+    }
 
 
 def wishbone_transaction(
