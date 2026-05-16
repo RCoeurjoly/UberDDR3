@@ -1,0 +1,236 @@
+#!/usr/bin/env python3
+"""Read/control the raw-BSCAN LiteDRAM BIST bridge on the YPCB OpenXC7 design."""
+
+from __future__ import annotations
+
+import argparse
+import json
+import time
+
+from read_jtag_debug_ftdi_bitbang import (
+    FTDI_FT232H_PRODUCT,
+    FTDI_VENDOR,
+    FtdiBitbangJtag,
+    FtdiMpsseJtag,
+)
+from read_jtag_debug_xvc import reset_tap, shift_dr_read, shift_ir
+from write_jtag_command_ftdi_bitbang import shift_dr_write
+
+
+READ_MAGIC = 0x4C445244
+WRITE_MAGIC = 0x4C44434E
+
+OP_WRITE_SCRATCH = 0x01
+OP_CLEAR_SCRATCH = 0x02
+OP_START_GEN = 0x10
+OP_START_CHECK = 0x11
+OP_RESET_BIST = 0x12
+OP_SET_BASE = 0x20
+OP_SET_LENGTH = 0x21
+OP_SET_RANDOM = 0x22
+
+
+def make_client(args: argparse.Namespace):
+    if args.backend == "mpsse":
+        return FtdiMpsseJtag(
+            serial=args.serial,
+            vid=args.vid,
+            pid=args.pid,
+            freq_hz=args.freq_hz,
+            tdo_bit=args.tdo_bit,
+        )
+    return FtdiBitbangJtag(
+        serial=args.serial,
+        vid=args.vid,
+        pid=args.pid,
+        delay_s=args.bit_delay_us / 1_000_000.0,
+    )
+
+
+def decode_status(value: int) -> dict[str, int | str | bool]:
+    alignment = "direct"
+    if (value & 0xFFFFFFFF) == ((READ_MAGIC << 1) & 0xFFFFFFFF):
+        value >>= 1
+        alignment = "right-shift-1"
+    magic = value & 0xFFFFFFFF
+    scratch = (value >> 32) & 0xFFFFFFFF
+    counter = (value >> 64) & 0xFFFFFFFF
+    command_count = (value >> 96) & 0xFFFF
+    last_opcode = (value >> 112) & 0xFF
+    status = (value >> 120) & 0xFF
+    base = (value >> 128) & 0xFFFFFFFF
+    length = (value >> 160) & 0xFFFFFFFF
+    generator_ticks = (value >> 192) & 0xFFFFFFFF
+    checker_ticks = (value >> 224) & 0xFFFFFFFF
+    checker_errors = (value >> 256) & 0xFFFFFFFF
+    byte_group_mask = (value >> 288) & 0xFFFFFFFF
+    clkin_counter = (value >> 320) & 0xFFFFFFFF
+    idelay_counter = (value >> 352) & 0xFFFFFFFF
+    return {
+        "raw": f"0x{value:096x}",
+        "alignment": alignment,
+        "magic": f"0x{magic:08x}",
+        "magic_ok": magic == READ_MAGIC,
+        "scratch": f"0x{scratch:08x}",
+        "scratch_int": scratch,
+        "counter": f"0x{counter:08x}",
+        "counter_int": counter,
+        "command_count": command_count,
+        "last_opcode": f"0x{last_opcode:02x}",
+        "status": f"0x{status:02x}",
+        "sys_reset_deasserted": bool(status & 0x01),
+        "pll_locked": bool(status & 0x02),
+        "generator_done": bool(status & 0x04),
+        "checker_done": bool(status & 0x08),
+        "checker_has_errors": bool(status & 0x10),
+        "rst_n_raw": bool(status & 0x20),
+        "base": f"0x{base:08x}",
+        "base_int": base,
+        "length": f"0x{length:08x}",
+        "length_int": length,
+        "generator_ticks": generator_ticks,
+        "checker_ticks": checker_ticks,
+        "checker_errors": checker_errors,
+        "byte_group_mask": f"0x{byte_group_mask:08x}",
+        "clkin_counter": clkin_counter,
+        "idelay_counter": idelay_counter,
+    }
+
+
+def read_status(client, args: argparse.Namespace) -> dict[str, int | str | bool]:
+    reset_tap(client)
+    shift_ir(client, args.read_ir, args.ir_len)
+    return decode_status(shift_dr_read(client, args.read_bits))
+
+
+def write_command(client, args: argparse.Namespace, opcode: int, data: int = 0) -> None:
+    command = WRITE_MAGIC | (opcode << 32) | ((data & 0xFFFFFFFF) << 64)
+    reset_tap(client)
+    shift_ir(client, args.write_ir, args.ir_len)
+    shift_dr_write(client, command, args.write_bits, args.update_mode)
+
+
+def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
+    before = read_status(client, args)
+    write_command(client, args, OP_RESET_BIST)
+    time.sleep(args.settle_s)
+    write_command(client, args, OP_SET_BASE, args.base)
+    time.sleep(args.settle_s)
+    write_command(client, args, OP_SET_LENGTH, args.length)
+    time.sleep(args.settle_s)
+    write_command(client, args, OP_SET_RANDOM, args.random)
+    time.sleep(args.settle_s)
+    write_command(client, args, OP_START_GEN)
+    generator = poll_until(client, args, "generator_done")
+    write_command(client, args, OP_START_CHECK)
+    checker = poll_until(client, args, "checker_done")
+    after = read_status(client, args)
+    return {
+        "before": before,
+        "generator": generator,
+        "checker": checker,
+        "after": after,
+        "pass": (
+            after["magic_ok"]
+            and after["pll_locked"]
+            and after["generator_done"]
+            and after["checker_done"]
+            and after["checker_errors"] == 0
+        ),
+    }
+
+
+def poll_until(client, args: argparse.Namespace, field: str) -> dict[str, object]:
+    samples = []
+    deadline = time.monotonic() + args.timeout_s
+    while True:
+        sample = read_status(client, args)
+        samples.append(sample)
+        if sample.get(field):
+            return {"pass": True, "samples": samples}
+        if time.monotonic() >= deadline:
+            return {"pass": False, "samples": samples}
+        time.sleep(args.poll_s)
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "action",
+        choices=(
+            "read",
+            "write-scratch",
+            "clear-scratch",
+            "reset-bist",
+            "start-generator",
+            "start-checker",
+            "memtest",
+        ),
+    )
+    parser.add_argument("--serial", default="210299BF3824")
+    parser.add_argument("--vid", type=lambda value: int(value, 0), default=FTDI_VENDOR)
+    parser.add_argument("--pid", type=lambda value: int(value, 0), default=FTDI_FT232H_PRODUCT)
+    parser.add_argument("--backend", choices=("mpsse", "bitbang"), default="mpsse")
+    parser.add_argument("--freq-hz", type=int, default=1_000_000)
+    parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
+    parser.add_argument("--bit-delay-us", type=float, default=0.0)
+    parser.add_argument("--ir-len", type=int, default=6)
+    parser.add_argument("--read-ir", type=lambda value: int(value, 0), default=0x02)
+    parser.add_argument("--write-ir", type=lambda value: int(value, 0), default=0x03)
+    parser.add_argument("--read-bits", type=int, default=384)
+    parser.add_argument("--write-bits", type=int, default=96)
+    parser.add_argument("--scratch", type=lambda value: int(value, 0), default=0x5A17C0DE)
+    parser.add_argument("--base", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--length", type=lambda value: int(value, 0), default=0x1000)
+    parser.add_argument("--random", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--settle-s", type=float, default=0.05)
+    parser.add_argument("--poll-s", type=float, default=0.1)
+    parser.add_argument("--timeout-s", type=float, default=5.0)
+    parser.add_argument("--json-only", action="store_true")
+    parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+    client = make_client(args)
+    try:
+        if args.action == "read":
+            result = {"status": read_status(client, args)}
+            result["pass"] = result["status"]["magic_ok"]
+        elif args.action == "write-scratch":
+            before = read_status(client, args)
+            write_command(client, args, OP_WRITE_SCRATCH, args.scratch)
+            time.sleep(args.settle_s)
+            after = read_status(client, args)
+            result = {"before": before, "after": after, "pass": after["scratch_int"] == args.scratch}
+        elif args.action == "clear-scratch":
+            before = read_status(client, args)
+            write_command(client, args, OP_CLEAR_SCRATCH)
+            time.sleep(args.settle_s)
+            after = read_status(client, args)
+            result = {"before": before, "after": after, "pass": after["scratch_int"] == 0}
+        elif args.action == "reset-bist":
+            write_command(client, args, OP_RESET_BIST)
+            time.sleep(args.settle_s)
+            result = {"status": read_status(client, args)}
+            result["pass"] = result["status"]["magic_ok"]
+        elif args.action == "start-generator":
+            write_command(client, args, OP_START_GEN)
+            result = poll_until(client, args, "generator_done")
+        elif args.action == "start-checker":
+            write_command(client, args, OP_START_CHECK)
+            result = poll_until(client, args, "checker_done")
+        else:
+            result = run_memtest(client, args)
+    finally:
+        client.close()
+
+    if not args.json_only:
+        print("PASS" if result["pass"] else "FAIL")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0 if result["pass"] else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

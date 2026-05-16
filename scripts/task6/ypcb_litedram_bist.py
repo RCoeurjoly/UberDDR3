@@ -5,6 +5,7 @@ import os
 
 from migen import *
 
+from litex.build.yosys_wrapper import YosysWrapper
 from litex.soc.cores.clock import S7IDELAYCTRL, S7MMCM
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc_core import SoCCore
@@ -12,12 +13,13 @@ from litex.soc.integration.soc_core import SoCCore
 from litex_boards.platforms import ypcb_00338_1p1
 
 from litedram.common import PHYPadsReducer
+from litedram.frontend.bist import _LiteDRAMBISTChecker, _LiteDRAMBISTGenerator
 from litedram.modules import MT41J256M16, MT41K256M8
 from litedram.phy import s7ddrphy
 
 
 class _CRG(Module):
-    def __init__(self, platform, sys_clk_freq):
+    def __init__(self, platform, sys_clk_freq, ignore_pll_lock_reset=False):
         self.rst = Signal()
         self.clock_domains.cd_sys = ClockDomain()
         self.clock_domains.cd_sys4x = ClockDomain()
@@ -26,17 +28,86 @@ class _CRG(Module):
 
         clk200 = platform.request("clk200")
         rst_n = platform.request("rst_n")
+        self.rst_n = rst_n
 
         self.submodules.pll = pll = S7MMCM(speedgrade=-2)
         self.comb += pll.reset.eq(~rst_n | self.rst)
         pll.register_clkin(clk200, 200e6)
-        pll.create_clkout(self.cd_sys, sys_clk_freq)
-        pll.create_clkout(self.cd_sys4x, 4 * sys_clk_freq)
-        pll.create_clkout(self.cd_sys4x_dqs, 4 * sys_clk_freq, phase=135)
-        pll.create_clkout(self.cd_idelay, 200e6)
+        with_reset = not ignore_pll_lock_reset
+        pll.create_clkout(self.cd_sys, sys_clk_freq, with_reset=with_reset)
+        pll.create_clkout(self.cd_sys4x, 4 * sys_clk_freq, with_reset=with_reset)
+        pll.create_clkout(self.cd_sys4x_dqs, 4 * sys_clk_freq, phase=135, with_reset=with_reset)
+        pll.create_clkout(self.cd_idelay, 200e6, with_reset=with_reset)
         platform.add_false_path_constraints(self.cd_sys.clk, pll.clkin)
 
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
+
+
+class RawBSCANLiteDRAMBIST(Module):
+    def __init__(self, platform, soc, byte_group_mask):
+        generator_port = soc.sdram.crossbar.get_port()
+        checker_port = soc.sdram.crossbar.get_port()
+        self.submodules.generator = generator = _LiteDRAMBISTGenerator(generator_port)
+        self.submodules.checker = checker = _LiteDRAMBISTChecker(checker_port)
+
+        bist_reset = Signal()
+        generator_start = Signal()
+        checker_start = Signal()
+        bist_base = Signal(32)
+        bist_length = Signal(32)
+        bist_random_data = Signal()
+        bist_random_addr = Signal()
+
+        platform.add_source(
+            os.path.join(
+                os.path.dirname(__file__),
+                "..",
+                "..",
+                "example_demo",
+                "ypcb_00338_1p1",
+                "ypcb_litedram_bscan_bridge.v",
+            )
+        )
+
+        self.specials += Instance(
+            "ypcb_litedram_bscan_bridge",
+            p_BYTE_GROUP_MASK=byte_group_mask,
+            i_sys_clk=ClockSignal("sys"),
+            i_sys_rst=ResetSignal("sys"),
+            i_clkin=soc.crg.pll.clkin,
+            i_idelay_clk=ClockSignal("idelay"),
+            i_rst_n_raw=soc.crg.rst_n,
+            i_pll_locked=soc.crg.pll.locked,
+            i_generator_done=generator.done,
+            i_generator_ticks=generator.ticks,
+            i_checker_done=checker.done,
+            i_checker_ticks=checker.ticks,
+            i_checker_errors=checker.errors,
+            o_bist_reset=bist_reset,
+            o_generator_start=generator_start,
+            o_checker_start=checker_start,
+            o_bist_base=bist_base,
+            o_bist_length=bist_length,
+            o_bist_random_data=bist_random_data,
+            o_bist_random_addr=bist_random_addr,
+        )
+
+        self.comb += [
+            generator.reset.eq(bist_reset),
+            generator.start.eq(generator_start),
+            generator.base.eq(bist_base),
+            generator.end.eq(bist_base + bist_length),
+            generator.length.eq(bist_length),
+            generator.random_data.eq(bist_random_data),
+            generator.random_addr.eq(bist_random_addr),
+            checker.reset.eq(bist_reset),
+            checker.start.eq(checker_start),
+            checker.base.eq(bist_base),
+            checker.end.eq(bist_base + bist_length),
+            checker.length.eq(bist_length),
+            checker.random_data.eq(bist_random_data),
+            checker.random_addr.eq(bist_random_addr),
+        ]
 
 
 class YPCBLiteDRAMBISTSoC(SoCCore):
@@ -47,13 +118,17 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         byte_groups=(0, 1, 2, 3),
         module_name="mt41k256m8",
         with_bist=True,
+        with_raw_bscan=False,
+        ignore_pll_lock_reset=False,
         toolchain="openxc7",
         **kwargs,
     ):
         platform = ypcb_00338_1p1.Platform(toolchain=toolchain)
         if toolchain == "openxc7":
             platform.device = "xc7k480tffg1156-2"
-        self.submodules.crg = _CRG(platform, sys_clk_freq)
+            platform.toolchain._yosys_template = list(YosysWrapper._default_template)
+            platform.toolchain._yosys_template.insert(-1, "delete t:$scopeinfo")
+        self.submodules.crg = _CRG(platform, sys_clk_freq, ignore_pll_lock_reset=ignore_pll_lock_reset)
 
         SoCCore.__init__(
             self,
@@ -65,7 +140,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             integrated_sram_size=0,
             with_uart=False,
             with_timer=False,
-            with_jtagbone=True,
+            with_jtagbone=not with_raw_bscan,
             **kwargs,
         )
 
@@ -90,6 +165,12 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             with_bist=with_bist,
         )
 
+        if with_raw_bscan:
+            byte_group_mask = 0
+            for group in byte_groups:
+                byte_group_mask |= 1 << group
+            self.submodules.raw_bscan_bist = RawBSCANLiteDRAMBIST(self.platform, self, byte_group_mask)
+
 
 def parse_byte_groups(value):
     groups = tuple(int(item, 0) for item in value.split(",") if item.strip())
@@ -106,6 +187,8 @@ def main():
     parser.add_argument("--module", default="mt41k256m8", choices=("mt41k256m8", "mt41j256m16"))
     parser.add_argument("--toolchain", default="openxc7", choices=("openxc7", "vivado"))
     parser.add_argument("--no-bist", action="store_true")
+    parser.add_argument("--with-raw-bscan", action="store_true")
+    parser.add_argument("--ignore-pll-lock-reset", action="store_true")
     parser.add_argument("--build", action="store_true", help="Run synthesis/place/route, not just generation.")
     parser.add_argument(
         "--output-dir",
@@ -119,6 +202,8 @@ def main():
         byte_groups=args.byte_groups,
         module_name=args.module,
         with_bist=not args.no_bist,
+        with_raw_bscan=args.with_raw_bscan,
+        ignore_pll_lock_reset=args.ignore_pll_lock_reset,
         toolchain=args.toolchain,
     )
     builder = Builder(
