@@ -93,6 +93,9 @@ class RawBscanProtocolTest(unittest.TestCase):
             ],
         )
 
+    def test_selected_module_masks_expands_bits_in_order(self):
+        self.assertEqual(bscan.selected_module_masks(0xA5), [0x01, 0x04, 0x20, 0x80])
+
 
 if __name__ == "__main__":
     unittest.main()

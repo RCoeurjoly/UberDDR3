@@ -240,6 +240,9 @@ diagnostic fields and two hardware-side helper commands:
   settings through the bridge's Wishbone master.
 - `bridge-mem32-check`: apply the same read-delay settings, write one 32-bit
   word to a Wishbone byte address, read it back, and compare in fabric.
+- `bridge-mem32-sweep`: repeat `bridge-mem32-check` over each selected byte
+  group, bitslip, and delay tap, returning a compact JSON table of all points
+  and any passing windows.
 
 The command parameters are:
 
@@ -267,3 +270,17 @@ This does not replace BIOS-style DFII read leveling, but it reduces the cost of
 coarse hardware sweeps by moving DDRPHY delay application and a direct memory
 compare into fabric. Use it to quickly reject delay/bitslip points before
 running slower DFII pattern scans.
+
+Example one-byte-group sweep:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-mem32-sweep \
+  --module-mask 0x1 \
+  --max-bitslip 7 \
+  --max-delay 31 \
+  --addr 0x40000000 \
+  --data 0xa5a55a5a \
+  --json-only \
+  --timeout-s 5
+```

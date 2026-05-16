@@ -673,6 +673,53 @@ def run_bridge_diag(client, args: argparse.Namespace, opcode: int) -> dict[str, 
         time.sleep(args.poll_s)
 
 
+def selected_module_masks(module_mask: int) -> list[int]:
+    return [1 << bit for bit in range(8) if module_mask & (1 << bit)]
+
+
+def run_bridge_mem32_sweep(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+    samples = []
+    passes = []
+    module_masks = selected_module_masks(args.module_mask)
+    for module_mask in module_masks:
+        args.module_mask = module_mask
+        for bitslip in range(args.max_bitslip + 1):
+            args.bitslip = bitslip
+            for delay in range(args.max_delay + 1):
+                args.delay = delay
+                result = run_bridge_diag(client, args, OP_MEM32_CHECK)
+                after = result["after"] if "after" in result else result["samples"][-1]
+                summary = {
+                    "module_mask": module_mask,
+                    "bitslip": bitslip,
+                    "delay": delay,
+                    "diag_status": after["diag_status"],
+                    "diag_actual": after["diag_actual"],
+                    "diag_actual_int": after["diag_actual_int"],
+                    "diag_count": after["diag_count"],
+                    "diag_error_count": after["diag_error_count"],
+                    "wb_status": after["wb_status"],
+                    "pass": result["pass"],
+                }
+                samples.append(summary)
+                if result["pass"]:
+                    passes.append(summary)
+                    if args.stop_on_zero:
+                        return {
+                            "init": init,
+                            "passes": passes,
+                            "samples": samples,
+                            "pass": True,
+                        }
+    return {
+        "init": init,
+        "passes": passes,
+        "samples": samples,
+        "pass": bool(passes),
+    }
+
+
 def poll_until(client, args: argparse.Namespace, field: str) -> dict[str, object]:
     samples = []
     deadline = time.monotonic() + args.timeout_s
@@ -704,6 +751,7 @@ def parse_args() -> argparse.Namespace:
             "dfii-read-leveling",
             "bridge-apply-rdly",
             "bridge-mem32-check",
+            "bridge-mem32-sweep",
             "memtest",
         ),
     )
@@ -787,6 +835,8 @@ def main() -> int:
             result = run_bridge_diag(client, args, OP_APPLY_RDLY)
         elif args.action == "bridge-mem32-check":
             result = run_bridge_diag(client, args, OP_MEM32_CHECK)
+        elif args.action == "bridge-mem32-sweep":
+            result = run_bridge_mem32_sweep(client, args)
         else:
             result = run_memtest(client, args)
     finally:
