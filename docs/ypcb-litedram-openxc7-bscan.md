@@ -230,3 +230,40 @@ drive the same DFII pattern path used by LiteDRAM BIOS and can collect
 per-module/per-delay error counts. Full sweeps are slow over JTAG, so the next
 engineering step is to reduce the scan cost or move the inner pattern loop into
 fabric before sweeping all modules, bitslips, and delays.
+
+## Bridge-Local Diagnostics
+
+The raw-BSCAN bridge now exposes a wider 768-bit status payload with bridge
+diagnostic fields and two hardware-side helper commands:
+
+- `bridge-apply-rdly`: apply `ddrphy_dly_sel`, read bitslip, and read-delay
+  settings through the bridge's Wishbone master.
+- `bridge-mem32-check`: apply the same read-delay settings, write one 32-bit
+  word to a Wishbone byte address, read it back, and compare in fabric.
+
+The command parameters are:
+
+- `--module-mask`: selected DDRPHY byte-group mask
+- `--bitslip`: read bitslip count
+- `--delay`: read delay tap count
+- `--addr`: byte address for `bridge-mem32-check`
+- `--data`: expected write/read value for `bridge-mem32-check`
+
+Example:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-mem32-check \
+  --module-mask 0x1 \
+  --bitslip 0 \
+  --delay 0 \
+  --addr 0x40000000 \
+  --data 0xa5a55a5a \
+  --json-only \
+  --timeout-s 5
+```
+
+This does not replace BIOS-style DFII read leveling, but it reduces the cost of
+coarse hardware sweeps by moving DDRPHY delay application and a direct memory
+compare into fabric. Use it to quickly reject delay/bitslip points before
+running slower DFII pattern scans.

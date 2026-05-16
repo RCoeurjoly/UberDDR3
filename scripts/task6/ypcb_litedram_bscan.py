@@ -30,6 +30,8 @@ OP_SET_LENGTH = 0x21
 OP_SET_RANDOM = 0x22
 OP_WB_WRITE = 0x30
 OP_WB_READ = 0x31
+OP_APPLY_RDLY = 0x40
+OP_MEM32_CHECK = 0x41
 
 DFII_CONTROL_SEL = 0x01
 DFII_CONTROL_CKE = 0x02
@@ -158,8 +160,20 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
     wb_rdata = (value >> 448) & 0xFFFFFFFF
     wb_status = (value >> 480) & 0xFF
     wb_count = (value >> 488) & 0xFFFF
+    diag_active = (value >> 511) & 0x1
+    diag_state = (value >> 512) & 0xFF
+    diag_status = (value >> 520) & 0xFF
+    diag_opcode = (value >> 528) & 0xFF
+    diag_module_mask = (value >> 536) & 0xFF
+    diag_bitslip = (value >> 544) & 0xFF
+    diag_delay = (value >> 552) & 0xFF
+    diag_addr = (value >> 560) & 0xFFFFFFFF
+    diag_expected = (value >> 592) & 0xFFFFFFFF
+    diag_actual = (value >> 624) & 0xFFFFFFFF
+    diag_count = (value >> 656) & 0xFFFFFFFF
+    diag_error_count = (value >> 688) & 0xFFFFFFFF
     return {
-        "raw": f"0x{value:0128x}",
+        "raw": f"0x{value:0192x}",
         "alignment": alignment,
         "magic": f"0x{magic:08x}",
         "magic_ok": magic == READ_MAGIC,
@@ -198,6 +212,22 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
         "wb_timeout": bool(wb_status & 0x04),
         "wb_error": bool(wb_status & 0x08),
         "wb_count": wb_count,
+        "diag_active": bool(diag_active),
+        "diag_state": diag_state,
+        "diag_status": f"0x{diag_status:02x}",
+        "diag_opcode": f"0x{diag_opcode:02x}",
+        "diag_module_mask": f"0x{diag_module_mask:02x}",
+        "diag_module_mask_int": diag_module_mask,
+        "diag_bitslip": diag_bitslip,
+        "diag_delay": diag_delay,
+        "diag_addr": f"0x{diag_addr:08x}",
+        "diag_addr_int": diag_addr,
+        "diag_expected": f"0x{diag_expected:08x}",
+        "diag_expected_int": diag_expected,
+        "diag_actual": f"0x{diag_actual:08x}",
+        "diag_actual_int": diag_actual,
+        "diag_count": diag_count,
+        "diag_error_count": diag_error_count,
     }
 
 
@@ -617,6 +647,32 @@ def run_read_sweep(client, args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def run_bridge_diag(client, args: argparse.Namespace, opcode: int) -> dict[str, object]:
+    before = read_status(client, args)
+    command_data = (
+        (args.module_mask & 0xFF)
+        | ((args.bitslip & 0xFF) << 8)
+        | ((args.delay & 0xFF) << 16)
+    )
+    if opcode == OP_MEM32_CHECK:
+        write_command(client, args, OP_WRITE_SCRATCH, args.data)
+        time.sleep(args.settle_s)
+    write_command(client, args, opcode, data=command_data, addr=args.addr)
+    deadline = time.monotonic() + args.timeout_s
+    samples = []
+    while True:
+        sample = read_status(client, args)
+        samples.append(sample)
+        if sample["diag_count"] != before["diag_count"] and not sample["diag_active"]:
+            pass_status = sample["diag_status"] == "0x02"
+            if opcode == OP_MEM32_CHECK:
+                pass_status = pass_status and sample["diag_actual_int"] == args.data
+            return {"before": before, "after": sample, "samples": samples, "pass": pass_status}
+        if time.monotonic() >= deadline:
+            return {"before": before, "samples": samples, "pass": False, "timeout": True}
+        time.sleep(args.poll_s)
+
+
 def poll_until(client, args: argparse.Namespace, field: str) -> dict[str, object]:
     samples = []
     deadline = time.monotonic() + args.timeout_s
@@ -646,6 +702,8 @@ def parse_args() -> argparse.Namespace:
             "init-ddr3",
             "sweep-read",
             "dfii-read-leveling",
+            "bridge-apply-rdly",
+            "bridge-mem32-check",
             "memtest",
         ),
     )
@@ -659,7 +717,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--read-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--write-ir", type=lambda value: int(value, 0), default=0x03)
-    parser.add_argument("--read-bits", type=int, default=512)
+    parser.add_argument("--read-bits", type=int, default=768)
     parser.add_argument("--write-bits", type=int, default=128)
     parser.add_argument("--scratch", type=lambda value: int(value, 0), default=0x5A17C0DE)
     parser.add_argument("--addr", type=lambda value: int(value, 0), default=0)
@@ -669,6 +727,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--length", type=lambda value: int(value, 0), default=0x1000)
     parser.add_argument("--random", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--module-mask", type=lambda value: int(value, 0), default=0xF)
+    parser.add_argument("--bitslip", type=int, default=0)
+    parser.add_argument("--delay", type=int, default=0)
     parser.add_argument("--max-bitslip", type=int, default=7)
     parser.add_argument("--max-delay", type=int, default=31)
     parser.add_argument("--init-first", action="store_true")
@@ -723,6 +783,10 @@ def main() -> int:
             result = run_read_sweep(client, args)
         elif args.action == "dfii-read-leveling":
             result = run_dfii_read_leveling(client, args)
+        elif args.action == "bridge-apply-rdly":
+            result = run_bridge_diag(client, args, OP_APPLY_RDLY)
+        elif args.action == "bridge-mem32-check":
+            result = run_bridge_diag(client, args, OP_MEM32_CHECK)
         else:
             result = run_memtest(client, args)
     finally:

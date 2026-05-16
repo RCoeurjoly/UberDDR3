@@ -1,6 +1,6 @@
 // Raw BSCAN status/control bridge for YPCB LiteDRAM BIST experiments.
 //
-// USER1 (IR 0x02, JTAG_CHAIN=1) shifts out a 512-bit status payload.
+// USER1 (IR 0x02, JTAG_CHAIN=1) shifts out a 768-bit status payload.
 // USER2 (IR 0x03, JTAG_CHAIN=2) shifts in a 128-bit command payload.
 
 module ypcb_litedram_bscan_bridge #(
@@ -50,6 +50,14 @@ module ypcb_litedram_bscan_bridge #(
     localparam [7:0] OP_SET_RANDOM    = 8'h22;
     localparam [7:0] OP_WB_WRITE      = 8'h30;
     localparam [7:0] OP_WB_READ       = 8'h31;
+    localparam [7:0] OP_APPLY_RDLY    = 8'h40;
+    localparam [7:0] OP_MEM32_CHECK   = 8'h41;
+
+    localparam [31:0] CSR_DDRPHY_DLY_SEL             = 32'h00000804;
+    localparam [31:0] CSR_DDRPHY_RDLY_DQ_RST         = 32'h00000814;
+    localparam [31:0] CSR_DDRPHY_RDLY_DQ_INC         = 32'h00000818;
+    localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP_RST = 32'h0000081c;
+    localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP     = 32'h00000820;
 
     wire read_capture;
     wire read_drck;
@@ -66,7 +74,7 @@ module ypcb_litedram_bscan_bridge #(
     wire write_tdi;
     wire write_update;
 
-    reg [511:0] read_shift_q;
+    reg [767:0] read_shift_q;
     reg [127:0] write_shift_q;
 
     reg [31:0] clkin_counter;
@@ -84,6 +92,23 @@ module ypcb_litedram_bscan_bridge #(
     reg [7:0] wb_status;
     reg [15:0] wb_count;
     reg [19:0] wb_timeout_counter;
+    reg wb_done_pulse;
+    reg wb_is_read;
+
+    reg diag_active;
+    reg [7:0] diag_opcode;
+    reg [7:0] diag_state;
+    reg [7:0] diag_module_mask;
+    reg [7:0] diag_bitslip_target;
+    reg [7:0] diag_delay_target;
+    reg [7:0] diag_bitslip_count;
+    reg [7:0] diag_delay_count;
+    reg [31:0] diag_addr;
+    reg [31:0] diag_expected;
+    reg [31:0] diag_actual;
+    reg [31:0] diag_count;
+    reg [31:0] diag_error_count;
+    reg [7:0] diag_status;
 
     assign wb_sel = 4'hf;
 
@@ -97,8 +122,21 @@ module ypcb_litedram_bscan_bridge #(
         ~sys_rst
     };
 
-    wire [511:0] read_payload = {
-        8'd0,
+    wire [767:0] read_payload = {
+        48'd0,
+        diag_error_count,
+        diag_count,
+        diag_actual,
+        diag_expected,
+        diag_addr,
+        diag_delay_target,
+        diag_bitslip_target,
+        diag_module_mask,
+        diag_opcode,
+        diag_status,
+        diag_state,
+        diag_active,
+        7'd0,
         wb_count,
         wb_status,
         wb_rdata_q,
@@ -160,7 +198,7 @@ module ypcb_litedram_bscan_bridge #(
             read_tdo <= read_payload[0];
         end else if (read_sel && read_shift) begin
             read_tdo <= read_shift_q[0];
-            read_shift_q <= {1'b0, read_shift_q[511:1]};
+            read_shift_q <= {1'b0, read_shift_q[767:1]};
         end
     end
 
@@ -218,29 +256,201 @@ module ypcb_litedram_bscan_bridge #(
             wb_status <= 8'd0;
             wb_count <= 16'd0;
             wb_timeout_counter <= 20'd0;
+            wb_done_pulse <= 1'b0;
+            wb_is_read <= 1'b0;
+            diag_active <= 1'b0;
+            diag_opcode <= 8'd0;
+            diag_state <= 8'd0;
+            diag_module_mask <= 8'd0;
+            diag_bitslip_target <= 8'd0;
+            diag_delay_target <= 8'd0;
+            diag_bitslip_count <= 8'd0;
+            diag_delay_count <= 8'd0;
+            diag_addr <= 32'd0;
+            diag_expected <= 32'd0;
+            diag_actual <= 32'd0;
+            diag_count <= 32'd0;
+            diag_error_count <= 32'd0;
+            diag_status <= 8'd0;
         end else begin
             counter <= counter + 1'd1;
             bist_reset <= 1'b0;
             generator_start <= 1'b0;
             checker_start <= 1'b0;
+            wb_done_pulse <= 1'b0;
             command_toggle_sys <= {command_toggle_sys[1:0], command_toggle_tck};
             if (wb_cyc) begin
                 wb_timeout_counter <= wb_timeout_counter + 1'd1;
                 if (wb_ack || wb_err) begin
                     wb_rdata_q <= wb_dat_r;
+                    if (wb_is_read) begin
+                        diag_actual <= wb_dat_r;
+                    end
                     wb_cyc <= 1'b0;
                     wb_stb <= 1'b0;
                     wb_we <= 1'b0;
                     wb_count <= wb_count + 1'd1;
                     wb_status <= {4'd0, wb_err, 1'b0, 1'b1, 1'b0};
+                    wb_done_pulse <= 1'b1;
                 end else if (&wb_timeout_counter) begin
                     wb_cyc <= 1'b0;
                     wb_stb <= 1'b0;
                     wb_we <= 1'b0;
                     wb_count <= wb_count + 1'd1;
                     wb_status <= 8'b0000_0110;
+                    wb_done_pulse <= 1'b1;
                 end
             end
+
+            if (diag_active && !wb_cyc && !wb_done_pulse) begin
+                case (diag_state)
+                    8'd0: begin
+                        wb_addr_byte <= CSR_DDRPHY_DLY_SEL;
+                        wb_adr <= CSR_DDRPHY_DLY_SEL[31:2];
+                        wb_dat_w <= {24'd0, diag_module_mask};
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd1;
+                    end
+                    8'd2: begin
+                        wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_RST;
+                        wb_adr <= CSR_DDRPHY_RDLY_DQ_RST[31:2];
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd3;
+                    end
+                    8'd4: begin
+                        wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_BITSLIP_RST;
+                        wb_adr <= CSR_DDRPHY_RDLY_DQ_BITSLIP_RST[31:2];
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd5;
+                    end
+                    8'd6: begin
+                        if (diag_bitslip_count < diag_bitslip_target) begin
+                            wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_BITSLIP;
+                            wb_adr <= CSR_DDRPHY_RDLY_DQ_BITSLIP[31:2];
+                            wb_dat_w <= 32'd1;
+                            wb_cyc <= 1'b1;
+                            wb_stb <= 1'b1;
+                            wb_we <= 1'b1;
+                            wb_is_read <= 1'b0;
+                            wb_timeout_counter <= 20'd0;
+                            wb_status <= 8'b0000_0001;
+                            diag_bitslip_count <= diag_bitslip_count + 1'd1;
+                        end else begin
+                            diag_state <= 8'd8;
+                        end
+                    end
+                    8'd8: begin
+                        if (diag_delay_count < diag_delay_target) begin
+                            wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_INC;
+                            wb_adr <= CSR_DDRPHY_RDLY_DQ_INC[31:2];
+                            wb_dat_w <= 32'd1;
+                            wb_cyc <= 1'b1;
+                            wb_stb <= 1'b1;
+                            wb_we <= 1'b1;
+                            wb_is_read <= 1'b0;
+                            wb_timeout_counter <= 20'd0;
+                            wb_status <= 8'b0000_0001;
+                            diag_delay_count <= diag_delay_count + 1'd1;
+                        end else begin
+                            diag_state <= 8'd10;
+                        end
+                    end
+                    8'd10: begin
+                        wb_addr_byte <= CSR_DDRPHY_DLY_SEL;
+                        wb_adr <= CSR_DDRPHY_DLY_SEL[31:2];
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= (diag_opcode == OP_MEM32_CHECK) ? 8'd12 : 8'd20;
+                    end
+                    8'd12: begin
+                        wb_addr_byte <= diag_addr;
+                        wb_adr <= diag_addr[31:2];
+                        wb_dat_w <= diag_expected;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd13;
+                    end
+                    8'd14: begin
+                        wb_addr_byte <= diag_addr;
+                        wb_adr <= diag_addr[31:2];
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b0;
+                        wb_is_read <= 1'b1;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd15;
+                    end
+                    8'd20: begin
+                        diag_count <= diag_count + 1'd1;
+                        diag_status <= 8'h02;
+                        diag_active <= 1'b0;
+                    end
+                    default: begin
+                        diag_status <= 8'he0;
+                        diag_error_count <= diag_error_count + 1'd1;
+                        diag_active <= 1'b0;
+                    end
+                endcase
+            end
+
+            if (wb_done_pulse && diag_active) begin
+                if (wb_status[2]) begin
+                    diag_status <= 8'he1;
+                    diag_error_count <= diag_error_count + 1'd1;
+                    diag_active <= 1'b0;
+                end else begin
+                    case (diag_state)
+                        8'd1: diag_state <= 8'd2;
+                        8'd3: diag_state <= 8'd4;
+                        8'd5: diag_state <= 8'd6;
+                        8'd6: diag_state <= 8'd6;
+                        8'd8: diag_state <= 8'd8;
+                        8'd13: diag_state <= 8'd14;
+                        8'd15: begin
+                            wb_status <= 8'b0000_0010;
+                            if (diag_actual == diag_expected) begin
+                                diag_state <= 8'd20;
+                            end else begin
+                                diag_status <= 8'h03;
+                                diag_error_count <= diag_error_count + 1'd1;
+                                diag_count <= diag_count + 1'd1;
+                                diag_active <= 1'b0;
+                            end
+                        end
+                        default: begin
+                        end
+                    endcase
+                end
+            end
+
             if (command_toggle_sys[2] != command_toggle_sys[1]) begin
                 command_opcode_sys <= command_opcode_tck;
                 command_addr_sys <= command_addr_tck;
@@ -260,27 +470,45 @@ module ypcb_litedram_bscan_bridge #(
                         bist_random_addr <= command_data_tck[1];
                     end
                     OP_WB_WRITE: begin
-                        if (!wb_cyc) begin
+                        if (!wb_cyc && !diag_active) begin
                             wb_addr_byte <= command_addr_tck;
                             wb_adr <= command_addr_tck[31:2];
                             wb_dat_w <= command_data_tck;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;
                             wb_we <= 1'b1;
+                            wb_is_read <= 1'b0;
                             wb_timeout_counter <= 20'd0;
                             wb_status <= 8'b0000_0001;
                         end
                     end
                     OP_WB_READ: begin
-                        if (!wb_cyc) begin
+                        if (!wb_cyc && !diag_active) begin
                             wb_addr_byte <= command_addr_tck;
                             wb_adr <= command_addr_tck[31:2];
                             wb_dat_w <= 32'd0;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;
                             wb_we <= 1'b0;
+                            wb_is_read <= 1'b1;
                             wb_timeout_counter <= 20'd0;
                             wb_status <= 8'b0000_0001;
+                        end
+                    end
+                    OP_APPLY_RDLY, OP_MEM32_CHECK: begin
+                        if (!wb_cyc && !diag_active) begin
+                            diag_active <= 1'b1;
+                            diag_opcode <= command_opcode_tck;
+                            diag_state <= 8'd0;
+                            diag_module_mask <= command_data_tck[7:0];
+                            diag_bitslip_target <= command_data_tck[15:8];
+                            diag_delay_target <= command_data_tck[23:16];
+                            diag_bitslip_count <= 8'd0;
+                            diag_delay_count <= 8'd0;
+                            diag_addr <= command_addr_tck;
+                            diag_expected <= scratch;
+                            diag_actual <= 32'd0;
+                            diag_status <= 8'h01;
                         end
                     end
                     default: begin

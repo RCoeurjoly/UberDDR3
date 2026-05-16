@@ -42,6 +42,36 @@ class RawBscanProtocolTest(unittest.TestCase):
         self.assertEqual(bscan.phase_reg(1, 0x00), 0x1824)
         self.assertEqual(bscan.phase_reg(3, 0x18), 0x187C)
 
+    def test_extended_status_decodes_bridge_diagnostic_fields(self):
+        payload = bscan.READ_MAGIC
+        payload |= 1 << 511
+        payload |= 0x12 << 512
+        payload |= 0x03 << 520
+        payload |= bscan.OP_MEM32_CHECK << 528
+        payload |= 0x01 << 536
+        payload |= 0x02 << 544
+        payload |= 0x03 << 552
+        payload |= 0x4000_0000 << 560
+        payload |= 0xA5A5_5A5A << 592
+        payload |= 0xFFFF_FFFF << 624
+        payload |= 0x11 << 656
+        payload |= 0x22 << 688
+
+        status = bscan.decode_status(payload)
+
+        self.assertTrue(status["diag_active"])
+        self.assertEqual(status["diag_state"], 0x12)
+        self.assertEqual(status["diag_status"], "0x03")
+        self.assertEqual(status["diag_opcode"], "0x41")
+        self.assertEqual(status["diag_module_mask_int"], 1)
+        self.assertEqual(status["diag_bitslip"], 2)
+        self.assertEqual(status["diag_delay"], 3)
+        self.assertEqual(status["diag_addr_int"], 0x4000_0000)
+        self.assertEqual(status["diag_expected_int"], 0xA5A5_5A5A)
+        self.assertEqual(status["diag_actual_int"], 0xFFFF_FFFF)
+        self.assertEqual(status["diag_count"], 0x11)
+        self.assertEqual(status["diag_error_count"], 0x22)
+
     def test_lfsr32_matches_litex_known_prefix(self):
         value = 42
         prefix = []
