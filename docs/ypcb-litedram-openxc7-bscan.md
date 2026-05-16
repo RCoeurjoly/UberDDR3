@@ -193,3 +193,40 @@ The next blockers are:
    prove it is not needed for the tested path.
 5. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
    "controller is not initialized" from lane mapping or data-integrity errors.
+
+## DFII Read-Leveling Diagnostic
+
+The host script has a partial port of LiteDRAM BIOS read leveling. It uses the
+raw Wishbone bridge to:
+
+- switch DFII to software control
+- write LiteDRAM's pseudo-random training pattern through DFII write-data CSRs
+- issue ACT/WRITE/READ/PRECHARGE commands
+- read DFII read-data CSRs
+- score each selected module/bitslip/delay setting
+
+Minimal hardware smoke test:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py dfii-read-leveling \
+  --init-first \
+  --module-mask 0x1 \
+  --max-bitslip 0 \
+  --max-delay 1 \
+  --json-only \
+  --timeout-s 5
+```
+
+Observed on the OpenXC7 4-lane diagnostic bitstream:
+
+- DFII init completes first
+- module 0 / bitslip 0 / delay 0 reports `errors=91`
+- module 0 / bitslip 0 / delay 1 reports `errors=91`
+- no valid read window is found in this tiny scan
+
+This is not a full read-leveling sweep yet. It proves the raw-BSCAN host can
+drive the same DFII pattern path used by LiteDRAM BIOS and can collect
+per-module/per-delay error counts. Full sweeps are slow over JTAG, so the next
+engineering step is to reduce the scan cost or move the inner pattern loop into
+fabric before sweeping all modules, bitslips, and delays.

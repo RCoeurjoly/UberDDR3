@@ -43,6 +43,8 @@ DFII_COMMAND_CS = 0x01
 DFII_COMMAND_WE = 0x02
 DFII_COMMAND_CAS = 0x04
 DFII_COMMAND_RAS = 0x08
+DFII_COMMAND_WRDATA = 0x10
+DFII_COMMAND_RDDATA = 0x20
 
 CSR_DDRPHY_RST = 0x0800
 CSR_DDRPHY_DLY_SEL = 0x0804
@@ -57,6 +59,24 @@ CSR_SDRAM_DFII_PI0_COMMAND = 0x1804
 CSR_SDRAM_DFII_PI0_COMMAND_ISSUE = 0x1808
 CSR_SDRAM_DFII_PI0_ADDRESS = 0x180C
 CSR_SDRAM_DFII_PI0_BADDRESS = 0x1810
+CSR_SDRAM_DFII_PI0_WRDATA = 0x1814
+CSR_SDRAM_DFII_PI0_RDDATA = 0x181C
+
+SDRAM_PHY_XDR = 2
+SDRAM_PHY_DFI_DATABITS = 64
+SDRAM_PHY_PHASES = 4
+SDRAM_PHY_RDPHASE = 1
+SDRAM_PHY_WRPHASE = 2
+SDRAM_PHY_DQ_DQS_RATIO = 8
+SDRAM_PHY_MODULES = 4
+SDRAM_PHY_DELAYS = 32
+SDRAM_PHY_BITSLIPS = 8
+DFII_PIX_DATA_BYTES = SDRAM_PHY_DFI_DATABITS // 8
+READ_LEVELING_SEEDS = (42, 84, 36)
+READ_CHECK_TEST_PATTERN_MAX_ERRORS = (
+    8 * SDRAM_PHY_PHASES * DFII_PIX_DATA_BYTES // SDRAM_PHY_MODULES
+)
+MODULE_BITMASK = (1 << SDRAM_PHY_DQ_DQS_RATIO) - 1
 
 LITEDRAM_DDR3_INIT_SEQUENCE = (
     ("Release reset", 0x0000, 0, DFII_CONTROL_ODT | DFII_CONTROL_RESET_N, 50000, "control"),
@@ -260,6 +280,60 @@ def wb_read_checked(client, args: argparse.Namespace, addr: int) -> tuple[int, d
     return result["after"]["wb_rdata_int"], result
 
 
+def phase_reg(phase: int, offset: int) -> int:
+    return CSR_SDRAM_DFII_CONTROL + 4 + phase * 0x20 + offset
+
+
+def dfii_command(client, args: argparse.Namespace, phase: int, command: int) -> None:
+    wb_write_checked(client, args, phase_reg(phase, 0x00), command)
+    wb_write_checked(client, args, phase_reg(phase, 0x04), 1)
+
+
+def dfii_phase_address_write(client, args: argparse.Namespace, phase: int, address: int) -> None:
+    wb_write_checked(client, args, phase_reg(phase, 0x08), address)
+
+
+def dfii_phase_baddress_write(client, args: argparse.Namespace, phase: int, bank: int) -> None:
+    wb_write_checked(client, args, phase_reg(phase, 0x0C), bank)
+
+
+def dfii_word_addr(phase: int, rd: bool = False) -> int:
+    return phase_reg(phase, 0x18 if rd else 0x10)
+
+
+def pack_le_bytes(values: list[int]) -> int:
+    value = 0
+    for index, byte in enumerate(values):
+        value |= (byte & 0xFF) << (8 * index)
+    return value
+
+
+def unpack_le_bytes(value: int, size: int = DFII_PIX_DATA_BYTES) -> list[int]:
+    return [(value >> (8 * index)) & 0xFF for index in range(size)]
+
+
+def dfii_write_data(client, args: argparse.Namespace, phase: int, values: list[int]) -> None:
+    value = pack_le_bytes(values)
+    addr = dfii_word_addr(phase, rd=False)
+    wb_write_checked(client, args, addr, (value >> 32) & 0xFFFFFFFF)
+    wb_write_checked(client, args, addr + 4, value & 0xFFFFFFFF)
+
+
+def dfii_read_data(client, args: argparse.Namespace, phase: int) -> list[int]:
+    addr = dfii_word_addr(phase, rd=True)
+    high, _ = wb_read_checked(client, args, addr)
+    low, _ = wb_read_checked(client, args, addr + 4)
+    return unpack_le_bytes(((high & 0xFFFFFFFF) << 32) | (low & 0xFFFFFFFF))
+
+
+def lfsr32(prev: int) -> int:
+    lsb = prev & 1
+    prev >>= 1
+    if lsb:
+        prev ^= 0x80200003
+    return prev & 0xFFFFFFFF
+
+
 def cdelay(args: argparse.Namespace, cycles: int) -> None:
     if cycles <= 0:
         return
@@ -269,8 +343,132 @@ def cdelay(args: argparse.Namespace, cycles: int) -> None:
 def dfii_command_p0(client, args: argparse.Namespace, address: int, bank: int, command: int) -> None:
     wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_ADDRESS, address)
     wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_BADDRESS, bank)
-    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_COMMAND, command)
-    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_COMMAND_ISSUE, 1)
+    dfii_command(client, args, 0, command)
+
+
+def dfii_write_read_check_test_pattern(client, args: argparse.Namespace, module: int, seed: int) -> int:
+    prv = seed
+    patterns = []
+    for _phase in range(SDRAM_PHY_PHASES):
+        values = []
+        for _byte in range(DFII_PIX_DATA_BYTES):
+            value = 0
+            for bit in range(8):
+                prv = lfsr32(prv)
+                value |= (prv & 1) << bit
+            values.append(value)
+        patterns.append(values)
+
+    dfii_phase_address_write(client, args, 0, 0)
+    dfii_phase_baddress_write(client, args, 0, 0)
+    dfii_command(client, args, 0, DFII_COMMAND_RAS | DFII_COMMAND_CS)
+    cdelay(args, 15)
+
+    for phase, values in enumerate(patterns):
+        dfii_write_data(client, args, phase, values)
+    dfii_phase_address_write(client, args, SDRAM_PHY_WRPHASE, 0)
+    dfii_phase_baddress_write(client, args, SDRAM_PHY_WRPHASE, 0)
+    dfii_command(
+        client,
+        args,
+        SDRAM_PHY_WRPHASE,
+        DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS | DFII_COMMAND_WRDATA,
+    )
+    cdelay(args, 15)
+
+    dfii_phase_address_write(client, args, SDRAM_PHY_RDPHASE, 0)
+    dfii_phase_baddress_write(client, args, SDRAM_PHY_RDPHASE, 0)
+    dfii_command(client, args, SDRAM_PHY_RDPHASE, DFII_COMMAND_CAS | DFII_COMMAND_CS | DFII_COMMAND_RDDATA)
+    cdelay(args, 15)
+
+    dfii_phase_address_write(client, args, 0, 0)
+    dfii_phase_baddress_write(client, args, 0, 0)
+    dfii_command(client, args, 0, DFII_COMMAND_RAS | DFII_COMMAND_WE | DFII_COMMAND_CS)
+    cdelay(args, 15)
+
+    errors = 0
+    pebo = (module * SDRAM_PHY_DQ_DQS_RATIO) // 8
+    nebo = pebo + (DFII_PIX_DATA_BYTES // SDRAM_PHY_XDR)
+    ibo = (module * SDRAM_PHY_DQ_DQS_RATIO) % 8
+    for phase, expected in enumerate(patterns):
+        actual = dfii_read_data(client, args, phase)
+        errors += (((expected[pebo] >> ibo) & MODULE_BITMASK) ^ ((actual[pebo] >> ibo) & MODULE_BITMASK)).bit_count()
+        errors += (((expected[nebo] >> ibo) & MODULE_BITMASK) ^ ((actual[nebo] >> ibo) & MODULE_BITMASK)).bit_count()
+    return errors
+
+
+def run_dfii_test_pattern(client, args: argparse.Namespace, module: int) -> int:
+    return sum(dfii_write_read_check_test_pattern(client, args, module, seed) for seed in READ_LEVELING_SEEDS)
+
+
+def read_leveling_scan_module(client, args: argparse.Namespace, module: int, bitslip: int) -> dict[str, object]:
+    max_errors = len(READ_LEVELING_SEEDS) * READ_CHECK_TEST_PATTERN_MAX_ERRORS
+    score = 0
+    samples = []
+    set_read_leveling(client, args, 1 << module, bitslip, 0)
+    delay_count = min(args.max_delay + 1, SDRAM_PHY_DELAYS)
+    for delay in range(delay_count):
+        errors = run_dfii_test_pattern(client, args, module)
+        working = errors == 0
+        score += (int(working) * max_errors * SDRAM_PHY_DELAYS) + (max_errors - errors)
+        samples.append({"delay": delay, "errors": errors, "working": working})
+        if delay != delay_count - 1:
+            wb_write_checked(client, args, CSR_DDRPHY_DLY_SEL, 1 << module)
+            wb_write_checked(client, args, CSR_DDRPHY_RDLY_DQ_INC, 1)
+            wb_write_checked(client, args, CSR_DDRPHY_DLY_SEL, 0)
+    return {"bitslip": bitslip, "score": score, "samples": samples}
+
+
+def center_read_leveling_module(client, args: argparse.Namespace, module: int, bitslip: int) -> dict[str, object]:
+    scan = read_leveling_scan_module(client, args, module, bitslip)
+    working_delays = [sample["delay"] for sample in scan["samples"] if sample["working"]]
+    if not working_delays:
+        set_read_leveling(client, args, 1 << module, bitslip, 0)
+        return {"bitslip": bitslip, "delay": 0, "scan": scan, "pass": False}
+
+    ranges = []
+    start = prev = working_delays[0]
+    for delay in working_delays[1:]:
+        if delay == prev + 1:
+            prev = delay
+        else:
+            ranges.append((start, prev))
+            start = prev = delay
+    ranges.append((start, prev))
+    start, end = max(ranges, key=lambda item: item[1] - item[0])
+    delay = (start + end) // 2
+    set_read_leveling(client, args, 1 << module, bitslip, delay)
+    check_errors = run_dfii_test_pattern(client, args, module)
+    return {
+        "bitslip": bitslip,
+        "delay": delay,
+        "window_start": start,
+        "window_end": end,
+        "check_errors": check_errors,
+        "scan": scan,
+        "pass": check_errors == 0,
+    }
+
+
+def run_dfii_read_leveling(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_SOFTWARE)
+    modules = []
+    for module in range(SDRAM_PHY_MODULES):
+        if not (args.module_mask & (1 << module)):
+            continue
+        scans = []
+        best_scan = None
+        for bitslip in range(min(args.max_bitslip + 1, SDRAM_PHY_BITSLIPS)):
+            scan = read_leveling_scan_module(client, args, module, bitslip)
+            scans.append({"bitslip": bitslip, "score": scan["score"], "samples": scan["samples"]})
+            if best_scan is None or scan["score"] > best_scan["score"]:
+                best_scan = scan
+        centered = center_read_leveling_module(client, args, module, best_scan["bitslip"])
+        modules.append({"module": module, "best_bitslip": best_scan["bitslip"], "centered": centered, "scans": scans})
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_HARDWARE)
+    after = read_status(client, args)
+    return {"init": init, "modules": modules, "after": after, "pass": all(module["centered"]["pass"] for module in modules)}
 
 
 def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
@@ -434,6 +632,7 @@ def parse_args() -> argparse.Namespace:
             "wb-write",
             "init-ddr3",
             "sweep-read",
+            "dfii-read-leveling",
             "memtest",
         ),
     )
@@ -509,6 +708,8 @@ def main() -> int:
             result = run_ddr3_init(client, args)
         elif args.action == "sweep-read":
             result = run_read_sweep(client, args)
+        elif args.action == "dfii-read-leveling":
+            result = run_dfii_read_leveling(client, args)
         else:
             result = run_memtest(client, args)
     finally:
