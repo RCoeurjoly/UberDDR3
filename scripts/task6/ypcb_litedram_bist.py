@@ -9,6 +9,7 @@ from litex.build.yosys_wrapper import YosysWrapper
 from litex.soc.cores.clock import S7IDELAYCTRL, S7MMCM
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc_core import SoCCore
+from litex.soc.interconnect import wishbone
 
 from litex_boards.platforms import ypcb_00338_1p1
 
@@ -57,6 +58,8 @@ class RawBSCANLiteDRAMBIST(Module):
         bist_length = Signal(32)
         bist_random_data = Signal()
         bist_random_addr = Signal()
+        self.wishbone = wishbone.Interface(data_width=32, adr_width=30)
+        soc.bus.add_master(name="raw_bscan", master=self.wishbone)
 
         platform.add_source(
             os.path.join(
@@ -90,9 +93,20 @@ class RawBSCANLiteDRAMBIST(Module):
             o_bist_length=bist_length,
             o_bist_random_data=bist_random_data,
             o_bist_random_addr=bist_random_addr,
+            o_wb_adr=self.wishbone.adr,
+            o_wb_dat_w=self.wishbone.dat_w,
+            i_wb_dat_r=self.wishbone.dat_r,
+            o_wb_sel=self.wishbone.sel,
+            o_wb_cyc=self.wishbone.cyc,
+            o_wb_stb=self.wishbone.stb,
+            o_wb_we=self.wishbone.we,
+            i_wb_ack=self.wishbone.ack,
+            i_wb_err=self.wishbone.err,
         )
 
         self.comb += [
+            self.wishbone.cti.eq(0),
+            self.wishbone.bte.eq(0),
             generator.reset.eq(bist_reset),
             generator.start.eq(generator_start),
             generator.base.eq(bist_base),

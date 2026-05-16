@@ -6,10 +6,11 @@ YPCB-00338-1P1 board.
 ## Build
 
 The raw-BSCAN design bypasses LiteX JTAGBone and exposes a direct USER1/USER2
-BSCAN status/control bridge to the LiteDRAM BIST generator/checker.
+BSCAN status/control bridge to the LiteDRAM BIST generator/checker. It also
+exposes a diagnostic Wishbone master for CSR access.
 
 ```sh
-OUT=/home/roland/UberDDR3/artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-build-4lane-ignore-lock \
+OUT=/home/roland/UberDDR3/artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb-4lane-ignore-lock \
   nix develop .#default --command \
   scripts/task6/generate_ypcb_litedram_bist_reference.sh \
   --toolchain openxc7 \
@@ -34,7 +35,7 @@ nix develop .#default --command openocd \
   -f cpld/xilinx-xc7.cfg \
   -c "adapter speed 6000" \
   -c "init" \
-  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-build-4lane-ignore-lock/gateware/ypcb_00338_1p1.bit" \
+  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb-4lane-ignore-lock/gateware/ypcb_00338_1p1.bit" \
   -c "exit"
 ```
 
@@ -68,6 +69,30 @@ Observed:
 - `last_opcode=0x01`
 - `scratch=0x5a17c0de`
 
+The raw Wishbone/CSR command path works. This writes and reads back the LiteX
+`ctrl_scratch` CSR at byte address `0x4`:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py wb-write \
+  --addr 0x4 \
+  --data 0x12345678 \
+  --json-only
+
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py wb-read \
+  --addr 0x4 \
+  --json-only
+```
+
+Observed:
+
+- write command returns `wb_done=true`
+- read command returns `wb_done=true`
+- `wb_timeout=false`
+- `wb_error=false`
+- readback `wb_rdata=0x12345678`
+
 A small BIST run executes both sides but does not pass yet:
 
 ```sh
@@ -95,9 +120,10 @@ working DDR3 yet.
 
 The next blockers are:
 
-1. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
+1. Drive LiteDRAM initialization/calibration through the raw Wishbone CSR path.
+2. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
    counters are advancing.
-2. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or
+3. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or
    prove it is not needed for the tested path.
-3. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
+4. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
    "controller is not initialized" from lane mapping or data-integrity errors.

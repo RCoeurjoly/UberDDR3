@@ -28,6 +28,8 @@ OP_RESET_BIST = 0x12
 OP_SET_BASE = 0x20
 OP_SET_LENGTH = 0x21
 OP_SET_RANDOM = 0x22
+OP_WB_WRITE = 0x30
+OP_WB_READ = 0x31
 
 
 def make_client(args: argparse.Namespace):
@@ -66,8 +68,13 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
     byte_group_mask = (value >> 288) & 0xFFFFFFFF
     clkin_counter = (value >> 320) & 0xFFFFFFFF
     idelay_counter = (value >> 352) & 0xFFFFFFFF
+    wb_addr = (value >> 384) & 0xFFFFFFFF
+    wb_wdata = (value >> 416) & 0xFFFFFFFF
+    wb_rdata = (value >> 448) & 0xFFFFFFFF
+    wb_status = (value >> 480) & 0xFF
+    wb_count = (value >> 488) & 0xFFFF
     return {
-        "raw": f"0x{value:096x}",
+        "raw": f"0x{value:0128x}",
         "alignment": alignment,
         "magic": f"0x{magic:08x}",
         "magic_ok": magic == READ_MAGIC,
@@ -94,6 +101,18 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
         "byte_group_mask": f"0x{byte_group_mask:08x}",
         "clkin_counter": clkin_counter,
         "idelay_counter": idelay_counter,
+        "wb_addr": f"0x{wb_addr:08x}",
+        "wb_addr_int": wb_addr,
+        "wb_wdata": f"0x{wb_wdata:08x}",
+        "wb_wdata_int": wb_wdata,
+        "wb_rdata": f"0x{wb_rdata:08x}",
+        "wb_rdata_int": wb_rdata,
+        "wb_status": f"0x{wb_status:02x}",
+        "wb_busy": bool(wb_status & 0x01),
+        "wb_done": bool(wb_status & 0x02),
+        "wb_timeout": bool(wb_status & 0x04),
+        "wb_error": bool(wb_status & 0x08),
+        "wb_count": wb_count,
     }
 
 
@@ -103,11 +122,49 @@ def read_status(client, args: argparse.Namespace) -> dict[str, int | str | bool]
     return decode_status(shift_dr_read(client, args.read_bits))
 
 
-def write_command(client, args: argparse.Namespace, opcode: int, data: int = 0) -> None:
-    command = WRITE_MAGIC | (opcode << 32) | ((data & 0xFFFFFFFF) << 64)
+def write_command(
+    client,
+    args: argparse.Namespace,
+    opcode: int,
+    data: int = 0,
+    addr: int = 0,
+) -> None:
+    command = (
+        WRITE_MAGIC
+        | (opcode << 32)
+        | ((addr & 0xFFFFFF) << 40)
+        | ((data & 0xFFFFFFFF) << 64)
+    )
     reset_tap(client)
     shift_ir(client, args.write_ir, args.ir_len)
     shift_dr_write(client, command, args.write_bits, args.update_mode)
+
+
+def wishbone_transaction(
+    client,
+    args: argparse.Namespace,
+    opcode: int,
+    addr: int,
+    data: int = 0,
+) -> dict[str, object]:
+    before = read_status(client, args)
+    write_command(client, args, opcode, data=data, addr=addr)
+    deadline = time.monotonic() + args.timeout_s
+    samples = []
+    while True:
+        sample = read_status(client, args)
+        samples.append(sample)
+        if sample["wb_count"] != before["wb_count"] and not sample["wb_busy"]:
+            passed = (
+                sample["magic_ok"]
+                and sample["wb_done"]
+                and not sample["wb_timeout"]
+                and not sample["wb_error"]
+            )
+            return {"before": before, "after": sample, "samples": samples, "pass": passed}
+        if time.monotonic() >= deadline:
+            return {"before": before, "samples": samples, "pass": False, "timeout": True}
+        time.sleep(args.poll_s)
 
 
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
@@ -164,6 +221,8 @@ def parse_args() -> argparse.Namespace:
             "reset-bist",
             "start-generator",
             "start-checker",
+            "wb-read",
+            "wb-write",
             "memtest",
         ),
     )
@@ -177,9 +236,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--read-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--write-ir", type=lambda value: int(value, 0), default=0x03)
-    parser.add_argument("--read-bits", type=int, default=384)
+    parser.add_argument("--read-bits", type=int, default=512)
     parser.add_argument("--write-bits", type=int, default=96)
     parser.add_argument("--scratch", type=lambda value: int(value, 0), default=0x5A17C0DE)
+    parser.add_argument("--addr", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--data", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--base", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--length", type=lambda value: int(value, 0), default=0x1000)
     parser.add_argument("--random", type=lambda value: int(value, 0), default=0)
@@ -221,6 +282,10 @@ def main() -> int:
         elif args.action == "start-checker":
             write_command(client, args, OP_START_CHECK)
             result = poll_until(client, args, "checker_done")
+        elif args.action == "wb-write":
+            result = wishbone_transaction(client, args, OP_WB_WRITE, args.addr, args.data)
+        elif args.action == "wb-read":
+            result = wishbone_transaction(client, args, OP_WB_READ, args.addr)
         else:
             result = run_memtest(client, args)
     finally:
