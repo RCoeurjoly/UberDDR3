@@ -1335,6 +1335,30 @@ yet supported by the yosys-nextpnr path. Hardware testing should therefore be
 treated as exploratory until the LiteDRAM clock constraints/electrical
 features are reconciled with the YPCB open-flow backend.
 
+2026-05-16 hardware/JTAGBone result:
+
+- Programming the 64-bit LiteDRAM BIST bitstream with OpenOCD succeeds.
+- After a board power cycle and reprogramming, LiteX JTAGBone reads are still
+  invalid. The identifier is garbage and CSR reads return the repeating
+  `0xc3bfc3bf` / `0xbfc3bfc3` pattern.
+- A minimal non-DDR LiteX/JTAGBone smoke design was added in
+  `scripts/task6/ypcb_litex_jtagbone_smoke.py`. It contains only JTAGBone,
+  LED GPIO, a scratch CSR, and a counter CSR.
+- The smoke design built and programmed successfully. With the first `clk50`
+  CRG, CSR reads were all zero and writes did not stick. With the `clk200`
+  plus `S7MMCM` CRG, CSR reads returned the same repeating `0xc3bf` pattern
+  seen on the LiteDRAM BIST design.
+
+This means the current hardware evidence is not a DDR calibration result. The
+LiteX/JTAGBone CSR path itself is not yet trustworthy on the YPCB OpenXC7
+bitstreams. Before using LiteDRAM BIST status as a calibration oracle, prove a
+minimal fabric control path with one of:
+
+1. a direct BSCANE2/debug-register design outside LiteX JTAGBone,
+2. a LiteX JTAGBone design known to work on this exact board/toolchain,
+3. a Vivado-generated smoke design to separate board/clock/JTAG issues from
+   OpenXC7/LiteX integration issues.
+
 Decision rule:
 
 - Continue UberDDR3 frozen-shell work for the known v95 command-enabled
