@@ -1263,6 +1263,22 @@ Execution order:
    its failure mode to separate board/electrical problems from UberDDR3-specific
    PHY/control problems.
 
+The stock YPCB LiteX reference can now be regenerated without compiling a
+bitstream:
+
+```sh
+scripts/task6/generate_ypcb_litedram_reference.sh
+```
+
+It writes to
+`artifacts/task6/litedram-reference/stock-ypcb-openxc7/` by default. This
+produces the generated LiteDRAM Verilog, XDC, CSR map, and SDRAM PHY headers
+for the existing LiteX YPCB target. The stock target is not the final
+acceptance artifact because it exposes only four byte groups through
+`PHYPadsReducer(..., [0, 1, 2, 3])` and does not enable a hardware BIST by
+default, but it is now the reproducible baseline for building the smaller
+YPCB LiteDRAM BIST/reference branch.
+
 Decision rule:
 
 - Continue UberDDR3 frozen-shell work for the known v95 command-enabled
