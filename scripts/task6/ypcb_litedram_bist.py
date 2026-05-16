@@ -47,9 +47,12 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         byte_groups=(0, 1, 2, 3),
         module_name="mt41k256m8",
         with_bist=True,
+        toolchain="openxc7",
         **kwargs,
     ):
-        platform = ypcb_00338_1p1.Platform()
+        platform = ypcb_00338_1p1.Platform(toolchain=toolchain)
+        if toolchain == "openxc7":
+            platform.device = "xc7k480tffg1156-2"
         self.submodules.crg = _CRG(platform, sys_clk_freq)
 
         SoCCore.__init__(
@@ -101,6 +104,7 @@ def main():
     parser.add_argument("--dram-channel", default=0, type=int, choices=(0, 1))
     parser.add_argument("--byte-groups", default=(0, 1, 2, 3), type=parse_byte_groups)
     parser.add_argument("--module", default="mt41k256m8", choices=("mt41k256m8", "mt41j256m16"))
+    parser.add_argument("--toolchain", default="openxc7", choices=("openxc7", "vivado"))
     parser.add_argument("--no-bist", action="store_true")
     parser.add_argument("--build", action="store_true", help="Run synthesis/place/route, not just generation.")
     parser.add_argument(
@@ -115,6 +119,7 @@ def main():
         byte_groups=args.byte_groups,
         module_name=args.module,
         with_bist=not args.no_bist,
+        toolchain=args.toolchain,
     )
     builder = Builder(
         soc,

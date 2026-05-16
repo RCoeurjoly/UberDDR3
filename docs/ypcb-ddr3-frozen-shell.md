@@ -1290,7 +1290,10 @@ BIST generator/checker CSRs, and enables JTAGBone so the design has a direct
 hardware control path without a soft CPU. By default it keeps the same
 four-byte-lane scope as the stock LiteX YPCB target. Use
 `--byte-groups 0,1,2,3,4,5,6,7` to generate the full 64-bit channel-0 data
-path candidate after the four-lane reference is understood.
+path candidate after the four-lane reference is understood. Run it inside
+`nix develop .#default`; the wrapper creates a local `CHIPDB` directory under
+the output path so LiteX/OpenXC7 does not try to write generated chipdb files
+into the Nix store.
 
 Decision rule:
 

@@ -58,6 +58,7 @@ EOF
 
         prjxrayPythonDeps = pkgs.python312.withPackages (ps: [
           ps.intervaltree
+          ps.packaging
           ps.progressbar2
           ps.pyjson5
           ps.pyyaml
