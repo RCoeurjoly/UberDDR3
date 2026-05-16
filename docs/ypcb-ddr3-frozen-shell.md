@@ -1200,6 +1200,13 @@ references:
 | `litex-ddr-qmtech-kintex7` | `xc7k325tffg676-1` | Smaller Kintex-7 LiteX DDR3 reference, useful for constraints and byte-lane structure comparison. |
 | `ddr3-test-arty-s7` | `xc7s50csga324-1` | Not a close part match, but it contains the `constraints.py` / `show_bels.py` manual BEL-placement pattern that originally motivated the YPCB lock experiments. |
 
+Other available boards can still be useful, but keep their role explicit. A
+Zybo/Zybo-Z7 board is Zynq-7000, and its DDR3/DDR3L path is normally attached
+to the PS hard memory controller. That makes it useful for Vivado installation
+sanity checks, board automation, and software-visible DDR3 testing, but it is
+not a direct placement or PHY oracle for the YPCB Kintex-7 PL-only DDR3
+interface.
+
 Initial local audit:
 
 - The shared OpenXC7 demo Makefile uses `synth_xilinx -flatten -abc9 -arch xc7`,
@@ -1218,6 +1225,14 @@ Initial local audit:
   `ISERDESE2_train` / `OSERDESE2_train` cells away from a problematic `_SING`
   tile. This is concrete precedent that nextpnr-legal placement can still need
   manual IO-BEL steering for DDR3.
+- A first K420T demo build under the UberDDR3 Nix shell synthesized
+  successfully. The default build reached nextpnr packing and failed on
+  unsupported `RAM256X1S`. Retrying with `SYNTH_OPTS=-nolutram` got past that
+  error and showed the expected DDR3 PHY footprint (`IDELAYCTRL=1`,
+  `IDELAYE2=32`, `ISERDESE2=32`, `OSERDESE2=66`), but then failed placement on
+  an unplaced `$scopeinfo` cell from the full LiteX/VexRiscv SoC. This means
+  the useful next step is a smaller LiteDRAM/PHY/BIST reference, not forcing the
+  full demo SoC through this exact nextpnr build.
 
 Execution order:
 
