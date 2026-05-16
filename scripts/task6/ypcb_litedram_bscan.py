@@ -45,6 +45,11 @@ DFII_COMMAND_CAS = 0x04
 DFII_COMMAND_RAS = 0x08
 
 CSR_DDRPHY_RST = 0x0800
+CSR_DDRPHY_DLY_SEL = 0x0804
+CSR_DDRPHY_RDLY_DQ_RST = 0x0814
+CSR_DDRPHY_RDLY_DQ_INC = 0x0818
+CSR_DDRPHY_RDLY_DQ_BITSLIP_RST = 0x081C
+CSR_DDRPHY_RDLY_DQ_BITSLIP = 0x0820
 CSR_DDRPHY_RDPHASE = 0x082C
 CSR_DDRPHY_WRPHASE = 0x0830
 CSR_SDRAM_DFII_CONTROL = 0x1800
@@ -192,8 +197,8 @@ def write_command(
     command = (
         WRITE_MAGIC
         | (opcode << 32)
-        | ((addr & 0xFFFFFF) << 40)
-        | ((data & 0xFFFFFFFF) << 64)
+        | ((addr & 0xFFFFFFFF) << 40)
+        | ((data & 0xFFFFFFFF) << 72)
     )
     reset_tap(client)
     shift_ir(client, args.write_ir, args.ir_len)
@@ -221,6 +226,20 @@ def wishbone_transaction(
                 and not sample["wb_timeout"]
                 and not sample["wb_error"]
             )
+            expected_data = args.expected_data
+            if opcode == OP_WB_READ and expected_data is not None:
+                expected_data &= 0xFFFFFFFF
+                actual_data = sample["wb_rdata_int"]
+                passed = passed and actual_data == expected_data
+                return {
+                    "before": before,
+                    "after": sample,
+                    "samples": samples,
+                    "expected_data": f"0x{expected_data:08x}",
+                    "actual_data": f"0x{actual_data:08x}",
+                    "data_match": actual_data == expected_data,
+                    "pass": passed,
+                }
             return {"before": before, "after": sample, "samples": samples, "pass": passed}
         if time.monotonic() >= deadline:
             return {"before": before, "samples": samples, "pass": False, "timeout": True}
@@ -332,6 +351,61 @@ def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def set_read_leveling(client, args: argparse.Namespace, module_mask: int, bitslip: int, delay: int) -> None:
+    wb_write_checked(client, args, CSR_DDRPHY_DLY_SEL, module_mask)
+    wb_write_checked(client, args, CSR_DDRPHY_RDLY_DQ_RST, 1)
+    wb_write_checked(client, args, CSR_DDRPHY_RDLY_DQ_BITSLIP_RST, 1)
+    for _ in range(bitslip):
+        wb_write_checked(client, args, CSR_DDRPHY_RDLY_DQ_BITSLIP, 1)
+    for _ in range(delay):
+        wb_write_checked(client, args, CSR_DDRPHY_RDLY_DQ_INC, 1)
+    wb_write_checked(client, args, CSR_DDRPHY_DLY_SEL, 0)
+
+
+def run_read_sweep(client, args: argparse.Namespace) -> dict[str, object]:
+    init = None
+    if args.init_first:
+        init = run_ddr3_init(client, args)
+
+    samples = []
+    best = None
+    module_mask = args.module_mask
+    for bitslip in range(args.max_bitslip + 1):
+        for delay in range(args.max_delay + 1):
+            set_read_leveling(client, args, module_mask, bitslip, delay)
+            sample = run_memtest(client, args)
+            after = sample["after"]
+            summary = {
+                "bitslip": bitslip,
+                "delay": delay,
+                "checker_errors": after["checker_errors"],
+                "checker_done": after["checker_done"],
+                "generator_done": after["generator_done"],
+                "checker_ticks": after["checker_ticks"],
+                "generator_ticks": after["generator_ticks"],
+                "pass": sample["pass"],
+            }
+            samples.append(summary)
+            if best is None or (
+                summary["checker_errors"],
+                not summary["checker_done"],
+                not summary["generator_done"],
+            ) < (
+                best["checker_errors"],
+                not best["checker_done"],
+                not best["generator_done"],
+            ):
+                best = summary
+            if args.stop_on_zero and summary["checker_errors"] == 0 and summary["checker_done"]:
+                return {"init": init, "best": best, "samples": samples, "pass": True}
+    return {
+        "init": init,
+        "best": best,
+        "samples": samples,
+        "pass": bool(best and best["checker_errors"] == 0 and best["checker_done"]),
+    }
+
+
 def poll_until(client, args: argparse.Namespace, field: str) -> dict[str, object]:
     samples = []
     deadline = time.monotonic() + args.timeout_s
@@ -359,6 +433,7 @@ def parse_args() -> argparse.Namespace:
             "wb-read",
             "wb-write",
             "init-ddr3",
+            "sweep-read",
             "memtest",
         ),
     )
@@ -373,13 +448,19 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--read-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--write-ir", type=lambda value: int(value, 0), default=0x03)
     parser.add_argument("--read-bits", type=int, default=512)
-    parser.add_argument("--write-bits", type=int, default=96)
+    parser.add_argument("--write-bits", type=int, default=128)
     parser.add_argument("--scratch", type=lambda value: int(value, 0), default=0x5A17C0DE)
     parser.add_argument("--addr", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--data", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--expected-data", type=lambda value: int(value, 0))
     parser.add_argument("--base", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--length", type=lambda value: int(value, 0), default=0x1000)
     parser.add_argument("--random", type=lambda value: int(value, 0), default=0)
+    parser.add_argument("--module-mask", type=lambda value: int(value, 0), default=0xF)
+    parser.add_argument("--max-bitslip", type=int, default=7)
+    parser.add_argument("--max-delay", type=int, default=31)
+    parser.add_argument("--init-first", action="store_true")
+    parser.add_argument("--stop-on-zero", action="store_true")
     parser.add_argument("--settle-s", type=float, default=0.05)
     parser.add_argument("--poll-s", type=float, default=0.1)
     parser.add_argument("--timeout-s", type=float, default=5.0)
@@ -426,6 +507,8 @@ def main() -> int:
             result = wishbone_transaction(client, args, OP_WB_READ, args.addr)
         elif args.action == "init-ddr3":
             result = run_ddr3_init(client, args)
+        elif args.action == "sweep-read":
+            result = run_read_sweep(client, args)
         else:
             result = run_memtest(client, args)
     finally:

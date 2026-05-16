@@ -1,7 +1,7 @@
 // Raw BSCAN status/control bridge for YPCB LiteDRAM BIST experiments.
 //
 // USER1 (IR 0x02, JTAG_CHAIN=1) shifts out a 512-bit status payload.
-// USER2 (IR 0x03, JTAG_CHAIN=2) shifts in a 96-bit command payload.
+// USER2 (IR 0x03, JTAG_CHAIN=2) shifts in a 128-bit command payload.
 
 module ypcb_litedram_bscan_bridge #(
     parameter [31:0] BYTE_GROUP_MASK = 32'h0000000f
@@ -67,7 +67,7 @@ module ypcb_litedram_bscan_bridge #(
     wire write_update;
 
     reg [511:0] read_shift_q;
-    reg [95:0] write_shift_q;
+    reg [127:0] write_shift_q;
 
     reg [31:0] clkin_counter;
     reg [31:0] idelay_counter;
@@ -77,7 +77,7 @@ module ypcb_litedram_bscan_bridge #(
     reg [7:0] last_opcode;
     reg command_toggle_tck;
     reg [7:0] command_opcode_tck;
-    reg [23:0] command_addr_tck;
+    reg [31:0] command_addr_tck;
     reg [31:0] command_data_tck;
     reg [31:0] wb_addr_byte;
     reg [31:0] wb_rdata_q;
@@ -166,24 +166,24 @@ module ypcb_litedram_bscan_bridge #(
 
     always @(posedge write_drck) begin
         if (write_capture) begin
-            write_shift_q <= 96'd0;
+            write_shift_q <= 128'd0;
         end else if (write_sel && write_shift) begin
-            write_shift_q <= {write_tdi, write_shift_q[95:1]};
+            write_shift_q <= {write_tdi, write_shift_q[127:1]};
         end
     end
 
     always @(posedge write_update) begin
         if (write_sel && write_shift_q[31:0] == WRITE_MAGIC) begin
             command_opcode_tck <= write_shift_q[39:32];
-            command_addr_tck <= write_shift_q[63:40];
-            command_data_tck <= write_shift_q[95:64];
+            command_addr_tck <= write_shift_q[71:40];
+            command_data_tck <= write_shift_q[103:72];
             command_toggle_tck <= ~command_toggle_tck;
         end
     end
 
     reg [2:0] command_toggle_sys;
     reg [7:0] command_opcode_sys;
-    reg [23:0] command_addr_sys;
+    reg [31:0] command_addr_sys;
     reg [31:0] command_data_sys;
 
     always @(posedge clkin) begin
@@ -261,8 +261,8 @@ module ypcb_litedram_bscan_bridge #(
                     end
                     OP_WB_WRITE: begin
                         if (!wb_cyc) begin
-                            wb_addr_byte <= {8'd0, command_addr_tck};
-                            wb_adr <= {8'd0, command_addr_tck[23:2]};
+                            wb_addr_byte <= command_addr_tck;
+                            wb_adr <= command_addr_tck[31:2];
                             wb_dat_w <= command_data_tck;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;
@@ -273,8 +273,8 @@ module ypcb_litedram_bscan_bridge #(
                     end
                     OP_WB_READ: begin
                         if (!wb_cyc) begin
-                            wb_addr_byte <= {8'd0, command_addr_tck};
-                            wb_adr <= {8'd0, command_addr_tck[23:2]};
+                            wb_addr_byte <= command_addr_tck;
+                            wb_adr <= command_addr_tck[31:2];
                             wb_dat_w <= 32'd0;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;

@@ -7,10 +7,11 @@ YPCB-00338-1P1 board.
 
 The raw-BSCAN design bypasses LiteX JTAGBone and exposes a direct USER1/USER2
 BSCAN status/control bridge to the LiteDRAM BIST generator/checker. It also
-exposes a diagnostic Wishbone master for CSR access.
+exposes a diagnostic Wishbone master for CSR and main-RAM access. USER2 uses a
+128-bit command frame so full 32-bit Wishbone byte addresses are available.
 
 ```sh
-OUT=/home/roland/UberDDR3/artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb-4lane-ignore-lock \
+OUT=/home/roland/UberDDR3/artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb32-4lane-ignore-lock \
   nix develop .#default --command \
   scripts/task6/generate_ypcb_litedram_bist_reference.sh \
   --toolchain openxc7 \
@@ -35,7 +36,7 @@ nix develop .#default --command openocd \
   -f cpld/xilinx-xc7.cfg \
   -c "adapter speed 6000" \
   -c "init" \
-  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb-4lane-ignore-lock/gateware/ypcb_00338_1p1.bit" \
+  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-bist-bscan-openxc7-wb32-4lane-ignore-lock/gateware/ypcb_00338_1p1.bit" \
   -c "exit"
 ```
 
@@ -124,6 +125,38 @@ This means raw CSR initialization is now working, but LiteDRAM leveling /
 calibration is still missing or the open-flow bitstream is still electrically
 wrong.
 
+The full 32-bit raw Wishbone address path reaches the main RAM window, but the
+DDR3 data path is not valid yet:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py wb-write \
+  --addr 0x40000000 \
+  --data 0xa5a55a5a \
+  --json-only \
+  --timeout-s 5
+
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py wb-read \
+  --addr 0x40000000 \
+  --expected-data 0xa5a55a5a \
+  --json-only \
+  --timeout-s 5
+```
+
+Observed:
+
+- write command returns `wb_done=true`
+- read command returns `wb_done=true`
+- `wb_timeout=false`
+- `wb_error=false`
+- readback is `wb_rdata=0xffffffff`, not `0xa5a55a5a`
+- `data_match=false`
+
+That result separates transport from DDR correctness: the raw BSCAN Wishbone
+master can issue transactions to the SDRAM address window, but the initialized
+LiteDRAM PHY/controller path is not returning valid memory data.
+
 A small BIST run executes both sides but does not pass yet:
 
 ```sh
@@ -152,9 +185,11 @@ working DDR3 yet.
 The next blockers are:
 
 1. Port LiteDRAM read-leveling/calibration over the raw Wishbone CSR path.
-2. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
+2. Implement the BIOS-style DFII read-leveling scan, not just a coarse global
+   read-delay sweep, and capture per-module windows.
+3. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
    counters are advancing.
-3. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or
+4. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or
    prove it is not needed for the tested path.
-4. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
+5. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
    "controller is not initialized" from lane mapping or data-integrity errors.
