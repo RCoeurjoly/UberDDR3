@@ -1182,3 +1182,69 @@ most promising directions are:
 3. If full 64-byte readback remains placement-sensitive, move the wider
    functionality to a MIG/LiteDRAM reference branch while preserving v95 as
    the open-flow calibration and command-ack baseline.
+
+## OpenXC7 Demo Project Reference Track
+
+While Vivado installs, use the OpenXC7 demo projects as an open-source DDR3
+reference track. This does not replace the Vivado/MIG oracle; it gives a second
+kind of evidence: designs that already target 7-series DDR3 through Yosys,
+nextpnr-xilinx, FASM, and prjxray bitstream generation.
+
+The local checkout at `/home/roland/demo-projects` has four directly relevant
+references:
+
+| Demo | Device | Why it matters |
+| --- | --- | --- |
+| `litex-ddr-hpcstore-k420t` | `xc7k420tffg901-1` | Closest OpenXC7 demo to the YPCB `xc7k480t` part class. It is the first build/reference to audit. |
+| `litex-ddr-kc705` | `xc7k325tffg900-2` | Kintex-7 LiteX/LiteDRAM `k7ddrphy` reference. It uses explicit write-delay structures with `ODELAYE2`, making it the most useful comparison for Kintex-7 PHY architecture. |
+| `litex-ddr-qmtech-kintex7` | `xc7k325tffg676-1` | Smaller Kintex-7 LiteX DDR3 reference, useful for constraints and byte-lane structure comparison. |
+| `ddr3-test-arty-s7` | `xc7s50csga324-1` | Not a close part match, but it contains the `constraints.py` / `show_bels.py` manual BEL-placement pattern that originally motivated the YPCB lock experiments. |
+
+Initial local audit:
+
+- The shared OpenXC7 demo Makefile uses `synth_xilinx -flatten -abc9 -arch xc7`,
+  then `nextpnr-xilinx --xdc --json --fasm`, then `fasm2frames` and
+  `xc7frames2bit`.
+- The K420T and QMTech demos instantiate LiteX `a7ddrphy`-style generated RTL.
+  They expose the DFI phases and calibration registers such as
+  `half_sys8x_taps`, `rdphase`, and `wrphase`.
+- The KC705 demo instantiates LiteX `k7ddrphy`-style generated RTL and includes
+  `IDELAYE2`, `ODELAYE2`, `ISERDESE2`, and `OSERDESE2` in the generated PHY.
+  This is the closest open reference for a Kintex-7 64-bit DDR3 data path.
+- The KC705 XDC applies `VCCAUX_IO HIGH` and `SSTL15` / `DIFF_SSTL15` DDR3
+  electrical constraints. Compare these against the YPCB XDC before changing
+  YPCB electrical assumptions.
+- The Arty-S7 demo's `constraints.py` manually moves train-path
+  `ISERDESE2_train` / `OSERDESE2_train` cells away from a problematic `_SING`
+  tile. This is concrete precedent that nextpnr-legal placement can still need
+  manual IO-BEL steering for DDR3.
+
+Execution order:
+
+1. Build `litex-ddr-hpcstore-k420t` and `litex-ddr-kc705` with the local
+   OpenXC7 tooling, capturing routed JSON, FASM, and logs.
+2. Extract per-lane placements for `IDELAYE2`, `ODELAYE2`, `ISERDESE2`,
+   `OSERDESE2`, `IDELAYCTRL`, `BUFIO`, `BUFR`, `BUFG`, and DDR3 clock output
+   cells from those routed JSON files.
+3. Compare the demo XDC electrical constraints against
+   `example_demo/ypcb_00338_1p1/ypcb_00338_1p1.xdc`, especially `VCCAUX_IO`,
+   internal/external VREF assumptions, DM usage, ODT, DQS polarity, and CK
+   forwarding.
+4. If the demos build cleanly under current nextpnr-xilinx, use LiteX/LiteDRAM
+   to generate a minimal YPCB channel-0 DDR3 BIST top. Keep this branch separate
+   from the UberDDR3 frozen-shell branch.
+5. Hardware-test the YPCB LiteDRAM BIST as a reference path. If it calibrates,
+   its routed JSON becomes an open-flow placement oracle. If it does not, use
+   its failure mode to separate board/electrical problems from UberDDR3-specific
+   PHY/control problems.
+
+Decision rule:
+
+- Continue UberDDR3 frozen-shell work for the known v95 command-enabled
+  calibration foothold.
+- Use Vivado/MIG as the official architectural oracle for the YPCB channel-0
+  DDR3 settings and timing.
+- Use OpenXC7 LiteX/LiteDRAM demos as the open-source implementation oracle. If
+  the LiteDRAM YPCB BIST calibrates sooner than UberDDR3 reaches full 64-byte
+  read/write, pivot the full driver proof to LiteDRAM while preserving UberDDR3
+  evidence for upstream bug reports and nextpnr fixes.
