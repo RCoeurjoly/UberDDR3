@@ -93,6 +93,37 @@ Observed:
 - `wb_error=false`
 - readback `wb_rdata=0x12345678`
 
+The host can also run the generated LiteDRAM DDR3 DFII initialization sequence
+through raw Wishbone:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py init-ddr3 \
+  --json-only \
+  --timeout-s 2
+```
+
+Observed:
+
+- `ddrphy_rdphase` is set to `1`
+- `ddrphy_wrphase` is set to `2`
+- `ddrphy_rst` is pulsed
+- DFII software control is enabled
+- DDR3 reset release, CKE, MR2, MR3, MR1, MR0, and ZQ calibration commands all
+  complete through CSR writes
+- final `sdram_dfii_control` is set back to hardware control, `0x1`
+
+After this sequence, a small BIST still fails:
+
+- `generator_done=true`
+- `checker_done=true`
+- `checker_errors=8`
+- `pass=false`
+
+This means raw CSR initialization is now working, but LiteDRAM leveling /
+calibration is still missing or the open-flow bitstream is still electrically
+wrong.
+
 A small BIST run executes both sides but does not pass yet:
 
 ```sh
@@ -120,7 +151,7 @@ working DDR3 yet.
 
 The next blockers are:
 
-1. Drive LiteDRAM initialization/calibration through the raw Wishbone CSR path.
+1. Port LiteDRAM read-leveling/calibration over the raw Wishbone CSR path.
 2. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
    counters are advancing.
 3. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or

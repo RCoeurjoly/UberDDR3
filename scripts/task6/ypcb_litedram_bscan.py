@@ -31,6 +31,66 @@ OP_SET_RANDOM = 0x22
 OP_WB_WRITE = 0x30
 OP_WB_READ = 0x31
 
+DFII_CONTROL_SEL = 0x01
+DFII_CONTROL_CKE = 0x02
+DFII_CONTROL_ODT = 0x04
+DFII_CONTROL_RESET_N = 0x08
+
+DFII_CONTROL_SOFTWARE = DFII_CONTROL_CKE | DFII_CONTROL_ODT | DFII_CONTROL_RESET_N
+DFII_CONTROL_HARDWARE = DFII_CONTROL_SEL
+
+DFII_COMMAND_CS = 0x01
+DFII_COMMAND_WE = 0x02
+DFII_COMMAND_CAS = 0x04
+DFII_COMMAND_RAS = 0x08
+
+CSR_DDRPHY_RST = 0x0800
+CSR_DDRPHY_RDPHASE = 0x082C
+CSR_DDRPHY_WRPHASE = 0x0830
+CSR_SDRAM_DFII_CONTROL = 0x1800
+CSR_SDRAM_DFII_PI0_COMMAND = 0x1804
+CSR_SDRAM_DFII_PI0_COMMAND_ISSUE = 0x1808
+CSR_SDRAM_DFII_PI0_ADDRESS = 0x180C
+CSR_SDRAM_DFII_PI0_BADDRESS = 0x1810
+
+LITEDRAM_DDR3_INIT_SEQUENCE = (
+    ("Release reset", 0x0000, 0, DFII_CONTROL_ODT | DFII_CONTROL_RESET_N, 50000, "control"),
+    ("Bring CKE high", 0x0000, 0, DFII_CONTROL_SOFTWARE, 10000, "control"),
+    (
+        "Load Mode Register 2, CWL=6",
+        0x0208,
+        2,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+        0,
+        "command",
+    ),
+    (
+        "Load Mode Register 3",
+        0x0000,
+        3,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+        0,
+        "command",
+    ),
+    (
+        "Load Mode Register 1",
+        0x0006,
+        1,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+        0,
+        "command",
+    ),
+    (
+        "Load Mode Register 0, CL=8, BL=8",
+        0x0940,
+        0,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+        200,
+        "command",
+    ),
+    ("ZQ Calibration", 0x0400, 0, DFII_COMMAND_WE | DFII_COMMAND_CS, 200, "command"),
+)
+
 
 def make_client(args: argparse.Namespace):
     if args.backend == "mpsse":
@@ -167,6 +227,81 @@ def wishbone_transaction(
         time.sleep(args.poll_s)
 
 
+def wb_write_checked(client, args: argparse.Namespace, addr: int, data: int) -> dict[str, object]:
+    result = wishbone_transaction(client, args, OP_WB_WRITE, addr, data)
+    if not result["pass"]:
+        raise RuntimeError(f"Wishbone write failed at 0x{addr:08x}: {json.dumps(result, sort_keys=True)}")
+    return result
+
+
+def wb_read_checked(client, args: argparse.Namespace, addr: int) -> tuple[int, dict[str, object]]:
+    result = wishbone_transaction(client, args, OP_WB_READ, addr)
+    if not result["pass"]:
+        raise RuntimeError(f"Wishbone read failed at 0x{addr:08x}: {json.dumps(result, sort_keys=True)}")
+    return result["after"]["wb_rdata_int"], result
+
+
+def cdelay(args: argparse.Namespace, cycles: int) -> None:
+    if cycles <= 0:
+        return
+    time.sleep(max(cycles / args.sys_clk_freq, args.min_delay_s))
+
+
+def dfii_command_p0(client, args: argparse.Namespace, address: int, bank: int, command: int) -> None:
+    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_ADDRESS, address)
+    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_BADDRESS, bank)
+    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_COMMAND, command)
+    wb_write_checked(client, args, CSR_SDRAM_DFII_PI0_COMMAND_ISSUE, 1)
+
+
+def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
+    steps = []
+
+    def record(name: str, **extra) -> None:
+        status = read_status(client, args)
+        entry = {"name": name, "status": status}
+        entry.update(extra)
+        steps.append(entry)
+
+    before = read_status(client, args)
+    wb_write_checked(client, args, CSR_DDRPHY_RDPHASE, 1)
+    wb_write_checked(client, args, CSR_DDRPHY_WRPHASE, 2)
+    record("set read/write phases")
+
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_SOFTWARE)
+    record("software control on")
+
+    wb_write_checked(client, args, CSR_DDRPHY_RST, 1)
+    cdelay(args, 1000)
+    wb_write_checked(client, args, CSR_DDRPHY_RST, 0)
+    cdelay(args, 1000)
+    record("ddrphy reset pulse")
+
+    for comment, address, bank, command, delay, kind in LITEDRAM_DDR3_INIT_SEQUENCE:
+        if kind == "control":
+            wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, command)
+        else:
+            dfii_command_p0(client, args, address, bank, command)
+        cdelay(args, delay)
+        record(comment, address=address, bank=bank, command=command, kind=kind)
+
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_HARDWARE)
+    after = read_status(client, args)
+    return {
+        "before": before,
+        "steps": steps,
+        "after": after,
+        "pass": (
+            before["magic_ok"]
+            and after["magic_ok"]
+            and after["sys_reset_deasserted"]
+            and after["wb_done"]
+            and not after["wb_timeout"]
+            and not after["wb_error"]
+        ),
+    }
+
+
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     before = read_status(client, args)
     write_command(client, args, OP_RESET_BIST)
@@ -223,6 +358,7 @@ def parse_args() -> argparse.Namespace:
             "start-checker",
             "wb-read",
             "wb-write",
+            "init-ddr3",
             "memtest",
         ),
     )
@@ -247,6 +383,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--settle-s", type=float, default=0.05)
     parser.add_argument("--poll-s", type=float, default=0.1)
     parser.add_argument("--timeout-s", type=float, default=5.0)
+    parser.add_argument("--sys-clk-freq", type=float, default=125e6)
+    parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
     return parser.parse_args()
@@ -286,6 +424,8 @@ def main() -> int:
             result = wishbone_transaction(client, args, OP_WB_WRITE, args.addr, args.data)
         elif args.action == "wb-read":
             result = wishbone_transaction(client, args, OP_WB_READ, args.addr)
+        elif args.action == "init-ddr3":
+            result = run_ddr3_init(client, args)
         else:
             result = run_memtest(client, args)
     finally:
