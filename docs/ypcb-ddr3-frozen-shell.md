@@ -1295,6 +1295,46 @@ path candidate after the four-lane reference is understood. Run it inside
 the output path so LiteX/OpenXC7 does not try to write generated chipdb files
 into the Nix store.
 
+2026-05-16 synthesis/PNR result:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-4lane \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --byte-groups 0,1,2,3 \
+  --build
+
+OUT=artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-64bit \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --byte-groups 0,1,2,3,4,5,6,7 \
+  --build
+```
+
+Both builds completed synthesis, placement, routing, FASM generation, and
+bitstream generation. The key artifacts are:
+
+| Scope | Bitstream | Routed JSON |
+| --- | --- | --- |
+| 4 byte groups | `artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-4lane/gateware/ypcb_00338_1p1.bit` | `artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-4lane/gateware/ypcb_00338_1p1_routed.json` |
+| 8 byte groups / 64-bit channel | `artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-64bit/gateware/ypcb_00338_1p1.bit` | `artifacts/task6/litedram-reference/ypcb-bist-openxc7-build-64bit/gateware/ypcb_00338_1p1_routed.json` |
+
+This is a useful milestone because the reduced LiteDRAM BIST design avoids the
+full LiteX/VexRiscv `$scopeinfo` placement failure and produces complete
+OpenXC7 artifacts for the YPCB part.
+
+It is not yet a clean hardware candidate. nextpnr reported timing failures on
+the generated 200 MHz LiteDRAM domain: the 4-byte build reached about
+104 MHz on `from154_clk`, and the 64-bit build reached about 80 MHz on
+`from154_clk` after routing. The 64-bit route did complete legally and the
+other generated clocks passed the visible 200 MHz target. The flow also
+reported that `INTERNAL_VREF` constraints were removed because they are not
+yet supported by the yosys-nextpnr path. Hardware testing should therefore be
+treated as exploratory until the LiteDRAM clock constraints/electrical
+features are reconciled with the YPCB open-flow backend.
+
 Decision rule:
 
 - Continue UberDDR3 frozen-shell work for the known v95 command-enabled
