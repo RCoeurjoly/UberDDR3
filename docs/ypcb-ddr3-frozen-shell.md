@@ -1465,3 +1465,40 @@ Vivado work is not to prove calibration again, but to extract comparable
 placement/timing evidence from `post-route-debug.dcp` and to build a smaller
 MIG traffic/status endpoint if the full systest design is too large or noisy for
 controller-level comparison.
+
+2026-05-16 OpenXC7 BSCAN smoke result:
+
+- Added a raw BSCANE2 smoke design outside LiteX/JTAGBone:
+  `example_demo/ypcb_00338_1p1/ypcb_bscan_smoke.sv`.
+- The design exposes:
+  - USER1 / IR `0x02`: 128-bit readback payload with magic `0x42535244`,
+    counter, scratch register, command count, status.
+  - USER2 / IR `0x03`: 96-bit write command with magic `0x4253434e`, opcode,
+    and 32-bit scratch payload.
+- The hardware utility is `scripts/task6/ypcb_bscan_smoke.py`. It defaults to
+  the Digilent HS3 MPSSE TDO bit that works on this setup, `--tdo-bit 7`.
+- End-to-end command:
+
+```sh
+nix develop .#default --command make -C example_demo/ypcb_00338_1p1 \
+  hil-bscan-smoke \
+  PNR_ARGS="--seed 0" \
+  PNR_DEBUG="--write ../../artifacts/task6/bscan-smoke/nextpnr-routed.seed0.json"
+```
+
+- This built with Yosys/OpenXC7, routed legally, generated a bitstream,
+  programmed the YPCB board with OpenOCD, and passed the direct BSCAN
+  read/write check.
+- Observed hardware behavior:
+  - readback magic matched `0x42535244`;
+  - free-running counter advanced;
+  - scratch write to `0x5a17c0de` read back correctly;
+  - scratch clear read back as zero;
+  - command count advanced.
+
+This resolves the previous control-plane blocker: the board and OpenXC7
+bitstream can support a reliable direct JTAG/BSCAN status path. Do not use
+LiteX JTAGBone as the first calibration oracle for YPCB. The next open-flow
+step is to attach this raw BSCAN status/control endpoint to the LiteDRAM BIST
+design and expose calibration/BIST state through the proven USER1/USER2
+contract.

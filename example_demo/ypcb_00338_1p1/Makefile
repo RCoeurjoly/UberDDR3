@@ -3,6 +3,7 @@ BIST_PROJECT = ypcb_00338_1p1_uberddr3_bist
 ROWSTREAM_PROJECT = ypcb_00338_1p1_uberddr3_rowstream_loader
 ROWSTREAM_FULLBEAT_PROJECT = ypcb_00338_1p1_uberddr3_rowstream_fullbeat
 CALIB_PROJECT = ypcb_00338_1p1_uberddr3_calib_only
+BSCAN_SMOKE_PROJECT = ypcb_bscan_smoke
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 DBPART = $(shell echo ${PART} | sed -e 's/-[0-9].*//g')
@@ -14,6 +15,7 @@ BIST_XDC = ${BIST_PROJECT}.xdc
 ROWSTREAM_XDC = ${ROWSTREAM_PROJECT}.xdc
 ROWSTREAM_FULLBEAT_XDC = ${ROWSTREAM_FULLBEAT_PROJECT}.xdc
 CALIB_XDC = ${CALIB_PROJECT}.xdc
+BSCAN_SMOKE_XDC = ${BSCAN_SMOKE_PROJECT}.xdc
 CHIPDB ?= .
 CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
 ifeq ($(suffix ${CHIPDB}),.bin)
@@ -139,6 +141,9 @@ CALIB_SOURCES = \
 	../../rtl/ecc/ecc_dec.sv \
 	../../rtl/ecc/ecc_enc.sv
 
+BSCAN_SMOKE_SOURCES = \
+	${BSCAN_SMOKE_PROJECT}.sv
+
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
@@ -160,6 +165,38 @@ rowstream-fullbeat-v40-locked: ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit
 .PHONY: calib-v40-locked
 calib-v40-locked: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
 calib-v40-locked: ${CALIB_PROJECT}_openxc7.bit
+
+.PHONY: bscan-smoke
+bscan-smoke: PNR_PRE_PACK =
+bscan-smoke: APPEND_YPCB_VREF = 0
+bscan-smoke:
+	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
+	$(MAKE) ${BSCAN_SMOKE_PROJECT}_openxc7.bit PNR_PRE_PACK= APPEND_YPCB_VREF=0 PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: bscan-smoke-bit
+bscan-smoke-bit: PNR_PRE_PACK =
+bscan-smoke-bit: APPEND_YPCB_VREF = 0
+bscan-smoke-bit: ${BSCAN_SMOKE_PROJECT}_openxc7.bit
+
+.PHONY: program-bscan-smoke-openocd
+program-bscan-smoke-openocd: PNR_PRE_PACK =
+program-bscan-smoke-openocd: APPEND_YPCB_VREF = 0
+program-bscan-smoke-openocd: ${BSCAN_SMOKE_PROJECT}_openxc7.bit
+	openocd -f interface/ftdi/digilent_jtag_hs3.cfg \
+		-c "adapter serial ${FTDI_SERIAL}" \
+		-f cpld/xilinx-xc7.cfg \
+		-c "adapter speed ${OPENOCD_ADAPTER_SPEED}" \
+		-c "init" \
+		-c "pld load 0 $<" \
+		-c "exit"
+
+.PHONY: hil-bscan-smoke
+hil-bscan-smoke: bscan-smoke
+	${MAKE} program-bscan-smoke-openocd
+	cd ${REPO_ROOT} && python3 scripts/task6/ypcb_bscan_smoke.py \
+		--serial ${FTDI_SERIAL} \
+		--tdo-bit 7 \
+		check
 
 .PHONY: rowstream-v40-json
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
@@ -397,6 +434,9 @@ ${ROWSTREAM_FULLBEAT_PROJECT}.json: ${ROWSTREAM_FULLBEAT_SOURCES} Makefile
 ${CALIB_PROJECT}.json: ${CALIB_SOURCES} Makefile
 	yosys ${YOSYS_DEFINES} ${CALIB_YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${CALIB_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${CALIB_SOURCES}
 
+${BSCAN_SMOKE_PROJECT}.json: ${BSCAN_SMOKE_SOURCES} Makefile
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${BSCAN_SMOKE_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${BSCAN_SMOKE_SOURCES}
+
 ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py
 	python3 ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py \
 		--locks-json ${V40_BEL_LOCKS} \
@@ -446,6 +486,9 @@ ${CALIB_PROJECT}.fasm: ${CALIB_PROJECT}.json ${CHIPDB_BIN} ${CALIB_XDC} ypcb_vre
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${CALIB_XDC} --json ${CALIB_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 
+${BSCAN_SMOKE_PROJECT}.fasm: ${BSCAN_SMOKE_PROJECT}.json ${CHIPDB_BIN} ${BSCAN_SMOKE_XDC}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${BSCAN_SMOKE_XDC} --json ${BSCAN_SMOKE_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
@@ -459,6 +502,9 @@ ${ROWSTREAM_FULLBEAT_PROJECT}.frames: ${ROWSTREAM_FULLBEAT_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${CALIB_PROJECT}.frames: ${CALIB_PROJECT}.fasm
+	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
+
+${BSCAN_SMOKE_PROJECT}.frames: ${BSCAN_SMOKE_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
@@ -476,6 +522,9 @@ ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit: ${ROWSTREAM_FULLBEAT_PROJECT}.frames
 ${CALIB_PROJECT}_openxc7.bit: ${CALIB_PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+${BSCAN_SMOKE_PROJECT}_openxc7.bit: ${BSCAN_SMOKE_PROJECT}.frames
+	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
 .PHONY: clean
 clean:
 	rm -f ${PROJECT}_openxc7.bit ${PROJECT}.frames ${PROJECT}.fasm ${PROJECT}.json \
@@ -483,4 +532,5 @@ clean:
 		${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_PROJECT}.frames ${ROWSTREAM_PROJECT}.fasm ${ROWSTREAM_PROJECT}.json \
 		${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_PROJECT}.frames ${ROWSTREAM_FULLBEAT_PROJECT}.fasm ${ROWSTREAM_FULLBEAT_PROJECT}.json \
 		${CALIB_PROJECT}_openxc7.bit ${CALIB_PROJECT}.frames ${CALIB_PROJECT}.fasm ${CALIB_PROJECT}.json \
+		${BSCAN_SMOKE_PROJECT}_openxc7.bit ${BSCAN_SMOKE_PROJECT}.frames ${BSCAN_SMOKE_PROJECT}.fasm ${BSCAN_SMOKE_PROJECT}.json \
 		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${CALIB_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS} ${GENERATED_CALIB_PRE_PLACE_BEL_LOCKS}
