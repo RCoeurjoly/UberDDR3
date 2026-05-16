@@ -45,12 +45,7 @@ class _CRG(Module):
 
 
 class RawBSCANLiteDRAMBIST(Module):
-    def __init__(self, platform, soc, byte_group_mask):
-        generator_port = soc.sdram.crossbar.get_port()
-        checker_port = soc.sdram.crossbar.get_port()
-        self.submodules.generator = generator = _LiteDRAMBISTGenerator(generator_port)
-        self.submodules.checker = checker = _LiteDRAMBISTChecker(checker_port)
-
+    def __init__(self, platform, soc, byte_group_mask, with_bist=True):
         bist_reset = Signal()
         generator_start = Signal()
         checker_start = Signal()
@@ -58,8 +53,40 @@ class RawBSCANLiteDRAMBIST(Module):
         bist_length = Signal(32)
         bist_random_data = Signal()
         bist_random_addr = Signal()
+        generator_done = Signal()
+        generator_ticks = Signal(32)
+        checker_done = Signal()
+        checker_ticks = Signal(32)
+        checker_errors = Signal(32)
         self.wishbone = wishbone.Interface(data_width=32, adr_width=30)
         soc.bus.add_master(name="raw_bscan", master=self.wishbone)
+
+        if with_bist:
+            generator_port = soc.sdram.crossbar.get_port()
+            checker_port = soc.sdram.crossbar.get_port()
+            self.submodules.generator = generator = _LiteDRAMBISTGenerator(generator_port)
+            self.submodules.checker = checker = _LiteDRAMBISTChecker(checker_port)
+            self.comb += [
+                generator.reset.eq(bist_reset),
+                generator.start.eq(generator_start),
+                generator.base.eq(bist_base),
+                generator.end.eq(bist_base + bist_length),
+                generator.length.eq(bist_length),
+                generator.random_data.eq(bist_random_data),
+                generator.random_addr.eq(bist_random_addr),
+                checker.reset.eq(bist_reset),
+                checker.start.eq(checker_start),
+                checker.base.eq(bist_base),
+                checker.end.eq(bist_base + bist_length),
+                checker.length.eq(bist_length),
+                checker.random_data.eq(bist_random_data),
+                checker.random_addr.eq(bist_random_addr),
+                generator_done.eq(generator.done),
+                generator_ticks.eq(generator.ticks),
+                checker_done.eq(checker.done),
+                checker_ticks.eq(checker.ticks),
+                checker_errors.eq(checker.errors),
+            ]
 
         platform.add_source(
             os.path.join(
@@ -81,11 +108,11 @@ class RawBSCANLiteDRAMBIST(Module):
             i_idelay_clk=ClockSignal("idelay"),
             i_rst_n_raw=soc.crg.rst_n,
             i_pll_locked=soc.crg.pll.locked,
-            i_generator_done=generator.done,
-            i_generator_ticks=generator.ticks,
-            i_checker_done=checker.done,
-            i_checker_ticks=checker.ticks,
-            i_checker_errors=checker.errors,
+            i_generator_done=generator_done,
+            i_generator_ticks=generator_ticks,
+            i_checker_done=checker_done,
+            i_checker_ticks=checker_ticks,
+            i_checker_errors=checker_errors,
             o_bist_reset=bist_reset,
             o_generator_start=generator_start,
             o_checker_start=checker_start,
@@ -107,20 +134,6 @@ class RawBSCANLiteDRAMBIST(Module):
         self.comb += [
             self.wishbone.cti.eq(0),
             self.wishbone.bte.eq(0),
-            generator.reset.eq(bist_reset),
-            generator.start.eq(generator_start),
-            generator.base.eq(bist_base),
-            generator.end.eq(bist_base + bist_length),
-            generator.length.eq(bist_length),
-            generator.random_data.eq(bist_random_data),
-            generator.random_addr.eq(bist_random_addr),
-            checker.reset.eq(bist_reset),
-            checker.start.eq(checker_start),
-            checker.base.eq(bist_base),
-            checker.end.eq(bist_base + bist_length),
-            checker.length.eq(bist_length),
-            checker.random_data.eq(bist_random_data),
-            checker.random_addr.eq(bist_random_addr),
         ]
 
 
@@ -183,7 +196,12 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             byte_group_mask = 0
             for group in byte_groups:
                 byte_group_mask |= 1 << group
-            self.submodules.raw_bscan_bist = RawBSCANLiteDRAMBIST(self.platform, self, byte_group_mask)
+            self.submodules.raw_bscan_bist = RawBSCANLiteDRAMBIST(
+                self.platform,
+                self,
+                byte_group_mask,
+                with_bist=with_bist,
+            )
 
 
 def parse_byte_groups(value):
