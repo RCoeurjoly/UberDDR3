@@ -1369,3 +1369,69 @@ Decision rule:
   the LiteDRAM YPCB BIST calibrates sooner than UberDDR3 reaches full 64-byte
   read/write, pivot the full driver proof to LiteDRAM while preserving UberDDR3
   evidence for upstream bug reports and nextpnr fixes.
+
+2026-05-16 Vivado oracle implementation:
+
+- Vivado 2025.2.1 is installed at
+  `/home/roland/Vivado/2025.2.1/Vivado/bin/vivado`.
+- The install recognizes both `xc7k480tffg1156-2` and
+  `xc7k480tffg1156-1`.
+- The standalone IP-catalog query does not list `mig_7series`, but the existing
+  YPCB systest project opens and contains locked/generated MIG IP instances:
+  `top_mig_7series_0_0`, `top_rst_mig_7series_0_133M_1_1`, and
+  `top_rst_mig_7series_0_133M_2`.
+- The repo wrapper for the Vivado oracle is:
+
+```sh
+scripts/task6/run_ypcb_vivado_oracle.sh check
+scripts/task6/run_ypcb_vivado_oracle.sh prepare-ip
+scripts/task6/run_ypcb_vivado_oracle.sh build
+scripts/task6/run_ypcb_vivado_oracle.sh export
+scripts/task6/run_ypcb_vivado_oracle.sh debug-nets
+scripts/task6/run_ypcb_vivado_oracle.sh program
+```
+
+Defaults:
+
+- `YPCB_VIVADO_PROJECT=/home/roland/ypcb_00338_1p1_hack/examples/YPCB_00338_1P1_systest/YPCB_00338_1P1_systest.xpr`
+- `YPCB_BOARD_REPO=/home/roland/ypcb_00338_1p1_hack`
+- `OUT=artifacts/task6/vivado-oracle/ypcb-systest`
+- `YPCB_VIVADO_HW_SERIAL=210299BF3824`
+
+The wrapper writes a check summary, implemented checkpoint, bitstream, debug
+probe file if present, timing/IO/clock/utilization/DRC reports, implemented XDC,
+and `ddr3-primitive-placement.csv`. That CSV is the first Vivado placement
+oracle to compare against OpenXC7 routed JSON for hard DDR3/clock resources.
+If `build` reports `module ... not found` for locked IPs, run `prepare-ip`
+first; it records `ip-status-before.rpt`, attempts IP upgrades where Vivado has
+current catalog definitions, regenerates block-design output products, and
+records `ip-status-after.rpt`.
+
+Observed run:
+
+- `build` completed through bitstream generation on 2026-05-16 with Vivado
+  2025.2.1.
+- The exported bitstream is
+  `artifacts/task6/vivado-oracle/ypcb-systest/top_wrapper.bit`.
+- DRC has warnings only; no DRC errors.
+- Final timing has one setup failure: WNS/TNS `-0.007 ns` on a PCIe
+  `userclk1` path, not on the DDR3/MIG clocks. Treat the artifact as useful for
+  DDR3 oracle extraction, while not yet a clean signoff build.
+- `program` successfully programmed the connected YPCB board through Vivado
+  hw_server on Digilent serial `210299BF3824`.
+- Vivado reported that the programmed design has no supported soft debug cores,
+  so calibration pass/fail is not directly observable yet from the bitstream.
+- `debug-nets` exports `calibration-debug-nets.txt`; the top-level observable
+  nets include `top_i/mig_7series_0/c0_init_calib_complete`,
+  `top_i/mig_7series_0/c1_init_calib_complete`,
+  `top_i/mig_7series_0/c0_ui_clk_sync_rst`,
+  `top_i/mig_7series_0/c1_ui_clk_sync_rst`,
+  `top_i/mig_7series_0/c0_mmcm_locked`, and
+  `top_i/mig_7series_0/c1_mmcm_locked`.
+
+Next Vivado oracle step: add a separate debug bitstream path that probes those
+six nets with a Vivado ILA, or build a smaller MIG example design with
+`init_calib_complete` wired directly to an ILA/VIO or LED/GPIO status register.
+The full systest bitstream proves that Vivado can generate and program the
+board-level DDR3 design, but it does not yet prove calibration because the
+current exported design lacks a readable calibration-status endpoint.
