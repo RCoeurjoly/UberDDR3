@@ -1279,6 +1279,19 @@ acceptance artifact because it exposes only four byte groups through
 default, but it is now the reproducible baseline for building the smaller
 YPCB LiteDRAM BIST/reference branch.
 
+The repo-local BIST reference generator is:
+
+```sh
+scripts/task6/generate_ypcb_litedram_bist_reference.sh
+```
+
+That script keeps the YPCB clocking and platform constraints, adds LiteDRAM
+BIST generator/checker CSRs, and enables JTAGBone so the design has a direct
+hardware control path without a soft CPU. By default it keeps the same
+four-byte-lane scope as the stock LiteX YPCB target. Use
+`--byte-groups 0,1,2,3,4,5,6,7` to generate the full 64-bit channel-0 data
+path candidate after the four-lane reference is understood.
+
 Decision rule:
 
 - Continue UberDDR3 frozen-shell work for the known v95 command-enabled
