@@ -14,10 +14,10 @@ ACTION="${1:-check}"
 shift || true
 
 case "${ACTION}" in
-  check|prepare-ip|build|export|debug-nets|program)
+  check|prepare-ip|build|export|debug-nets|debug-build|program|program-debug|read-debug)
     ;;
   *)
-    printf 'Usage: %s [check|prepare-ip|build|export|debug-nets|program]\n' "$0" >&2
+    printf 'Usage: %s [check|prepare-ip|build|export|debug-nets|debug-build|program|program-debug|read-debug]\n' "$0" >&2
     exit 2
     ;;
 esac

@@ -125,6 +125,7 @@ proc write_calibration_debug_net_report {out_dir} {
     set net_patterns [list \
         *init_calib* \
         *calib_complete* \
+        *ui_clk* \
         *ui_clk_sync_rst* \
         *mmcm_locked* \
         *pll_locked* \
@@ -148,6 +149,7 @@ proc write_calibration_debug_net_report {out_dir} {
     set pin_patterns [list \
         *init_calib* \
         *calib_complete* \
+        *ui_clk* \
         *ui_clk_sync_rst* \
         *mmcm_locked* \
         *pll_locked* \
@@ -166,6 +168,148 @@ proc write_calibration_debug_net_report {out_dir} {
 
     close $fh
     puts "Calibration debug net report written to $path"
+}
+
+proc require_one_net {pattern} {
+    set nets [get_nets -hier -quiet $pattern]
+    if {[llength $nets] == 0 && ![regexp {[*?]} $pattern]} {
+        set leaf [lindex [split $pattern /] end]
+        foreach net [get_nets -hier -quiet *$leaf] {
+            if {[get_property NAME $net] eq $pattern} {
+                return $net
+            }
+        }
+        set nets [get_nets -hier -quiet *$leaf]
+    }
+    if {[llength $nets] != 1} {
+        error "Expected exactly one net for '$pattern', found [llength $nets]: $nets"
+    }
+    return [lindex $nets 0]
+}
+
+proc insert_calibration_ila {out_dir} {
+    file mkdir $out_dir
+
+    set clk [require_one_net {top_i/mig_7series_0/c0_ui_clk}]
+    set probes [list \
+        {top_i/mig_7series_0/c0_init_calib_complete} \
+        {top_i/mig_7series_0/c1_init_calib_complete} \
+        {top_i/mig_7series_0/c0_ui_clk_sync_rst} \
+        {top_i/mig_7series_0/c1_ui_clk_sync_rst} \
+        {top_i/mig_7series_0/c0_mmcm_locked} \
+        {top_i/mig_7series_0/c1_mmcm_locked} \
+    ]
+
+    set debug_core [create_debug_core ypcb_mig_calib_ila ila]
+    set_property C_DATA_DEPTH 1024 $debug_core
+    set_property C_TRIGIN_EN false $debug_core
+    set_property C_TRIGOUT_EN false $debug_core
+    set_property C_INPUT_PIPE_STAGES 1 $debug_core
+    connect_debug_port $debug_core/clk $clk
+
+    set manifest "clock=$clk\n"
+    set idx 0
+    foreach pattern $probes {
+        if {$idx > 0} {
+            create_debug_port $debug_core probe
+        }
+        set net [require_one_net $pattern]
+        set probe_port "$debug_core/probe$idx"
+        set probe_obj [get_debug_ports $probe_port]
+        if {[llength $probe_obj] == 0} {
+            error "Missing debug port $probe_port"
+        }
+        set_property port_width 1 $probe_obj
+        connect_debug_port $probe_port $net
+        append manifest "probe$idx=$net\n"
+        incr idx
+    }
+    write_file [file join $out_dir "calibration-ila-probes.txt"] $manifest
+
+    opt_design
+    place_design
+    phys_opt_design
+    route_design
+    report_timing_summary -delay_type max -report_unconstrained -max_paths 20 -file [file join $out_dir "debug-timing-summary.rpt"]
+    report_drc -file [file join $out_dir "debug-drc.rpt"]
+    write_debug_probes -force [file join $out_dir "top_wrapper_debug.ltx"]
+    write_checkpoint -force [file join $out_dir "post-route-debug.dcp"]
+    write_bitstream -force [file join $out_dir "top_wrapper_debug.bit"]
+    puts "Vivado calibration ILA bitstream written to [file join $out_dir top_wrapper_debug.bit]"
+}
+
+proc open_ypcb_hw_device {serial} {
+    open_hw_manager
+    connect_hw_server
+
+    set targets [get_hw_targets -quiet *$serial*]
+    if {[llength $targets] == 0} {
+        set targets [get_hw_targets -quiet *]
+    }
+    if {[llength $targets] == 0} {
+        error "No hardware targets found"
+    }
+    open_hw_target [lindex $targets 0]
+
+    set devs [get_hw_devices -quiet *xc7k480t*]
+    if {[llength $devs] == 0} {
+        set devs [get_hw_devices -quiet *]
+    }
+    if {[llength $devs] == 0} {
+        error "No hardware devices found"
+    }
+    set dev [lindex $devs 0]
+    current_hw_device $dev
+    return $dev
+}
+
+proc program_bitstream {out_dir serial bit_name ltx_name} {
+    set bit [file join $out_dir $bit_name]
+    set ltx [file join $out_dir $ltx_name]
+    if {![file exists $bit]} {
+        error "No bitstream found at $bit"
+    }
+
+    set dev [open_ypcb_hw_device $serial]
+    set_property PROGRAM.FILE $bit $dev
+    if {[file exists $ltx]} {
+        set_property PROBES.FILE $ltx $dev
+    }
+    program_hw_devices $dev
+    refresh_hw_device $dev
+    puts "Programmed $bit"
+    close_hw_manager
+}
+
+proc read_calibration_ila {out_dir serial} {
+    set ltx [file join $out_dir "top_wrapper_debug.ltx"]
+    set dev [open_ypcb_hw_device $serial]
+    if {[file exists $ltx]} {
+        set_property PROBES.FILE $ltx $dev
+        refresh_hw_device $dev
+    }
+
+    set ilas [get_hw_ilas -quiet *ypcb_mig_calib_ila*]
+    if {[llength $ilas] == 0} {
+        set ilas [get_hw_ilas -quiet *]
+    }
+    if {[llength $ilas] == 0} {
+        error "No hardware ILA cores found"
+    }
+    set ila [lindex $ilas 0]
+
+    set probes [get_hw_probes -of_objects $ila]
+    foreach probe $probes {
+        set_property TRIGGER_COMPARE_VALUE eq1'bX $probe
+    }
+    run_hw_ila $ila
+    wait_on_hw_ila $ila
+    upload_hw_ila_data $ila
+
+    set csv [file join $out_dir "calibration-ila-readback.csv"]
+    write_hw_ila_data -force -csv_file $csv [current_hw_ila_data]
+    puts "Calibration ILA readback written to $csv"
+    close_hw_manager
 }
 
 set action "check"
@@ -253,6 +397,13 @@ if {$action eq "debug-nets"} {
     exit
 }
 
+if {$action eq "debug-build"} {
+    open_run synth_1
+    insert_calibration_ila $out_dir
+    close_project
+    exit
+}
+
 if {$action eq "program"} {
     set bit [lindex [glob -nocomplain [file join $out_dir "*.bit"]] 0]
     set ltx [lindex [glob -nocomplain [file join $out_dir "*.ltx"]] 0]
@@ -277,6 +428,18 @@ if {$action eq "program"} {
     refresh_hw_device $dev
     puts "Programmed $bit"
     close_hw_manager
+    close_project
+    exit
+}
+
+if {$action eq "program-debug"} {
+    program_bitstream $out_dir $serial "top_wrapper_debug.bit" "top_wrapper_debug.ltx"
+    close_project
+    exit
+}
+
+if {$action eq "read-debug"} {
+    read_calibration_ila $out_dir $serial
     close_project
     exit
 }

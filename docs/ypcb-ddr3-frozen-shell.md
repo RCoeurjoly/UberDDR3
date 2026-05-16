@@ -1388,7 +1388,10 @@ scripts/task6/run_ypcb_vivado_oracle.sh prepare-ip
 scripts/task6/run_ypcb_vivado_oracle.sh build
 scripts/task6/run_ypcb_vivado_oracle.sh export
 scripts/task6/run_ypcb_vivado_oracle.sh debug-nets
+scripts/task6/run_ypcb_vivado_oracle.sh debug-build
 scripts/task6/run_ypcb_vivado_oracle.sh program
+scripts/task6/run_ypcb_vivado_oracle.sh program-debug
+scripts/task6/run_ypcb_vivado_oracle.sh read-debug
 ```
 
 Defaults:
@@ -1419,8 +1422,9 @@ Observed run:
   DDR3 oracle extraction, while not yet a clean signoff build.
 - `program` successfully programmed the connected YPCB board through Vivado
   hw_server on Digilent serial `210299BF3824`.
-- Vivado reported that the programmed design has no supported soft debug cores,
-  so calibration pass/fail is not directly observable yet from the bitstream.
+- Vivado reported that the original programmed design has no supported soft
+  debug cores, so calibration pass/fail is not directly observable from
+  `top_wrapper.bit`.
 - `debug-nets` exports `calibration-debug-nets.txt`; the top-level observable
   nets include `top_i/mig_7series_0/c0_init_calib_complete`,
   `top_i/mig_7series_0/c1_init_calib_complete`,
@@ -1429,9 +1433,35 @@ Observed run:
   `top_i/mig_7series_0/c0_mmcm_locked`, and
   `top_i/mig_7series_0/c1_mmcm_locked`.
 
-Next Vivado oracle step: add a separate debug bitstream path that probes those
-six nets with a Vivado ILA, or build a smaller MIG example design with
-`init_calib_complete` wired directly to an ILA/VIO or LED/GPIO status register.
-The full systest bitstream proves that Vivado can generate and program the
-board-level DDR3 design, but it does not yet prove calibration because the
-current exported design lacks a readable calibration-status endpoint.
+2026-05-16 Vivado ILA calibration result:
+
+- `debug-build` opens the synthesized design, inserts one Vivado ILA clocked by
+  `top_i/mig_7series_0/c0_ui_clk`, probes the six nets above, re-runs
+  implementation, and writes:
+  - `artifacts/task6/vivado-oracle/ypcb-systest/top_wrapper_debug.bit`
+  - `artifacts/task6/vivado-oracle/ypcb-systest/top_wrapper_debug.ltx`
+  - `artifacts/task6/vivado-oracle/ypcb-systest/post-route-debug.dcp`
+  - `artifacts/task6/vivado-oracle/ypcb-systest/calibration-ila-probes.txt`
+- `debug-build` completed successfully on 2026-05-16. The debug timing report
+  says all user-specified timing constraints are met, with setup worst slack
+  `2.469 ns` in the generated `debug-timing-summary.rpt`.
+- `program-debug` successfully programmed the board through Vivado hw_server on
+  Digilent serial `210299BF3824`; Vivado reported one ILA core in the programmed
+  `xc7k480t`.
+- `read-debug` armed and captured the ILA, writing
+  `artifacts/task6/vivado-oracle/ypcb-systest/calibration-ila-readback.csv`.
+- The captured steady-state values were:
+  - `c0_init_calib_complete=1`
+  - `c1_init_calib_complete=1`
+  - `c0_ui_clk_sync_rst=0`
+  - `c1_ui_clk_sync_rst=0`
+  - `c0_mmcm_locked=1`
+  - `c1_mmcm_locked=1`
+
+This proves that the Vivado/MIG YPCB systest design calibrates both DDR3
+channels on the connected board. Treat this artifact as the current electrical,
+clocking, and placement oracle for the open-flow DDR3 work. The next useful
+Vivado work is not to prove calibration again, but to extract comparable
+placement/timing evidence from `post-route-debug.dcp` and to build a smaller
+MIG traffic/status endpoint if the full systest design is too large or noisy for
+controller-level comparison.
