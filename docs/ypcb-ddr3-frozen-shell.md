@@ -1233,22 +1233,32 @@ Initial local audit:
   an unplaced `$scopeinfo` cell from the full LiteX/VexRiscv SoC. This means
   the useful next step is a smaller LiteDRAM/PHY/BIST reference, not forcing the
   full demo SoC through this exact nextpnr build.
+- A first KC705 demo build with `SYNTH_OPTS=-nolutram` also synthesized and
+  reached nextpnr packing. The generated `k7ddrphy` footprint is the strongest
+  open reference so far: `IDELAYCTRL=1` in the Yosys netlist, nextpnr expands
+  to three placed `IDELAYCTRL` resources, and the PHY includes `IDELAYE2=64`,
+  `ODELAYE2=107`, `ISERDESE2=64`, and `OSERDESE2=107`. Placement again stopped
+  on the full LiteX/VexRiscv `$scopeinfo` cell, so the full SoC demo is not the
+  right artifact to force through this nextpnr build. The useful artifact is
+  the LiteDRAM `k7ddrphy` structure and its KC705 electrical constraints.
 
 Execution order:
 
-1. Build `litex-ddr-hpcstore-k420t` and `litex-ddr-kc705` with the local
-   OpenXC7 tooling, capturing routed JSON, FASM, and logs.
-2. Extract per-lane placements for `IDELAYE2`, `ODELAYE2`, `ISERDESE2`,
+1. Do not spend more time forcing the full K420T/KC705 LiteX SoC demos through
+   the current nextpnr build; both are blocked after useful PHY synthesis by a
+   full-SoC `$scopeinfo` placement artifact.
+2. Generate or extract a minimal LiteDRAM BIST/PHY-only reference for Kintex-7,
+   preferably from the KC705 `k7ddrphy` configuration, and route that instead.
+3. Extract per-lane placements for `IDELAYE2`, `ODELAYE2`, `ISERDESE2`,
    `OSERDESE2`, `IDELAYCTRL`, `BUFIO`, `BUFR`, `BUFG`, and DDR3 clock output
    cells from those routed JSON files.
-3. Compare the demo XDC electrical constraints against
+4. Compare the demo XDC electrical constraints against
    `example_demo/ypcb_00338_1p1/ypcb_00338_1p1.xdc`, especially `VCCAUX_IO`,
    internal/external VREF assumptions, DM usage, ODT, DQS polarity, and CK
    forwarding.
-4. If the demos build cleanly under current nextpnr-xilinx, use LiteX/LiteDRAM
-   to generate a minimal YPCB channel-0 DDR3 BIST top. Keep this branch separate
-   from the UberDDR3 frozen-shell branch.
-5. Hardware-test the YPCB LiteDRAM BIST as a reference path. If it calibrates,
+5. Use LiteX/LiteDRAM to generate a minimal YPCB channel-0 DDR3 BIST top. Keep
+   this branch separate from the UberDDR3 frozen-shell branch.
+6. Hardware-test the YPCB LiteDRAM BIST as a reference path. If it calibrates,
    its routed JSON becomes an open-flow placement oracle. If it does not, use
    its failure mode to separate board/electrical problems from UberDDR3-specific
    PHY/control problems.
