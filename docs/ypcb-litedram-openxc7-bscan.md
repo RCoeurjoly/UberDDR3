@@ -748,3 +748,58 @@ Current implication:
 - the fastest fully-open path goes back to an HR-compatible no-ODELAY PHY
   strategy and must explain why the current A7/no-ODELAY shell has all-zero
   read/write-leveling feedback.
+
+## MIG-Style MR1 Retest on the HR-Compatible Shell
+
+The raw-BSCAN host now accepts `--mr1 <value>` so manual DFII initialization can
+test exact mode-register settings without regenerating the bitstream. This lets
+the no-ODELAY HR-compatible shell test the Vivado/MIG channel-0 MR1 settings:
+
+- TDQS enabled;
+- DIC = `RZQ/7`;
+- RTT_NOM = `RZQ/4`.
+
+Command:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py init-ddr3 \
+  --sys-clk-freq 100e6 \
+  --mr1 0x0004 \
+  --tdqs \
+  --json-only
+```
+
+Observed 2026-05-17 result:
+
+- command/CSR-level initialization still passes;
+- the host records MR1 as `0x0804`.
+
+Write-leveling probe:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sample \
+  --init-first \
+  --sys-clk-freq 100e6 \
+  --mr1 0x0004 \
+  --tdqs \
+  --count 8 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed:
+
+- MR1 during write leveling is `0x0884`;
+- restore MR1 is `0x0804`;
+- all eight samples still return zero on all four DFII phases;
+- `pass=false`.
+
+So the all-zero feedback is not explained by the obvious MIG MR1/TDQS
+mismatch. The remaining fast path is to instrument the no-ODELAY shell closer
+to the I/O boundary: prove DQS toggles, prove DQ input capture can see board
+levels, and compare OpenXC7 generated IOB/SERDES/FASM features against the
+Vivado/MIG oracle for the same HR-bank pins.
