@@ -93,26 +93,34 @@ def phy_timing(sys_clk_freq: float) -> dict[str, int]:
     return {"cl": 8, "cwl": 6, "rdphase": 1, "wrphase": 2, "mr0": 0x0940, "mr2": 0x0208}
 
 
-def ddr3_mr1(tdqs: bool = False) -> int:
-    value = 0x0006
+def ddr3_mr1(tdqs: bool = False, override: int | None = None) -> int:
+    if override is not None:
+        value = override
+    else:
+        value = 0x0006
     if tdqs:
         value |= MR1_TDQS_ENABLE
     return value
 
 
-def ddr3_mr1_write_leveling(tdqs: bool = False) -> int:
-    return ddr3_mr1(tdqs=tdqs) | MR1_WRITE_LEVELING_ENABLE
+def ddr3_mr1_write_leveling(tdqs: bool = False, override: int | None = None) -> int:
+    return ddr3_mr1(tdqs=tdqs, override=override) | MR1_WRITE_LEVELING_ENABLE
 
 
-def litedram_ddr3_init_sequence(sys_clk_freq: float, tdqs: bool = False) -> tuple[tuple[str, int, int, int, int, str], ...]:
+def litedram_ddr3_init_sequence(
+    sys_clk_freq: float,
+    tdqs: bool = False,
+    mr1: int | None = None,
+) -> tuple[tuple[str, int, int, int, int, str], ...]:
     timing = phy_timing(sys_clk_freq)
     command = DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS
+    mr1_value = ddr3_mr1(tdqs=tdqs, override=mr1)
     return (
         ("Release reset", 0x0000, 0, DFII_CONTROL_ODT | DFII_CONTROL_RESET_N, 50000, "control"),
         ("Bring CKE high", 0x0000, 0, DFII_CONTROL_SOFTWARE, 10000, "control"),
         (f"Load Mode Register 2, CWL={timing['cwl']}", timing["mr2"], 2, command, 0, "command"),
         ("Load Mode Register 3", 0x0000, 3, command, 0, "command"),
-        ("Load Mode Register 1" + (" with TDQS" if tdqs else ""), ddr3_mr1(tdqs=tdqs), 1, command, 0, "command"),
+        (f"Load Mode Register 1 = 0x{mr1_value:04x}", mr1_value, 1, command, 0, "command"),
         (f"Load Mode Register 0, CL={timing['cl']}, BL=8", timing["mr0"], 0, command, 200, "command"),
         ("ZQ Calibration", 0x0400, 0, DFII_COMMAND_WE | DFII_COMMAND_CS, 200, "command"),
     )
@@ -540,7 +548,11 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
     cdelay(args, 1000)
     record("ddrphy reset pulse")
 
-    for comment, address, bank, command, delay, kind in litedram_ddr3_init_sequence(args.sys_clk_freq, tdqs=args.tdqs):
+    for comment, address, bank, command, delay, kind in litedram_ddr3_init_sequence(
+        args.sys_clk_freq,
+        tdqs=args.tdqs,
+        mr1=args.mr1,
+    ):
         if kind == "control":
             wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, command)
         else:
@@ -554,6 +566,7 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
         "before": before,
         "timing": timing,
         "tdqs": args.tdqs,
+        "mr1": f"0x{ddr3_mr1(tdqs=args.tdqs, override=args.mr1):04x}",
         "steps": steps,
         "after": after,
         "pass": (
@@ -574,7 +587,7 @@ def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, obj
     dfii_command_p0(
         client,
         args,
-        ddr3_mr1_write_leveling(tdqs=args.tdqs),
+        ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1),
         1,
         DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
     )
@@ -610,7 +623,7 @@ def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, obj
     dfii_command_p0(
         client,
         args,
-        ddr3_mr1(tdqs=args.tdqs),
+        ddr3_mr1(tdqs=args.tdqs, override=args.mr1),
         1,
         DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
     )
@@ -621,8 +634,8 @@ def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, obj
     return {
         "init": init,
         "tdqs": args.tdqs,
-        "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs):04x}",
-        "mr1_restore": f"0x{ddr3_mr1(tdqs=args.tdqs):04x}",
+        "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1):04x}",
+        "mr1_restore": f"0x{ddr3_mr1(tdqs=args.tdqs, override=args.mr1):04x}",
         "samples": samples,
         "after": after,
         "pass": any_nonzero,
@@ -904,6 +917,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-s", type=float, default=5.0)
     parser.add_argument("--sys-clk-freq", type=float, default=125e6)
     parser.add_argument("--tdqs", action="store_true")
+    parser.add_argument(
+        "--mr1",
+        type=lambda value: int(value, 0),
+        help=(
+            "Override DDR3 MR1 during manual DFII initialization. "
+            "--tdqs still forces MR1[11] on top of this value."
+        ),
+    )
     parser.add_argument("--count", type=int, default=8)
     parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
