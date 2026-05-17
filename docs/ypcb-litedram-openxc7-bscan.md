@@ -321,3 +321,111 @@ nix develop .#default --command \
   --json-only \
   --timeout-s 5
 ```
+
+## 2026-05-17 DFII Pattern Result
+
+The bridge-local DFII pattern diagnostic now has a SIM-only Icarus testbench:
+
+```sh
+nix develop .#default --command \
+  iverilog -g2012 -DYPCB_BRIDGE_SIM \
+  -o /tmp/ypcb_litedram_bscan_bridge_dfii_tb.vvp \
+  example_demo/ypcb_00338_1p1/ypcb_litedram_bscan_bridge.v \
+  tests/task6/ypcb_litedram_bscan_bridge_dfii_tb.sv
+
+nix develop .#default --command \
+  vvp /tmp/ypcb_litedram_bscan_bridge_dfii_tb.vvp
+```
+
+Expected result:
+
+```text
+PASS: bridge-local DFII pattern diagnostic sequence
+```
+
+This proves the bridge-local command sequence itself enters DFII software
+control, issues ACT/WRITE/READ/PRECHARGE through the DFII CSRs, compares the
+training pattern, and restores DFII hardware control in a mock Wishbone/DFII
+environment.
+
+On hardware, the 4-lane OpenXC7 diagnostic bitstream still fails a module-0
+bridge-local sweep:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-dfii-pattern-sweep \
+  --module-mask 0x1 \
+  --max-bitslip 7 \
+  --max-delay 31 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005 \
+  --stop-on-zero
+```
+
+Observed result:
+
+- `pass=false`
+- no passing windows
+- every bitslip/delay point reports `diag_error_count=129`
+- the DFII initialization command stream completes first
+
+`129` is the Hamming weight of the expected 8 x 32-bit training-pattern words,
+so this is consistent with the DFII read-data path returning all zeroes. Since
+the bridge sequence is now simulated, the next question is no longer the host
+protocol. The next question is whether OpenXC7's LiteDRAM PHY implementation is
+electrically/timing valid on YPCB.
+
+The current full diagnostic shell is not timing-clean enough to answer that
+cleanly; post-route `main_clkout_buf0` was around 80 MHz for a 100 MHz `sys`
+target. The next OpenXC7 experiment should therefore use the reduced DFII-only
+shell.
+
+## DFII-Only Shell
+
+`scripts/task6/ypcb_litedram_bist.py` supports `--dfii-only`. This keeps:
+
+- CRG/MMCM/IDELAYCTRL
+- `A7DDRPHY`
+- LiteDRAM `DFIInjector` and DFII CSRs
+- raw-BSCAN bridge
+
+It removes the LiteDRAM controller/crossbar/main-RAM path and BIST ports from
+the diagnostic build. The CSR map is deliberately kept compatible with the
+existing bridge and host constants:
+
+- `ddrphy` at `0x0800`
+- `sdram_dfii_control` at `0x1800`
+- `sdram_dfii_pi0_*` starting at `0x1804`
+
+Generate only:
+
+```sh
+OUT=/tmp/ypcb-dfii-only-generate \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only
+```
+
+Build for hardware:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-ignore-lock \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only \
+  --build
+```

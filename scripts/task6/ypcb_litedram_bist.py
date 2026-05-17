@@ -2,6 +2,7 @@
 
 import argparse
 import os
+from types import SimpleNamespace
 
 from migen import *
 
@@ -9,11 +10,13 @@ from litex.build.yosys_wrapper import YosysWrapper
 from litex.soc.cores.clock import S7IDELAYCTRL, S7MMCM
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc_core import SoCCore
+from litex.soc.interconnect.csr import AutoCSR
 from litex.soc.interconnect import wishbone
 
 from litex_boards.platforms import ypcb_00338_1p1
 
 from litedram.common import PHYPadsReducer
+from litedram.dfii import DFIInjector
 from litedram.frontend.bist import _LiteDRAMBISTChecker, _LiteDRAMBISTGenerator
 from litedram.modules import MT41J256M16, MT41K256M8
 from litedram.phy import s7ddrphy
@@ -50,6 +53,26 @@ class _CRG(Module):
         platform.add_false_path_constraints(self.cd_sys.clk, pll.clkin)
 
         self.submodules.idelayctrl = S7IDELAYCTRL(self.cd_idelay)
+
+
+class LiteDRAMDFIIOnly(Module, AutoCSR):
+    def __init__(self, phy, module):
+        self.controller = SimpleNamespace(
+            settings=SimpleNamespace(
+                phy=phy.settings,
+                timing=module.timing_settings,
+                geom=module.geom_settings,
+            )
+        )
+        self.submodules.dfii = DFIInjector(
+            addressbits=max(module.geom_settings.addressbits, getattr(phy, "addressbits", 0)),
+            bankbits=max(module.geom_settings.bankbits, getattr(phy, "bankbits", 0)),
+            nranks=phy.settings.nranks,
+            databits=phy.settings.dfi_databits,
+            nphases=phy.settings.nphases,
+            is_clam_shell=phy.settings.is_clam_shell,
+        )
+        self.comb += self.dfii.master.connect(phy.dfi)
 
 
 class RawBSCANLiteDRAMBIST(Module):
@@ -148,6 +171,13 @@ class RawBSCANLiteDRAMBIST(Module):
 
 
 class YPCBLiteDRAMBISTSoC(SoCCore):
+    csr_map = {
+        "ctrl": 0,
+        "ddrphy": 1,
+        "identifier_mem": 2,
+        "sdram": 3,
+    }
+
     def __init__(
         self,
         sys_clk_freq=125e6,
@@ -156,6 +186,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         module_name="mt41k256m8",
         with_bist=True,
         with_raw_bscan=False,
+        dfii_only=False,
         ignore_pll_lock_reset=False,
         toolchain="openxc7",
         **kwargs,
@@ -193,14 +224,18 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             "mt41k256m8": MT41K256M8,
             "mt41j256m16": MT41J256M16,
         }[module_name]
-        self.add_sdram(
-            "sdram",
-            phy=self.ddrphy,
-            module=module_cls(sys_clk_freq, "1:4"),
-            size=0x20000000,
-            l2_cache_size=0,
-            with_bist=with_bist,
-        )
+        module = module_cls(sys_clk_freq, "1:4")
+        if dfii_only:
+            self.submodules.sdram = LiteDRAMDFIIOnly(self.ddrphy, module)
+        else:
+            self.add_sdram(
+                "sdram",
+                phy=self.ddrphy,
+                module=module,
+                size=0x20000000,
+                l2_cache_size=0,
+                with_bist=with_bist,
+            )
 
         if with_raw_bscan:
             byte_group_mask = 0
@@ -213,7 +248,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
                 byte_group_mask,
                 rdphase=timing["rdphase"],
                 wrphase=timing["wrphase"],
-                with_bist=with_bist,
+                with_bist=with_bist and not dfii_only,
             )
 
 
@@ -233,6 +268,11 @@ def main():
     parser.add_argument("--toolchain", default="openxc7", choices=("openxc7", "vivado"))
     parser.add_argument("--no-bist", action="store_true")
     parser.add_argument("--with-raw-bscan", action="store_true")
+    parser.add_argument(
+        "--dfii-only",
+        action="store_true",
+        help="Keep the DDR PHY/DFII CSR path but omit the SDRAM main-RAM SoC interconnect.",
+    )
     parser.add_argument("--ignore-pll-lock-reset", action="store_true")
     parser.add_argument(
         "--no-openxc7-vref-patch",
@@ -253,6 +293,7 @@ def main():
         module_name=args.module,
         with_bist=not args.no_bist,
         with_raw_bscan=args.with_raw_bscan,
+        dfii_only=args.dfii_only,
         ignore_pll_lock_reset=args.ignore_pll_lock_reset,
         toolchain=args.toolchain,
     )
