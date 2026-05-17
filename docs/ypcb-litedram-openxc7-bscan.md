@@ -1143,3 +1143,43 @@ the write-leveling sticky clear is phase 1, bit 17. The event is narrow or not
 connected to the DFII CSR readback window, so the next sampler should record
 per-strobe or per-delay first-hit data in fabric and expose that summary over
 BSCAN.
+
+Write-leveling delay sweep follow-up:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sweep \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --init-first \
+    --sys-clk-freq 100e6 \
+    --mr1 0x0004 \
+    --tdqs \
+    --module-mask 0x4 \
+    --max-bitslip 0 \
+    --max-delay 31 \
+    --count 4 \
+    --json-only \
+    --summary-only \
+    --timeout-s 5 \
+    --poll-s 0.005 \
+    --settle-s 0.005
+```
+
+Observed 2026-05-17 focused result for module mask `0x4`, bitslip `0`:
+
+- `pass=true` because at least one fabric-side first-hit was captured
+- early hits at delays `0,1,2` with `first_mask=0x2`,
+  `first_word=0x00020000`
+- main delayed hit region at delays `21,23,25,26,27,28,29,30,31` with
+  `first_mask=0x4`, `first_word=0x00020000`
+- final sticky status remained `ddr_phase_first_mask=0x4`,
+  `ddr_phase_first_word=0x00020000`
+
+This is the first evidence that the LiteDRAM no-ODELAY write-leveling feedback
+is sensitive to DQ IDELAY setting instead of being only a constant stuck
+artifact. It still is not full calibration: DQS fields remain unavailable in
+this legal integrated build, and DFII CSR readback remains all-zero in the
+older sampler. The useful next step is to convert this first-hit sweep into a
+byte-lane calibration selector, then use the selected delays for a controlled
+read/write BIST attempt.
