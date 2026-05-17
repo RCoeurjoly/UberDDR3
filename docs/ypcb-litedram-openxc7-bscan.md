@@ -449,6 +449,45 @@ tolerant of level-style Wishbone completion:
   lock for reset; the advancing counters and completed command stream are the
   fabric-liveness signal.
 
+Important correction: the first `init-ddr3 --json-only` run used the host
+default `--sys-clk-freq 125e6`, while this DFII-only artifact was generated for
+`--sys-clk-freq 100e6`. The corrected initialization command is:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py init-ddr3 \
+  --sys-clk-freq 100e6 \
+  --json-only
+```
+
+That corrected run programs the expected LiteDRAM 100 MHz values:
+
+- `CL=7`
+- `CWL=5`
+- `RDPHASE=2`
+- `WRPHASE=3`
+- MR0 `0x0930`
+- MR2 `0x0200`
+
+After corrected 100 MHz init, the lane-0 8 x 32-point DFII pattern sweep still
+returns no passing windows; all 256 bitslip/delay points return
+`diag_error_count=129`.
+
+The MIG-style TDQS setting is also not sufficient:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py init-ddr3 \
+  --sys-clk-freq 100e6 \
+  --tdqs \
+  --json-only
+```
+
+This programs MR1 `0x0806`, but the same lane-0 sweep still reports
+`diag_error_count=129` at every point. So the uniform all-zero DFII readback is
+not explained by the earlier host timing default mismatch or by TDQS being
+disabled.
+
 Single-point DFII pattern check:
 
 ```sh
