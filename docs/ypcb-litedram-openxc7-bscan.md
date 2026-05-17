@@ -718,3 +718,33 @@ The adjacent nextpnr-xilinx XC7 packer code already recognizes direct
 so the immediate tooling task is to make the `ODELAYE2.DATAOUT` legality check
 accept those direct output-buffer cell types as well, then rebuild nextpnr and
 rerun this K7 LiteDRAM shell.
+
+That nextpnr-xilinx patch was implemented locally in
+`~/nextpnr-xilinx` on branch `stable-backports` as commit `5624552d`:
+
+```text
+Allow ODELAYE2 to feed direct XC7 outbufs
+```
+
+Rebuilding nextpnr-xilinx inside a compatible Nix shell and rerunning the same
+K7/ODELAY LiteDRAM shell moved the build past the original unsupported-cell
+check, but exposed the next architectural constraint:
+
+```text
+ERROR: BEL IOB_X0Y94/IOB33M/OUTBUF is located on a high range bank. High range banks do not have ODELAY
+```
+
+This is a materially different result. The first error was a nextpnr packing
+legality gap. The second says the requested K7DDRPHY topology is physically
+incompatible with at least one YPCB DDR output site because that site is in a
+7-series HR bank, and HR banks do not contain ODELAY resources.
+
+Current implication:
+
+- the direct `ODELAYE2 -> IOB33M_OUTBUF` nextpnr patch is still useful and
+  upstreamable because it lets nextpnr reach the real device legality check;
+- a blanket LiteDRAM `K7DDRPHY` is not a valid drop-in for this YPCB channel
+  when the DDR pins are on HR-bank I/O;
+- the fastest fully-open path goes back to an HR-compatible no-ODELAY PHY
+  strategy and must explain why the current A7/no-ODELAY shell has all-zero
+  read/write-leveling feedback.
