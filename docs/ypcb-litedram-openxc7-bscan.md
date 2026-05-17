@@ -1427,3 +1427,58 @@ method. The remaining high-value path is to keep the full four-byte topology
 and match the PHY/electrical behavior against the Vivado/MIG oracle: VREF,
 ODT/MR1, TDQS, DQS phase, write/read phase, DQ/DQS mapping, and any OpenXC7
 primitive support gaps around the 7-series DDR PHY.
+
+## 2026-05-17 K7/ODELAY PHY Probe
+
+The LiteDRAM generator already supports selecting either the Artix-style
+no-ODELAY PHY or the Kintex-style ODELAY PHY:
+
+- `--s7-phy a7`: `litedram.phy.s7ddrphy.A7DDRPHY`, `with_odelay=False`
+- `--s7-phy k7`: `litedram.phy.s7ddrphy.K7DDRPHY`, `with_odelay=True`
+
+The K7 path is conceptually closer to a Kintex-7 DDR3 PHY, but it exposes two
+different implementation issues in the current OpenXC7 flow.
+
+With the packaged nextpnr-xilinx, packing fails first with:
+
+```text
+ERROR: ODELAYE2 'ODELAYE2' has DATAOUT connected to unsupported cell type IOB33M_OUTBUF
+```
+
+The local `~/nextpnr-xilinx` branch `stable-backports` contains commit
+`5624552d` (`Allow ODELAYE2 to feed direct XC7 outbufs`), which fixes that
+first packer limitation. Rebuilding that nextpnr and invoking the generator
+with:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-bist-4lane-50mhz-k7phy-patched-nextpnr-ignore-lock \
+NEXTPNR_XILINX_BIN=/tmp/nextpnr-xilinx-ypcb-build/nextpnr-xilinx \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --s7-phy k7 \
+    --sys-clk-freq 50e6 \
+    --byte-groups 0,1,2,3 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --build
+```
+
+gets past the old `DATAOUT` error, then fails with a board/resource error:
+
+```text
+ERROR: BEL IOB_X0Y94/IOB33M/OUTBUF is located on a high range bank. High range banks do not have ODELAY
+```
+
+That second error is the important result. It says the current YPCB pinout /
+reduced-channel build is trying to use ODELAY on an HR-bank output buffer. HR
+banks do not provide ODELAY, so a straight LiteDRAM `K7DDRPHY` build is not a
+valid target for this pinout as-is. The patched nextpnr result is still useful:
+it separates an upstreamable packer gap from the real architectural blocker.
+
+For the open-source path, the fastest remaining route is therefore not "switch
+to K7DDRPHY and retry." It is to keep the full four-byte topology on the
+no-ODELAY PHY and systematically align the remaining PHY/electrical knobs with
+the Vivado/MIG oracle: read/write phase, MR1 drive/termination/TDQS, VREF, DQS
+phase, and pin/lane mapping. If a future PHY uses ODELAY only where the package
+actually has ODELAY resources, that should be tested separately.
