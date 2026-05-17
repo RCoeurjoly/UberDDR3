@@ -214,6 +214,23 @@ oracle:
 The host script now also exposes `--tdqs`, which sets DDR3 MR1 bit 11 and lets
 us test the MIG-style TDQS setting without rebuilding the FPGA bitstream.
 
+Hardware result after patching the existing 100 MHz OpenXC7 artifact:
+
+- FASM patch removed the stray `VREF.V_675_MV` lines and appended the eight
+  expected `VREF.V_750_MV` features.
+- The patched bitstream programs and the raw-BSCAN bridge remains alive:
+  `magic_ok=true`, `sys_reset_deasserted=true`, `rst_n_raw=true`, Wishbone
+  commands complete without timeout/error.
+- Corrected 100 MHz init with TDQS disabled completes, but
+  `bridge-mem32-check` still fails: expected `0xa5a55a5a`, actual
+  `0x00000000`, `wb_status=0x02`, `diag_status=0x03`.
+- Corrected 100 MHz init with `--tdqs` also fails with the same `0x00000000`
+  readback.
+
+This is different from the pre-VREF-patch all-ones readback. The VREF patch is
+therefore materially changing the hardware behavior, but it is not sufficient
+for a passing DDR write/read path.
+
 ## DFII Read-Leveling Diagnostic
 
 The host script has a partial port of LiteDRAM BIOS read leveling. It uses the
