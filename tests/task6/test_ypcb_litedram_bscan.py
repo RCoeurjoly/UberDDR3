@@ -2,6 +2,7 @@
 
 import pathlib
 import sys
+from types import SimpleNamespace
 import unittest
 
 
@@ -126,6 +127,54 @@ class RawBscanProtocolTest(unittest.TestCase):
         self.assertEqual(bscan.ddr3_mr1(tdqs=False), 0x0006)
         self.assertEqual(bscan.ddr3_mr1(tdqs=True), 0x0806)
         self.assertEqual(bscan.litedram_ddr3_init_sequence(100e6, tdqs=True)[4][1], 0x0806)
+
+    def test_dfii_training_uses_generated_read_write_phases(self):
+        calls = []
+
+        def fake_address_write(_client, _args, phase, address):
+            calls.append(("addr", phase, address))
+
+        def fake_baddress_write(_client, _args, phase, bank):
+            calls.append(("bank", phase, bank))
+
+        def fake_command(_client, _args, phase, command):
+            calls.append(("cmd", phase, command))
+
+        def fake_write_data(_client, _args, phase, values):
+            calls.append(("wrdata", phase, len(values)))
+
+        def fake_read_data(_client, _args, phase):
+            calls.append(("rddata", phase))
+            return [0] * bscan.DFII_PIX_DATA_BYTES
+
+        original = (
+            bscan.dfii_phase_address_write,
+            bscan.dfii_phase_baddress_write,
+            bscan.dfii_command,
+            bscan.dfii_write_data,
+            bscan.dfii_read_data,
+            bscan.cdelay,
+        )
+        try:
+            bscan.dfii_phase_address_write = fake_address_write
+            bscan.dfii_phase_baddress_write = fake_baddress_write
+            bscan.dfii_command = fake_command
+            bscan.dfii_write_data = fake_write_data
+            bscan.dfii_read_data = fake_read_data
+            bscan.cdelay = lambda _args, _cycles: None
+            bscan.dfii_write_read_check_test_pattern(None, SimpleNamespace(sys_clk_freq=100e6), 0, 42)
+        finally:
+            (
+                bscan.dfii_phase_address_write,
+                bscan.dfii_phase_baddress_write,
+                bscan.dfii_command,
+                bscan.dfii_write_data,
+                bscan.dfii_read_data,
+                bscan.cdelay,
+            ) = original
+
+        self.assertIn(("cmd", 3, bscan.DFII_COMMAND_CAS | bscan.DFII_COMMAND_WE | bscan.DFII_COMMAND_CS | bscan.DFII_COMMAND_WRDATA), calls)
+        self.assertIn(("cmd", 2, bscan.DFII_COMMAND_CAS | bscan.DFII_COMMAND_CS | bscan.DFII_COMMAND_RDDATA), calls)
 
 
 if __name__ == "__main__":

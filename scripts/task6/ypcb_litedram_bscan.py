@@ -381,6 +381,9 @@ def dfii_command_p0(client, args: argparse.Namespace, address: int, bank: int, c
 
 
 def dfii_write_read_check_test_pattern(client, args: argparse.Namespace, module: int, seed: int) -> int:
+    timing = phy_timing(args.sys_clk_freq)
+    rdphase = timing["rdphase"]
+    wrphase = timing["wrphase"]
     prv = seed
     patterns = []
     for _phase in range(SDRAM_PHY_PHASES):
@@ -400,19 +403,19 @@ def dfii_write_read_check_test_pattern(client, args: argparse.Namespace, module:
 
     for phase, values in enumerate(patterns):
         dfii_write_data(client, args, phase, values)
-    dfii_phase_address_write(client, args, SDRAM_PHY_WRPHASE, 0)
-    dfii_phase_baddress_write(client, args, SDRAM_PHY_WRPHASE, 0)
+    dfii_phase_address_write(client, args, wrphase, 0)
+    dfii_phase_baddress_write(client, args, wrphase, 0)
     dfii_command(
         client,
         args,
-        SDRAM_PHY_WRPHASE,
+        wrphase,
         DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS | DFII_COMMAND_WRDATA,
     )
     cdelay(args, 15)
 
-    dfii_phase_address_write(client, args, SDRAM_PHY_RDPHASE, 0)
-    dfii_phase_baddress_write(client, args, SDRAM_PHY_RDPHASE, 0)
-    dfii_command(client, args, SDRAM_PHY_RDPHASE, DFII_COMMAND_CAS | DFII_COMMAND_CS | DFII_COMMAND_RDDATA)
+    dfii_phase_address_write(client, args, rdphase, 0)
+    dfii_phase_baddress_write(client, args, rdphase, 0)
+    dfii_command(client, args, rdphase, DFII_COMMAND_CAS | DFII_COMMAND_CS | DFII_COMMAND_RDDATA)
     cdelay(args, 15)
 
     dfii_phase_address_write(client, args, 0, 0)
