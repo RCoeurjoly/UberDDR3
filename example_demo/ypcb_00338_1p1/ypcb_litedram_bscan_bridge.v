@@ -818,11 +818,11 @@ module ypcb_litedram_bscan_bridge #(
                         8'd53: diag_state <= 8'd54;
                         8'd55: diag_state <= 8'd56;
                         8'd59: begin
-                            diag_error_count <= diag_error_count + popcount32(diag_actual ^ pattern_hi(diag_phase[1:0]));
+                            diag_error_count <= diag_error_count + popcount32(wb_dat_r ^ pattern_hi(diag_phase[1:0]));
                             diag_state <= 8'd60;
                         end
                         8'd61: begin
-                            diag_error_count <= diag_error_count + popcount32(diag_actual ^ pattern_lo(diag_phase[1:0]));
+                            diag_error_count <= diag_error_count + popcount32(wb_dat_r ^ pattern_lo(diag_phase[1:0]));
                             if (diag_phase == 8'd3) begin
                                 diag_state <= 8'd62;
                             end else begin
