@@ -879,7 +879,7 @@ def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     checker = poll_until(client, args, "checker_done")
     after = read_status(client, args)
     pll_ok = after["pll_locked"] or args.ignore_pll_lock
-    return {
+    result = {
         "before": before,
         "generator": generator,
         "checker": checker,
@@ -893,6 +893,26 @@ def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
             and after["checker_errors"] == 0
         ),
     }
+    if args.summary_only:
+        result.pop("before")
+        result.pop("generator")
+        result.pop("checker")
+        result["after"] = {
+            "magic_ok": after["magic_ok"],
+            "pll_locked": after["pll_locked"],
+            "generator_done": after["generator_done"],
+            "generator_ticks": after["generator_ticks"],
+            "checker_done": after["checker_done"],
+            "checker_ticks": after["checker_ticks"],
+            "checker_errors": after["checker_errors"],
+            "ddr_phase_first_mask": after["ddr_phase_first_mask"],
+            "ddr_phase_first_word": after["ddr_phase_first_word"],
+            "ddr_phase_nonzero_seen": after["ddr_phase_nonzero_seen"],
+            "ddr_phase_seen_high": after["ddr_phase_seen_high"],
+            "ddr_dq_seen_high": after["ddr_dq_seen_high"],
+            "length": after["length"],
+        }
+    return result
 
 
 def set_read_leveling(client, args: argparse.Namespace, module_mask: int, bitslip: int, delay: int) -> None:
