@@ -1482,3 +1482,51 @@ no-ODELAY PHY and systematically align the remaining PHY/electrical knobs with
 the Vivado/MIG oracle: read/write phase, MR1 drive/termination/TDQS, VREF, DQS
 phase, and pin/lane mapping. If a future PHY uses ODELAY only where the package
 actually has ODELAY resources, that should be tested separately.
+
+## 2026-05-17 Read/Write Phase Sweep
+
+Added a host-side `phase-memtest-sweep` action so the hardware loop can reuse a
+known per-module read-delay selection and sweep LiteDRAM's `ddrphy_rdphase` /
+`ddrphy_wrphase` CSRs without repeating the slow leveling scan every time.
+
+Tested the timing-clean 50 MHz four-byte artifact after reprogramming:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py phase-memtest-sweep \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --init-first \
+    --sys-clk-freq 50e6 \
+    --mr1 0x0004 \
+    --tdqs \
+    --base 0x40000000 \
+    --length 0x100 \
+    --random 0 \
+    --ignore-pll-lock \
+    --summary-only \
+    --json-only \
+    --timeout-s 10 \
+    --poll-s 0.01 \
+    --settle-s 0.005
+```
+
+The sweep applied the previously selected read-delay set before every sample:
+
+| module mask | bitslip | delay |
+|---:|---:|---:|
+| `0x1` | 0 | 15 |
+| `0x2` | 0 | 6 |
+| `0x4` | 0 | 15 |
+| `0x8` | 0 | 15 |
+
+Result across all sixteen `(rdphase, wrphase)` pairs:
+
+- `zero_error_count=0`
+- best sample remained `checker_errors=7`
+- best reported `rdphase=0`, `wrphase=0`
+- generator/checker both completed, so this is not a dead transport case
+
+This rules out a simple LiteDRAM read/write phase CSR mismatch as the only
+remaining issue for the current 50 MHz no-ODELAY artifact. The next knob class
+is MR1/TDQS/termination/ODT behavior, tested on the same full four-byte topology.
