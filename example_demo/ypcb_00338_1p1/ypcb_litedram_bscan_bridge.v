@@ -61,7 +61,11 @@ module ypcb_litedram_bscan_bridge #(
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_INC         = 32'h00000818;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP_RST = 32'h0000081c;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP     = 32'h00000820;
+    localparam [31:0] CSR_SDRAM_DFII_CONTROL         = 32'h00001800;
     localparam [31:0] CSR_SDRAM_DFII_BASE             = 32'h00001804;
+
+    localparam [31:0] DFII_CONTROL_SOFTWARE = 32'h0000000e;
+    localparam [31:0] DFII_CONTROL_HARDWARE = 32'h00000001;
 
     localparam [31:0] DFII_PATTERN0_HI = 32'hdb6db001;
     localparam [31:0] DFII_PATTERN0_LO = 32'h00400007;
@@ -464,10 +468,22 @@ module ypcb_litedram_bscan_bridge #(
                             diag_wait_count <= 8'd0;
                             diag_actual <= 32'd0;
                             diag_error_count <= 32'd0;
-                            diag_state <= 8'd30;
+                            diag_state <= 8'd29;
                         end else begin
                             diag_state <= 8'd20;
                         end
+                    end
+                    8'd29: begin
+                        wb_addr_byte <= CSR_SDRAM_DFII_CONTROL;
+                        wb_adr <= CSR_SDRAM_DFII_CONTROL[31:2];
+                        wb_dat_w <= DFII_CONTROL_SOFTWARE;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd28;
                     end
                     8'd12: begin
                         wb_addr_byte <= diag_addr;
@@ -759,12 +775,27 @@ module ypcb_litedram_bscan_bridge #(
                     end
                     8'd69: begin
                         if (diag_wait_count == 8'd64) begin
-                            diag_count <= diag_count + 1'd1;
-                            diag_status <= (diag_error_count == 32'd0) ? 8'h02 : 8'h03;
-                            diag_active <= 1'b0;
+                            diag_state <= 8'd70;
                         end else begin
                             diag_wait_count <= diag_wait_count + 1'd1;
                         end
+                    end
+                    8'd70: begin
+                        wb_addr_byte <= CSR_SDRAM_DFII_CONTROL;
+                        wb_adr <= CSR_SDRAM_DFII_CONTROL[31:2];
+                        wb_dat_w <= DFII_CONTROL_HARDWARE;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd71;
+                    end
+                    8'd72: begin
+                        diag_count <= diag_count + 1'd1;
+                        diag_status <= (diag_error_count == 32'd0) ? 8'h02 : 8'h03;
+                        diag_active <= 1'b0;
                     end
                     default: begin
                         diag_status <= 8'he0;
@@ -798,6 +829,7 @@ module ypcb_litedram_bscan_bridge #(
                                 diag_active <= 1'b0;
                             end
                         end
+                        8'd28: diag_state <= 8'd30;
                         8'd31: diag_state <= 8'd32;
                         8'd33: diag_state <= 8'd34;
                         8'd35: diag_state <= 8'd36;
@@ -833,6 +865,7 @@ module ypcb_litedram_bscan_bridge #(
                         8'd63: diag_state <= 8'd64;
                         8'd65: diag_state <= 8'd66;
                         8'd67: diag_state <= 8'd68;
+                        8'd71: diag_state <= 8'd72;
                         default: begin
                         end
                     endcase
