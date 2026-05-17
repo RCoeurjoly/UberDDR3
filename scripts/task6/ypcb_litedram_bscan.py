@@ -33,6 +33,7 @@ OP_WB_READ = 0x31
 OP_APPLY_RDLY = 0x40
 OP_MEM32_CHECK = 0x41
 OP_DFII_PATTERN = 0x42
+OP_CLEAR_PHY_SAMPLE = 0x43
 
 DFII_CONTROL_SEL = 0x01
 DFII_CONTROL_CKE = 0x02
@@ -626,6 +627,8 @@ def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, obj
     cdelay(args, 100)
     wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 1)
     cdelay(args, 100)
+    write_command(client, args, OP_CLEAR_PHY_SAMPLE)
+    cdelay(args, 10)
 
     samples = []
     sample_count = max(1, args.count)
@@ -901,6 +904,7 @@ def parse_args() -> argparse.Namespace:
             "read",
             "write-scratch",
             "clear-scratch",
+            "clear-phy-sample",
             "reset-bist",
             "start-generator",
             "start-checker",
@@ -983,6 +987,12 @@ def main() -> int:
             time.sleep(args.settle_s)
             after = read_status(client, args)
             result = {"before": before, "after": after, "pass": after["scratch_int"] == 0}
+        elif args.action == "clear-phy-sample":
+            before = read_status(client, args)
+            write_command(client, args, OP_CLEAR_PHY_SAMPLE)
+            time.sleep(args.settle_s)
+            after = read_status(client, args)
+            result = {"before": before, "after": after, "pass": after["magic_ok"]}
         elif args.action == "reset-bist":
             write_command(client, args, OP_RESET_BIST)
             time.sleep(args.settle_s)

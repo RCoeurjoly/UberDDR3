@@ -70,6 +70,7 @@ module ypcb_litedram_bscan_bridge #(
     localparam [7:0] OP_APPLY_RDLY    = 8'h40;
     localparam [7:0] OP_MEM32_CHECK   = 8'h41;
     localparam [7:0] OP_DFII_PATTERN  = 8'h42;
+    localparam [7:0] OP_CLEAR_PHY_SAMPLE = 8'h43;
 
     localparam [31:0] CSR_DDRPHY_DLY_SEL             = 32'h00000804;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_RST         = 32'h00000814;
@@ -1096,6 +1097,21 @@ module ypcb_litedram_bscan_bridge #(
                 case (command_opcode_active)
                     OP_WRITE_SCRATCH: scratch <= command_data_active;
                     OP_CLEAR_SCRATCH: scratch <= 32'd0;
+                    OP_CLEAR_PHY_SAMPLE: begin
+                        ddr_dq_seen_high <= 32'd0;
+                        ddr_dq_seen_low <= 32'd0;
+                        ddr_dq_toggle_seen <= 32'd0;
+                        ddr_phase_seen_high <= 32'd0;
+                        ddr_phase_toggle_seen <= 32'd0;
+                        ddr_phase_nonzero_seen <= 4'd0;
+                        ddr_phase_nonzero_toggle_seen <= 4'd0;
+                        ddr_dqs_p_seen_high <= 4'd0;
+                        ddr_dqs_p_seen_low <= 4'd0;
+                        ddr_dqs_p_toggle_seen <= 4'd0;
+                        ddr_dqs_n_seen_high <= 4'd0;
+                        ddr_dqs_n_seen_low <= 4'd0;
+                        ddr_dqs_n_toggle_seen <= 4'd0;
+                    end
                     OP_START_GEN:     generator_start <= 1'b1;
                     OP_START_CHECK:   checker_start <= 1'b1;
                     OP_RESET_BIST:    bist_reset <= 1'b1;
