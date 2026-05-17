@@ -994,6 +994,106 @@ def selected_module_masks(module_mask: int) -> list[int]:
     return [1 << bit for bit in range(8) if module_mask & (1 << bit)]
 
 
+def parse_int_list(value: str) -> list[int]:
+    values = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        values.append(int(item, 0))
+    if not values:
+        raise argparse.ArgumentTypeError("expected at least one integer")
+    return values
+
+
+def parse_rdly_set(value: str) -> list[tuple[int, int, int]]:
+    selections = []
+    for item in value.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        parts = item.split(":")
+        if len(parts) != 3:
+            raise argparse.ArgumentTypeError(
+                "read-delay selections must use module_mask:bitslip:delay entries"
+            )
+        module_mask, bitslip, delay = (int(part, 0) for part in parts)
+        selections.append((module_mask, bitslip, delay))
+    if not selections:
+        raise argparse.ArgumentTypeError("expected at least one read-delay selection")
+    return selections
+
+
+def apply_read_leveling_set(
+    client,
+    args: argparse.Namespace,
+    selections: list[tuple[int, int, int]],
+) -> list[dict[str, int]]:
+    applied = []
+    for module_mask, bitslip, delay in selections:
+        set_read_leveling(client, args, module_mask, bitslip, delay)
+        applied.append({"module_mask": module_mask, "bitslip": bitslip, "delay": delay})
+    return applied
+
+
+def run_phase_memtest_sweep(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+    samples = []
+    best = None
+    selections = args.rdly_set
+
+    for rdphase in args.rdphase_values:
+        for wrphase in args.wrphase_values:
+            wb_write_checked(client, args, CSR_DDRPHY_RDPHASE, rdphase)
+            wb_write_checked(client, args, CSR_DDRPHY_WRPHASE, wrphase)
+            applied = apply_read_leveling_set(client, args, selections)
+            result = run_memtest(client, args)
+            after = result["after"]
+            summary = {
+                "rdphase": rdphase,
+                "wrphase": wrphase,
+                "applied_rdly": applied,
+                "checker_errors": after["checker_errors"],
+                "checker_done": after["checker_done"],
+                "generator_done": after["generator_done"],
+                "checker_ticks": after["checker_ticks"],
+                "generator_ticks": after["generator_ticks"],
+                "ddr_phase_first_mask": after["ddr_phase_first_mask"],
+                "ddr_phase_first_word": after["ddr_phase_first_word"],
+                "ddr_phase_nonzero_seen": after["ddr_phase_nonzero_seen"],
+                "ddr_phase_seen_high": after["ddr_phase_seen_high"],
+                "pass": result["pass"],
+            }
+            samples.append(summary)
+            if best is None or (
+                summary["checker_errors"],
+                not summary["checker_done"],
+                not summary["generator_done"],
+            ) < (
+                best["checker_errors"],
+                not best["checker_done"],
+                not best["generator_done"],
+            ):
+                best = summary
+            if args.stop_on_zero and summary["pass"]:
+                result = {"init": init, "best": best, "samples": samples, "pass": True}
+                if args.summary_only:
+                    result.pop("init")
+                    result.pop("samples")
+                    result["sample_count"] = len(samples)
+                return result
+
+    result = {"init": init, "best": best, "samples": samples, "pass": bool(best and best["pass"])}
+    if args.summary_only:
+        zero_error_samples = [sample for sample in samples if sample["pass"]]
+        result.pop("init")
+        result.pop("samples")
+        result["sample_count"] = len(samples)
+        result["zero_error_count"] = len(zero_error_samples)
+        result["zero_error_samples"] = zero_error_samples[:8]
+    return result
+
+
 def run_bridge_mem32_sweep(client, args: argparse.Namespace) -> dict[str, object]:
     init = run_ddr3_init(client, args) if args.init_first else None
     samples = []
@@ -1121,6 +1221,7 @@ def parse_args() -> argparse.Namespace:
             "write-leveling-sample",
             "write-leveling-sweep",
             "write-leveling-calibrate",
+            "phase-memtest-sweep",
             "memtest",
         ),
     )
@@ -1148,6 +1249,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--delay", type=int, default=0)
     parser.add_argument("--max-bitslip", type=int, default=7)
     parser.add_argument("--max-delay", type=int, default=31)
+    parser.add_argument("--rdphase-values", type=parse_int_list, default=parse_int_list("0,1,2,3"))
+    parser.add_argument("--wrphase-values", type=parse_int_list, default=parse_int_list("0,1,2,3"))
+    parser.add_argument(
+        "--rdly-set",
+        type=parse_rdly_set,
+        default=parse_rdly_set("0x1:0:15,0x2:0:6,0x4:0:15,0x8:0:15"),
+        help=(
+            "Comma-separated module_mask:bitslip:delay entries to apply before "
+            "each phase-memtest-sweep sample."
+        ),
+    )
     parser.add_argument("--init-first", action="store_true")
     parser.add_argument("--stop-on-zero", action="store_true")
     parser.add_argument("--settle-s", type=float, default=0.05)
@@ -1242,6 +1354,8 @@ def main() -> int:
             result = run_write_leveling_sweep(client, args)
         elif args.action == "write-leveling-calibrate":
             result = run_write_leveling_calibrate(client, args)
+        elif args.action == "phase-memtest-sweep":
+            result = run_phase_memtest_sweep(client, args)
         else:
             result = run_memtest(client, args)
     finally:
