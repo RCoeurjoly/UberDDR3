@@ -768,6 +768,101 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
     return result
 
 
+def contiguous_windows(delays: list[int]) -> list[dict[str, int]]:
+    if not delays:
+        return []
+    windows = []
+    start = prev = delays[0]
+    for delay in delays[1:]:
+        if delay == prev + 1:
+            prev = delay
+            continue
+        windows.append({"start": start, "end": prev, "width": prev - start + 1})
+        start = prev = delay
+    windows.append({"start": start, "end": prev, "width": prev - start + 1})
+    return windows
+
+
+def select_write_leveling_window(hits: list[dict[str, object]], module_mask: int) -> dict[str, object] | None:
+    best = None
+    bitslips = sorted({int(hit["bitslip"]) for hit in hits if int(hit["module_mask"]) == module_mask})
+    for bitslip in bitslips:
+        delays = sorted(
+            {
+                int(hit["delay"])
+                for hit in hits
+                if int(hit["module_mask"]) == module_mask and int(hit["bitslip"]) == bitslip
+            }
+        )
+        for window in contiguous_windows(delays):
+            candidate = {
+                "module_mask": module_mask,
+                "bitslip": bitslip,
+                "start": window["start"],
+                "end": window["end"],
+                "width": window["width"],
+                "delay": (window["start"] + window["end"]) // 2,
+            }
+            if best is None or (
+                candidate["width"],
+                candidate["delay"],
+            ) > (
+                best["width"],
+                best["delay"],
+            ):
+                best = candidate
+    return best
+
+
+def run_write_leveling_calibrate(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+    original_module_mask = args.module_mask
+    original_init_first = args.init_first
+    selections = []
+    sweeps = []
+
+    try:
+        args.init_first = False
+        for module_mask in selected_module_masks(original_module_mask):
+            args.module_mask = module_mask
+            sweep = run_write_leveling_sweep(client, args)
+            selected = select_write_leveling_window(sweep["hits"], module_mask)
+            if selected is not None:
+                set_read_leveling(
+                    client,
+                    args,
+                    module_mask,
+                    int(selected["bitslip"]),
+                    int(selected["delay"]),
+                )
+            selections.append(
+                {
+                    "module_mask": module_mask,
+                    "selected": selected,
+                    "hit_count": len(sweep["hits"]),
+                    "pass": selected is not None,
+                }
+            )
+            if not args.summary_only:
+                sweeps.append(sweep)
+    finally:
+        args.module_mask = original_module_mask
+        args.init_first = original_init_first
+
+    result = {
+        "init": init,
+        "selections": selections,
+        "sweeps": sweeps,
+        "after": read_status(client, args),
+        "pass": all(selection["pass"] for selection in selections),
+    }
+    if args.summary_only:
+        result.pop("init")
+        result.pop("sweeps")
+        result.pop("after")
+    return result
+
+
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     before = read_status(client, args)
     write_command(client, args, OP_RESET_BIST)
@@ -1011,6 +1106,7 @@ def parse_args() -> argparse.Namespace:
             "bridge-dfii-pattern-sweep",
             "write-leveling-sample",
             "write-leveling-sweep",
+            "write-leveling-calibrate",
             "memtest",
         ),
     )
@@ -1121,6 +1217,8 @@ def main() -> int:
             result = run_write_leveling_sample(client, args)
         elif args.action == "write-leveling-sweep":
             result = run_write_leveling_sweep(client, args)
+        elif args.action == "write-leveling-calibrate":
+            result = run_write_leveling_calibrate(client, args)
         else:
             result = run_memtest(client, args)
     finally:
