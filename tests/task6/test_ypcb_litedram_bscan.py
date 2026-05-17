@@ -96,6 +96,37 @@ class RawBscanProtocolTest(unittest.TestCase):
     def test_selected_module_masks_expands_bits_in_order(self):
         self.assertEqual(bscan.selected_module_masks(0xA5), [0x01, 0x04, 0x20, 0x80])
 
+    def test_100mhz_init_sequence_matches_generated_litedram_header(self):
+        timing = bscan.phy_timing(100e6)
+        sequence = bscan.litedram_ddr3_init_sequence(100e6)
+
+        self.assertEqual(timing["rdphase"], 2)
+        self.assertEqual(timing["wrphase"], 3)
+        self.assertEqual(timing["mr2"], 0x0200)
+        self.assertEqual(timing["mr0"], 0x0930)
+        self.assertIn("CWL=5", sequence[2][0])
+        self.assertEqual(sequence[2][1], 0x0200)
+        self.assertIn("CL=7", sequence[5][0])
+        self.assertEqual(sequence[5][1], 0x0930)
+
+    def test_125mhz_init_sequence_matches_generated_litedram_header(self):
+        timing = bscan.phy_timing(125e6)
+        sequence = bscan.litedram_ddr3_init_sequence(125e6)
+
+        self.assertEqual(timing["rdphase"], 1)
+        self.assertEqual(timing["wrphase"], 2)
+        self.assertEqual(timing["mr2"], 0x0208)
+        self.assertEqual(timing["mr0"], 0x0940)
+        self.assertIn("CWL=6", sequence[2][0])
+        self.assertEqual(sequence[2][1], 0x0208)
+        self.assertIn("CL=8", sequence[5][0])
+        self.assertEqual(sequence[5][1], 0x0940)
+
+    def test_tdqs_sets_mr1_bit_without_changing_termination_baseline(self):
+        self.assertEqual(bscan.ddr3_mr1(tdqs=False), 0x0006)
+        self.assertEqual(bscan.ddr3_mr1(tdqs=True), 0x0806)
+        self.assertEqual(bscan.litedram_ddr3_init_sequence(100e6, tdqs=True)[4][1], 0x0806)
+
 
 if __name__ == "__main__":
     unittest.main()

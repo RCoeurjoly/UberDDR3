@@ -79,44 +79,35 @@ READ_CHECK_TEST_PATTERN_MAX_ERRORS = (
     8 * SDRAM_PHY_PHASES * DFII_PIX_DATA_BYTES // SDRAM_PHY_MODULES
 )
 MODULE_BITMASK = (1 << SDRAM_PHY_DQ_DQS_RATIO) - 1
+MR1_TDQS_ENABLE = 1 << 11
 
-LITEDRAM_DDR3_INIT_SEQUENCE = (
-    ("Release reset", 0x0000, 0, DFII_CONTROL_ODT | DFII_CONTROL_RESET_N, 50000, "control"),
-    ("Bring CKE high", 0x0000, 0, DFII_CONTROL_SOFTWARE, 10000, "control"),
-    (
-        "Load Mode Register 2, CWL=6",
-        0x0208,
-        2,
-        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
-        0,
-        "command",
-    ),
-    (
-        "Load Mode Register 3",
-        0x0000,
-        3,
-        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
-        0,
-        "command",
-    ),
-    (
-        "Load Mode Register 1",
-        0x0006,
-        1,
-        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
-        0,
-        "command",
-    ),
-    (
-        "Load Mode Register 0, CL=8, BL=8",
-        0x0940,
-        0,
-        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
-        200,
-        "command",
-    ),
-    ("ZQ Calibration", 0x0400, 0, DFII_COMMAND_WE | DFII_COMMAND_CS, 200, "command"),
-)
+
+def phy_timing(sys_clk_freq: float) -> dict[str, int]:
+    """Match the LiteDRAM-generated sdram_phy.h values for the tested YPCB builds."""
+    if sys_clk_freq <= 110e6:
+        return {"cl": 7, "cwl": 5, "rdphase": 2, "wrphase": 3, "mr0": 0x0930, "mr2": 0x0200}
+    return {"cl": 8, "cwl": 6, "rdphase": 1, "wrphase": 2, "mr0": 0x0940, "mr2": 0x0208}
+
+
+def ddr3_mr1(tdqs: bool = False) -> int:
+    value = 0x0006
+    if tdqs:
+        value |= MR1_TDQS_ENABLE
+    return value
+
+
+def litedram_ddr3_init_sequence(sys_clk_freq: float, tdqs: bool = False) -> tuple[tuple[str, int, int, int, int, str], ...]:
+    timing = phy_timing(sys_clk_freq)
+    command = DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS
+    return (
+        ("Release reset", 0x0000, 0, DFII_CONTROL_ODT | DFII_CONTROL_RESET_N, 50000, "control"),
+        ("Bring CKE high", 0x0000, 0, DFII_CONTROL_SOFTWARE, 10000, "control"),
+        (f"Load Mode Register 2, CWL={timing['cwl']}", timing["mr2"], 2, command, 0, "command"),
+        ("Load Mode Register 3", 0x0000, 3, command, 0, "command"),
+        ("Load Mode Register 1" + (" with TDQS" if tdqs else ""), ddr3_mr1(tdqs=tdqs), 1, command, 0, "command"),
+        (f"Load Mode Register 0, CL={timing['cl']}, BL=8", timing["mr0"], 0, command, 200, "command"),
+        ("ZQ Calibration", 0x0400, 0, DFII_COMMAND_WE | DFII_COMMAND_CS, 200, "command"),
+    )
 
 
 def make_client(args: argparse.Namespace):
@@ -516,6 +507,7 @@ def run_dfii_read_leveling(client, args: argparse.Namespace) -> dict[str, object
 
 def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
     steps = []
+    timing = phy_timing(args.sys_clk_freq)
 
     def record(name: str, **extra) -> None:
         status = read_status(client, args)
@@ -524,9 +516,9 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
         steps.append(entry)
 
     before = read_status(client, args)
-    wb_write_checked(client, args, CSR_DDRPHY_RDPHASE, 1)
-    wb_write_checked(client, args, CSR_DDRPHY_WRPHASE, 2)
-    record("set read/write phases")
+    wb_write_checked(client, args, CSR_DDRPHY_RDPHASE, timing["rdphase"])
+    wb_write_checked(client, args, CSR_DDRPHY_WRPHASE, timing["wrphase"])
+    record("set read/write phases", rdphase=timing["rdphase"], wrphase=timing["wrphase"])
 
     wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_SOFTWARE)
     record("software control on")
@@ -537,7 +529,7 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
     cdelay(args, 1000)
     record("ddrphy reset pulse")
 
-    for comment, address, bank, command, delay, kind in LITEDRAM_DDR3_INIT_SEQUENCE:
+    for comment, address, bank, command, delay, kind in litedram_ddr3_init_sequence(args.sys_clk_freq, tdqs=args.tdqs):
         if kind == "control":
             wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, command)
         else:
@@ -549,6 +541,8 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
     after = read_status(client, args)
     return {
         "before": before,
+        "timing": timing,
+        "tdqs": args.tdqs,
         "steps": steps,
         "after": after,
         "pass": (
@@ -785,6 +779,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--poll-s", type=float, default=0.1)
     parser.add_argument("--timeout-s", type=float, default=5.0)
     parser.add_argument("--sys-clk-freq", type=float, default=125e6)
+    parser.add_argument("--tdqs", action="store_true")
     parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
