@@ -1090,3 +1090,56 @@ but the current host-side CSR sampling method is missing it. The next target
 is a fabric-side write-leveling/read-window sampler that latches the DFI
 read-data bus at strobe time, rather than relying on slow JTAG CSR reads after
 the event.
+
+First-hit sampler follow-up:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-firsthit-sampler-ignore-lock \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --sys-clk-freq 100e6 \
+    --byte-groups 0,1,2,3 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --no-bist \
+    --dfii-only \
+    --build
+```
+
+The first-hit artifact routed and produced:
+
+- `gateware/ypcb_00338_1p1.bit`
+- OpenXC7 VREF feature patch applied
+- `main_clkout_buf0` maximum frequency reported as 95.68 MHz in the broad
+  nextpnr timing report
+
+Programmed bitstream:
+
+```sh
+nix develop .#default --command openocd \
+  -f interface/ftdi/digilent_jtag_hs3.cfg \
+  -c "adapter serial 210299BF3824" \
+  -f cpld/xilinx-xc7.cfg \
+  -c "adapter speed 6000" \
+  -c "init" \
+  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-firsthit-sampler-ignore-lock/gateware/ypcb_00338_1p1.bit" \
+  -c "exit"
+```
+
+Observed 2026-05-17 result with the same write-leveling probe:
+
+- `pass=false`
+- all eight DFII CSR samples remain all-zero on phases 0 through 3
+- final `ddr_phase_first_valid=true`
+- final `ddr_phase_first_mask=0x2`
+- final `ddr_phase_first_word=0x00020000`
+- final `ddr_phase_nonzero_seen=0x2`
+- final `ddr_phase_seen_high=0x00020000`
+
+This confirms the previous sticky-only observation without relying on a
+post-event CSR read: the first nonzero internal DFI read event captured after
+the write-leveling sticky clear is phase 1, bit 17. The event is narrow or not
+connected to the DFII CSR readback window, so the next sampler should record
+per-strobe or per-delay first-hit data in fabric and expose that summary over
+BSCAN.
