@@ -280,6 +280,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         with_raw_bscan=False,
         dfii_only=False,
         ignore_pll_lock_reset=False,
+        s7_phy="a7",
         toolchain="openxc7",
         **kwargs,
     ):
@@ -308,7 +309,11 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             pads = PHYPadsReducer(platform.request("ddram", dram_channel), list(byte_groups))
         else:
             pads = add_reduced_ddram_resource(platform, dram_channel, byte_groups)
-        self.submodules.ddrphy = s7ddrphy.A7DDRPHY(
+        phy_cls = {
+            "a7": s7ddrphy.A7DDRPHY,
+            "k7": s7ddrphy.K7DDRPHY,
+        }[s7_phy]
+        self.submodules.ddrphy = phy_cls(
             pads=pads,
             memtype="DDR3",
             nphases=4,
@@ -360,6 +365,12 @@ def main():
     parser.add_argument("--dram-channel", default=0, type=int, choices=(0, 1))
     parser.add_argument("--byte-groups", default=(0, 1, 2, 3), type=parse_byte_groups)
     parser.add_argument("--module", default="mt41k256m8", choices=("mt41k256m8", "mt41j256m16"))
+    parser.add_argument(
+        "--s7-phy",
+        default="a7",
+        choices=("a7", "k7"),
+        help="LiteDRAM 7-series PHY variant. a7 is no-ODELAY; k7 enables ODELAY.",
+    )
     parser.add_argument("--toolchain", default="openxc7", choices=("openxc7", "vivado"))
     parser.add_argument("--no-bist", action="store_true")
     parser.add_argument("--with-raw-bscan", action="store_true")
@@ -390,6 +401,7 @@ def main():
         with_raw_bscan=args.with_raw_bscan,
         dfii_only=args.dfii_only,
         ignore_pll_lock_reset=args.ignore_pll_lock_reset,
+        s7_phy=args.s7_phy,
         toolchain=args.toolchain,
     )
     builder = Builder(
