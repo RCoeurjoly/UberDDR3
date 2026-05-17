@@ -429,3 +429,86 @@ nix develop .#default --command \
   --dfii-only \
   --build
 ```
+
+Observed 2026-05-17 hardware result after the bridge diagnostic FSM was made
+tolerant of level-style Wishbone completion:
+
+- The bridge-local DFII diagnostic simulation still passes:
+  `PASS: bridge-local DFII pattern diagnostic sequence`.
+- The DFII-only OpenXC7 build completes and the final bitstream is VREF-patched
+  with `ypcb_vref.features`.
+- Post-route `main_clkout_buf0` reports about `105 MHz`. The generator still
+  asks nextpnr to report against a broad `200 MHz` target, so nextpnr prints a
+  global FAIL, but the reduced shell is now above the intended `100 MHz` sys
+  clock.
+- Programming succeeds with OpenOCD.
+- `init-ddr3 --json-only` succeeds: `magic_ok=true`, `rst_n_raw=true`,
+  `sys_reset_deasserted=true`, `command_count=28`, `wb_status=0x02`, and the
+  sys/idelay counters advance.
+- `pll_locked=false` still reads low, but this shell deliberately ignores PLL
+  lock for reset; the advancing counters and completed command stream are the
+  fabric-liveness signal.
+
+Single-point DFII pattern check:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-dfii-pattern-check \
+  --module-mask 0x1 \
+  --bitslip 0 \
+  --delay 0 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed:
+
+- `pass=false`
+- `diag_status=0x03`
+- `diag_state=72`
+- `diag_count=1`
+- `diag_error_count=129`
+- `wb_status=0x02`
+
+Full lane-0 sweep:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-dfii-pattern-sweep \
+  --module-mask 0x1 \
+  --max-bitslip 7 \
+  --max-delay 31 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005 \
+  --stop-on-zero
+```
+
+Observed:
+
+- `pass=false`
+- `passes=[]`
+- all 256 bitslip/delay points return `diag_error_count=129`
+- all sampled points complete with `diag_status=0x03`, not the old bridge abort
+  value `0xe0`
+
+This is now a stronger result than the earlier full-shell failure. The reduced
+shell can execute the DFII command sequence in hardware, and the diagnostic FSM
+no longer falls through a missed one-cycle `wb_done_pulse`. Since every
+bitslip/delay point returns exactly the Hamming weight of the expected training
+pattern, the current failure is consistent with all-zero DFII readback, not a
+read-window alignment miss.
+
+The next debugging target is therefore below the bridge protocol:
+
+- confirm that the OpenXC7 bitstream drives DDR3 DQS/CK/command pins as the
+  LiteDRAM PHY expects;
+- compare LiteDRAM's generated MR/ODT/termination/TDQS settings with the Vivado
+  MIG oracle;
+- inspect the generated FASM for the relevant IO standards, VREF, IDELAY,
+  ISERDES, OSERDES, and tri-state features;
+- if the FASM is missing required 7-series DDR PHY features, reduce that to a
+  nextpnr-xilinx/OpenXC7 test case and fix the open toolchain.
