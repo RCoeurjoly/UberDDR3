@@ -551,3 +551,56 @@ The next debugging target is therefore below the bridge protocol:
   ISERDES, OSERDES, and tri-state features;
 - if the FASM is missing required 7-series DDR PHY features, reduce that to a
   nextpnr-xilinx/OpenXC7 test case and fix the open toolchain.
+
+## Clean Reduced-Port DFII-Only Shell
+
+The first `--byte-groups 0,1,2,3 --dfii-only` shell still exposed the full
+72-bit DDR3 top-level port. Only the lower four byte groups were logically
+connected, but Yosys/OpenXC7 still mapped the unused upper DQ/DQS top-level
+ports into IOBUFs and the generated XDC still constrained the full channel.
+That made the reduced experiment less clean than intended.
+
+The generator now creates a reduced local DDRAM resource when fewer than all
+nine YPCB channel byte groups are requested. For the four-lane DFII-only test,
+the generated top now exposes only:
+
+- `ddram_reduced0_dq[31:0]`
+- `ddram_reduced0_dqs_p[3:0]`
+- `ddram_reduced0_dqs_n[3:0]`
+
+and the generated XDC contains no upper-lane DQ/DQS constraints.
+
+Clean-port hardware build:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-ignore-lock \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only \
+  --build
+```
+
+Observed 2026-05-17 result:
+
+- the build completed and the final bitstream was patched with
+  `ypcb_vref.features`;
+- the generated top/XDC/report confirm only the lower four byte groups are
+  present;
+- programming the bitstream with OpenOCD succeeds;
+- corrected `init-ddr3 --sys-clk-freq 100e6 --json-only` succeeds with
+  `command_count=28`, `wb_status=0x02`, `magic_ok=true`,
+  `sys_reset_deasserted=true`, and byte-group mask `0x0f`;
+- lane-0 `bridge-dfii-pattern-sweep` still reports no passing windows;
+- all 256 bitslip/delay points still return `diag_error_count=129`.
+
+So the accidental upper-lane ports were a real reduction bug, but they were not
+the cause of the uniform all-zero DFII readback. This pushes the next work
+toward the actual PHY/electrical/open-bitstream boundary: DQ/DQS output-enable
+features, ISERDES/OSERDES/IDELAY programming, LiteDRAM MR/ODT settings versus
+MIG, and OpenXC7 support gaps.
