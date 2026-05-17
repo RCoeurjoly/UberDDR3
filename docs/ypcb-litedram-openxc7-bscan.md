@@ -871,3 +871,141 @@ seen toggling. The LiteDRAM all-zero DFII/write-leveling result is therefore
 above the raw input-buffer boundary. Remaining suspects are DQS/CK/command
 drive, reset/CKE/ODT/MR command acceptance, OSERDES/ISERDES/IDELAY feature
 generation, or LiteDRAM PHY sequencing for this HR-bank YPCB topology.
+
+## LiteDRAM PHY Read Sampler
+
+The next diagnostic attempt was to add raw DQ/DQS pad sampling to the
+LiteDRAM-integrated shell. That is not legal from outside the PHY: tapping the
+top-level DDR pads in the wrapper makes Yosys/OpenXC7 see the same DDR pad net
+as connected to both the LiteDRAM I/O buffer and an extra sampler path.
+nextpnr rejects that structure with errors such as:
+
+```text
+ERROR: IO buffer 'IOBUFDS' is connected to more than a single top level IO pin.
+ERROR: IO buffer 'IOBUF' is connected to more than a single top level IO pin.
+```
+
+The bridge now uses a legal internal probe instead. In the LiteDRAM-integrated
+build, the raw-BSCAN status payload samples
+`phy.dfi.phases[rdphase].rddata[31:0]`. DQS status fields are intentionally
+tied to zero in this build; the standalone DDR pin sampler above remains the
+pad-level DQS/DQ evidence source.
+
+Build:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-phy-read-sampler-ignore-lock \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only \
+  --build
+```
+
+The generator now canonicalizes `OUT` before invoking LiteX. This avoids a
+previous relative-path bug where a relative `OUT=artifacts/...` caused the
+generated gateware build script to look for the chip database relative to the
+`gateware/` subdirectory.
+
+Program:
+
+```sh
+nix develop .#default --command openocd \
+  -f interface/ftdi/digilent_jtag_hs3.cfg \
+  -c "adapter serial 210299BF3824" \
+  -f cpld/xilinx-xc7.cfg \
+  -c "adapter speed 6000" \
+  -c "init" \
+  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-phy-read-sampler-ignore-lock/gateware/ypcb_00338_1p1.bit" \
+  -c "exit"
+```
+
+Initial read after programming:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py read \
+  --serial 210299BF3824 \
+  --tdo-bit 7 \
+  --json-only
+```
+
+Observed 2026-05-17 result:
+
+- `pass=true`
+- `magic_ok=true`
+- alignment is still `right-shift-1`
+- `rst_n_raw=true`
+- `sys_reset_deasserted=true`
+- counters advance
+- `pll_locked=false`
+- `ddr_dq_now=0x00000000`
+- `ddr_dq_seen_high=0x00001000`
+- `ddr_dq_seen_low=0xffffffff`
+- `ddr_dq_toggle_seen=0x00001000`
+
+MIG-style initialization still completes:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py init-ddr3 \
+  --serial 210299BF3824 \
+  --tdo-bit 7 \
+  --sys-clk-freq 100e6 \
+  --mr1 0x0004 \
+  --tdqs \
+  --json-only
+```
+
+Observed:
+
+- `pass=true`
+- MR1 is `0x0804`
+- `CL=7`
+- `CWL=5`
+- `RDPHASE=2`
+- `WRPHASE=3`
+- `command_count=28`
+- `wb_done=true`
+- no timeout or Wishbone error
+
+Write-leveling with the PHY read sampler gives the most useful new boundary
+result:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sample \
+  --serial 210299BF3824 \
+  --tdo-bit 7 \
+  --init-first \
+  --sys-clk-freq 100e6 \
+  --mr1 0x0004 \
+  --tdqs \
+  --count 8 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed:
+
+- `pass=false`
+- all eight DFII readback samples are still all-zero on phases 0 through 3
+- final PHY-read sampler state has `ddr_dq_seen_high=0x00421000`
+- final PHY-read sampler state has `ddr_dq_toggle_seen=0x00421000`
+- final `ddr_dq_now=0x00000000`
+
+This narrows the failure. The standalone pin sampler proves the lower DDR pads
+are visible to OpenXC7, and the integrated PHY-read sampler now sees sticky
+activity on a few read-data bits during write leveling. But the LiteDRAM DFII
+CSR readback path still returns all zeroes. The next target is therefore
+inside or immediately around the LiteDRAM 7-series no-ODELAY PHY read-capture
+and DFI propagation path, plus the still-unexplained MMCM `LOCKED=false`
+status. It is no longer credible to blame only the raw BSCAN transport or
+basic pad input visibility.
