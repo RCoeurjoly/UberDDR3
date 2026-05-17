@@ -803,3 +803,71 @@ mismatch. The remaining fast path is to instrument the no-ODELAY shell closer
 to the I/O boundary: prove DQS toggles, prove DQ input capture can see board
 levels, and compare OpenXC7 generated IOB/SERDES/FASM features against the
 Vivado/MIG oracle for the same HR-bank pins.
+
+## Direct DDR Pin Sampler
+
+A minimal raw-BSCAN sampler now bypasses LiteDRAM, DFII, IDELAY, ISERDES, and
+OSERDES entirely. It places only input buffers on the lower four byte groups:
+
+- `ddr3_dq[31:0]`
+- `ddr3_dqs_p[3:0]`
+- `ddr3_dqs_n[3:0]`
+
+The sampler uses the same YPCB DDR pin LOCs, `SSTL15` / `DIFF_SSTL15`, input
+termination, and `ypcb_vref.features` append as the DDR experiments. USER1
+returns a 256-bit payload containing current, sticky-high, sticky-low, and
+toggle-seen state for the sampled pins.
+
+Build and program:
+
+```sh
+nix develop .#default --command \
+  make -C example_demo/ypcb_00338_1p1 bscan-ddr-pins \
+  SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+  PNR_ARGS="--seed 3" \
+  PNR_DEBUG=
+
+nix develop .#default --command \
+  make -C example_demo/ypcb_00338_1p1 program-bscan-ddr-pins-openocd \
+  SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+  PNR_ARGS="--seed 3" \
+  PNR_DEBUG=
+```
+
+Read:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_bscan_ddr_pins.py \
+  --serial 210299BF3824 \
+  --tdo-bit 7
+```
+
+Observed 2026-05-17 result:
+
+```json
+{
+  "magic_ok": true,
+  "counter": "0x14561975",
+  "dq_now": "0xffffffff",
+  "dq_seen_high": "0xffffffff",
+  "dq_seen_low": "0xffffffff",
+  "dq_toggle_seen": "0xffffffff",
+  "dqs_p_now": "0x3",
+  "dqs_n_now": "0xc",
+  "dqs_p_seen_high": "0x3",
+  "dqs_n_seen_high": "0xc",
+  "dqs_p_seen_low": "0xf",
+  "dqs_n_seen_low": "0xf",
+  "dqs_p_toggle_seen": "0x3",
+  "dqs_n_toggle_seen": "0xc"
+}
+```
+
+This is a decisive boundary check. The lower DDR pins are electrically visible
+to an OpenXC7 bitstream with the same VREF and input-standard assumptions. DQ
+is not stuck low: all 32 sampled DQ bits have been seen high, seen low, and
+seen toggling. The LiteDRAM all-zero DFII/write-leveling result is therefore
+above the raw input-buffer boundary. Remaining suspects are DQS/CK/command
+drive, reset/CKE/ODT/MR command acceptance, OSERDES/ISERDES/IDELAY feature
+generation, or LiteDRAM PHY sequencing for this HR-bank YPCB topology.
