@@ -747,7 +747,7 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
         wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_HARDWARE)
 
     after = read_status(client, args)
-    return {
+    result = {
         "init": init,
         "tdqs": args.tdqs,
         "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1):04x}",
@@ -757,6 +757,9 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
         "after": after,
         "pass": bool(hits),
     }
+    if args.summary_only:
+        result.pop("samples")
+    return result
 
 
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
@@ -1047,6 +1050,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--count", type=int, default=8)
     parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
+    parser.add_argument("--summary-only", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
     return parser.parse_args()
 
