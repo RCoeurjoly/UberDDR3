@@ -102,9 +102,9 @@ class RawBSCANLiteDRAMBIST(Module):
 
         self.specials += Instance(
             "ypcb_litedram_bscan_bridge",
-            p_BYTE_GROUP_MASK=byte_group_mask,
-            p_RDPHASE=rdphase,
-            p_WRPHASE=wrphase,
+            p_BYTE_GROUP_MASK=Constant(int(byte_group_mask), 32),
+            p_RDPHASE=Constant(int(rdphase), 2),
+            p_WRPHASE=Constant(int(wrphase), 2),
             i_sys_clk=ClockSignal("sys"),
             i_sys_rst=ResetSignal("sys"),
             i_clkin=soc.crg.pll.clkin,
