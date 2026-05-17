@@ -726,7 +726,7 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
                     if status["ddr_phase_first_valid"]:
                         hits.append(summary)
                         if args.stop_on_zero:
-                            return {
+                            result = {
                                 "init": init,
                                 "tdqs": args.tdqs,
                                 "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1):04x}",
@@ -734,6 +734,10 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
                                 "samples": samples,
                                 "pass": True,
                             }
+                            if args.summary_only:
+                                result.pop("init")
+                                result.pop("samples")
+                            return result
     finally:
         wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 0)
         dfii_command_p0(
@@ -758,6 +762,8 @@ def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, obje
         "pass": bool(hits),
     }
     if args.summary_only:
+        result.pop("init")
+        result.pop("after")
         result.pop("samples")
     return result
 
