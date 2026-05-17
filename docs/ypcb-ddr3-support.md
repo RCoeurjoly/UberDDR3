@@ -584,12 +584,52 @@ Relevant AMD/Xilinx references:
 - EN179, Kintex-7 FPGA XC7K480T CES9937 Errata:
   <https://docs.amd.com/api/khub/documents/bFOej1CxDOaUQtExyJBpYw/content>
 
+## PHASER Open-Flow Status
+
+The Vivado MIG oracle proves that the YPCB channel-0 DDR3 implementation uses
+Kintex-7 PHASER hard macros, not only IDELAY/ISERDES/OSERDES soft-facing I/O
+primitives. The open-flow support is now split into explicit gates:
+
+| Gate | Status | Evidence |
+| --- | --- | --- |
+| Vivado placement extraction | pass | `scripts/task6/extract_ypcb_phaser_oracle.py` extracts `PHASER_IN_PHY`, `PHASER_OUT_PHY`, `PHASER_REF`, `PHY_CONTROL`, `IN_FIFO`, and `OUT_FIFO` placements from `artifacts/task6/vivado-oracle/ypcb-systest/implemented.xdc`. |
+| Yosys primitive preservation | pass | The YPCB `phaser-smoke` target instantiates PHASER/FIFO/PHY_CONTROL primitives and `synth_xilinx` preserves them. |
+| nextpnr chipdb visibility | locally patched | `/home/roland/nextpnr-xilinx` commit `a92b97e2` adds a prjxray `site_type_*.json` fallback so hard-macro sites missing from `nextpnr-xilinx-meta` become BELs. |
+| nextpnr place/route smoke | pass with patched chipdb | `make -C example_demo/ypcb_00338_1p1 phaser-smoke CHIPDB=/tmp/xc7k480tffg1156-phaser4.bin NEXTPNR_XILINX_PYTHON_DIR=/home/roland/nextpnr-xilinx/xilinx/python` builds `ypcb_phaser_smoke_openxc7.bit`. |
+| PHASER bitstream feature emission | not proven | The generated `ypcb_phaser_smoke.fasm` contains no `PHASER`, `PHY_CONTROL`, `IN_FIFO`, or `OUT_FIFO` feature lines. The pinned prjxray-db exposes site pins for these sites, but no obvious PHASER/FIFO/PHY_CONTROL `segbits` entries were found. |
+
+This means PHASER support is no longer blocked at synthesis or placement. The
+remaining hard blocker is configuration semantics: we need to know which FASM
+features program the PHASER/FIFO/PHY_CONTROL hard macros and how those features
+map to primitive parameters.
+
+The next upstreamable work item is a minimal PHASER bitstream oracle:
+
+1. Build two tiny Vivado designs that differ by one PHASER/FIFO/PHY_CONTROL
+   parameter or by one hard macro instance.
+2. Convert both bitstreams to frames and compare frame deltas.
+3. Name each discovered bit using the same FASM convention expected by
+   prjxray-db.
+4. Add the feature rows to the database or add a nextpnr FASM emitter only when
+   the database already has stable feature names.
+5. Extend `phaser-smoke` from disconnected hard-macro preservation to connected
+   PHY-control routing only after those features are encodable.
+
+Do not treat the current PHASER smoke bitstream as a working DDR3 PHY. It is a
+toolchain support regression test: hard macro instances survive Yosys, appear in
+the chipdb, can be BEL-locked to Vivado-oracle sites, and do not crash nextpnr
+PNR or bitstream generation.
+
 ## Upstream Patch Queue
 
 Keep local patches small and ready to split out:
 
 - prjxray-db: missing Kintex-7 `LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1`
   feature and origin metadata.
+- prjxray-db / nextpnr-xilinx: PHASER/FIFO/PHY_CONTROL feature discovery and
+  FASM emission from Vivado frame-delta oracles.
+- nextpnr-xilinx: upstream the prjxray site-pin fallback for hard macro BELs
+  once it is narrowed to the site families needed by Kintex-7 DDR PHY.
 - openFPGALoader: add `xc7k480t` IDCODE support for this board.
 - nextpnr-xilinx/openXC7: ODELAY/HR output-buffer fixes if required for the
   final DDR PHY.
