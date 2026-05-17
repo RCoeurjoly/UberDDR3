@@ -189,10 +189,30 @@ The next blockers are:
    read-delay sweep, and capture per-module windows.
 3. Understand why the OpenXC7 MMCM `LOCKED` output is low even though clock
    counters are advancing.
-4. Restore the missing `INTERNAL_VREF` handling in the open-flow bitstream or
-   prove it is not needed for the tested path.
+4. Verify the OpenXC7 bitstream uses the same 0.750 V internal VREF setting as
+   the Vivado/LiteX oracle.
 5. Add LiteDRAM init/calibration status to the raw-BSCAN payload, then separate
    "controller is not initialized" from lane mapping or data-integrity errors.
+
+## Vivado/LiteDRAM Oracle Mismatches
+
+Two host/tooling mismatches were found while comparing the OpenXC7 LiteDRAM
+path against the generated LiteDRAM headers and the Vivado/LiteX electrical
+oracle:
+
+- The raw-BSCAN host DDR3 init sequence was hard-coded for the 125 MHz LiteDRAM
+  build. The 100 MHz build generates `CL=7`, `CWL=5`, `RDPHASE=2`,
+  `WRPHASE=3`, MR0 `0x0930`, and MR2 `0x0200`; the old host sequence used the
+  125 MHz `CL=8`, `CWL=6`, `RDPHASE=1`, `WRPHASE=2`, MR0 `0x0940`, and MR2
+  `0x0208` settings.
+- The OpenXC7 FASM for the LiteDRAM build contained `VREF.V_675_MV` features
+  for DDR banks even though the board oracle uses 0.750 V internal VREF on
+  banks 11 through 18. The generator now patches the final FASM with
+  `example_demo/ypcb_00338_1p1/ypcb_vref.features` and regenerates
+  `ypcb_00338_1p1.frames` / `ypcb_00338_1p1.bit` after OpenXC7 builds.
+
+The host script now also exposes `--tdqs`, which sets DDR3 MR1 bit 11 and lets
+us test the MIG-style TDQS setting without rebuilding the FPGA bitstream.
 
 ## DFII Read-Leveling Diagnostic
 

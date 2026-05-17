@@ -2,6 +2,9 @@
 
 import argparse
 import os
+import re
+import shlex
+import subprocess
 
 from migen import *
 
@@ -17,6 +20,62 @@ from litedram.common import PHYPadsReducer
 from litedram.frontend.bist import _LiteDRAMBISTChecker, _LiteDRAMBISTGenerator
 from litedram.modules import MT41J256M16, MT41K256M8
 from litedram.phy import s7ddrphy
+
+
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+YPCB_VREF_FEATURES = os.path.join(ROOT, "example_demo", "ypcb_00338_1p1", "ypcb_vref.features")
+
+
+def _read_vref_features(path=YPCB_VREF_FEATURES):
+    with open(path, encoding="utf-8") as handle:
+        features = [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+    sites = {feature.split(".", 1)[0] for feature in features}
+    return features, sites
+
+
+def patch_openxc7_vref_fasm(gateware_dir):
+    fasm_path = os.path.join(gateware_dir, "ypcb_00338_1p1.fasm")
+    features, sites = _read_vref_features()
+    with open(fasm_path, encoding="utf-8") as handle:
+        original = handle.read().splitlines()
+
+    vref_re = re.compile(r"^(" + "|".join(re.escape(site) for site in sorted(sites)) + r")\.VREF\.V_")
+    patched = [line for line in original if not vref_re.match(line)]
+    present = set(patched)
+    for feature in features:
+        if feature not in present:
+            patched.append(feature)
+
+    if patched != original:
+        with open(fasm_path, "w", encoding="utf-8") as handle:
+            handle.write("\n".join(patched) + "\n")
+    return {"fasm": fasm_path, "removed_vref_lines": len(original) - len(patched) + len(features), "features": features}
+
+
+def _build_script_lines(gateware_dir):
+    script_path = os.path.join(gateware_dir, "build_ypcb_00338_1p1.sh")
+    with open(script_path, encoding="utf-8") as handle:
+        return [line.strip() for line in handle if line.strip() and not line.lstrip().startswith("#")]
+
+
+def regenerate_openxc7_bitstream_from_fasm(gateware_dir):
+    lines = _build_script_lines(gateware_dir)
+    fasm2frames = next(line for line in lines if line.startswith("fasm2frames "))
+    xc7frames2bit = next(line for line in lines if line.startswith("xc7frames2bit "))
+
+    fasm_command, frames_name = fasm2frames.split(">", 1)
+    frames_path = os.path.join(gateware_dir, frames_name.strip())
+    with open(frames_path, "w", encoding="utf-8") as frames:
+        subprocess.run(shlex.split(fasm_command), cwd=gateware_dir, check=True, stdout=frames)
+    subprocess.run(shlex.split(xc7frames2bit), cwd=gateware_dir, check=True)
+    return {"frames": frames_path, "bitstream": os.path.join(gateware_dir, "ypcb_00338_1p1.bit")}
+
+
+def patch_openxc7_vref_bitstream(output_dir):
+    gateware_dir = os.path.join(output_dir, "gateware")
+    patch = patch_openxc7_vref_fasm(gateware_dir)
+    regen = regenerate_openxc7_bitstream_from_fasm(gateware_dir)
+    return {**patch, **regen}
 
 
 class _CRG(Module):
@@ -221,6 +280,11 @@ def main():
     parser.add_argument("--no-bist", action="store_true")
     parser.add_argument("--with-raw-bscan", action="store_true")
     parser.add_argument("--ignore-pll-lock-reset", action="store_true")
+    parser.add_argument(
+        "--no-openxc7-vref-patch",
+        action="store_true",
+        help="Do not append the YPCB 0.750 V internal VREF FASM features after OpenXC7 builds.",
+    )
     parser.add_argument("--build", action="store_true", help="Run synthesis/place/route, not just generation.")
     parser.add_argument(
         "--output-dir",
@@ -245,6 +309,9 @@ def main():
         csr_json=os.path.join(args.output_dir, "csr.json"),
     )
     builder.build(run=args.build)
+    if args.build and args.toolchain == "openxc7" and not args.no_openxc7_vref_patch:
+        result = patch_openxc7_vref_bitstream(args.output_dir)
+        print("Patched OpenXC7 YPCB VREF features into", result["bitstream"])
 
 
 if __name__ == "__main__":
