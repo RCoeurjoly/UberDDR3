@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from migen import *
 
+from litex.build.generic_platform import IOStandard, Misc, Pins, Subsignal
 from litex.build.yosys_wrapper import YosysWrapper
 from litex.soc.cores.clock import S7IDELAYCTRL, S7MMCM
 from litex.soc.integration.builder import Builder
@@ -21,6 +22,97 @@ from litedram.frontend.bist import _LiteDRAMBISTChecker, _LiteDRAMBISTGenerator
 from litedram.modules import MT41J256M16, MT41K256M8
 from litedram.phy import s7ddrphy
 from patch_ypcb_openxc7_vref import patch_openxc7_vref_bitstream
+
+
+YPCB_DDRAM_PINS = {
+    0: {
+        "a": "AK27 AN23 AL24 AK26 AH24 AH25 AL26 AJ24 AJ25 AM23 AL28 AL25 AM25 AK24 AM27",
+        "ba": "AM26 AP24 AN28",
+        "ras_n": "AJ29",
+        "cas_n": "AP26",
+        "we_n": "AN27",
+        "cs_n": "AK28",
+        "cke": "AP27",
+        "odt": "AK29",
+        "reset_n": "AD31",
+        "dq": (
+            "AG17 AG16 AH17 AJ19 AH18 AH19 AJ16 AJ17",
+            "AL20 AN17 AL19 AM16 AL18 AL16 AM20 AN18",
+            "AL23 AN20 AK23 AP19 AN22 AN19 AM22 AP20",
+            "AJ21 AH22 AK21 AG21 AG22 AG20 AH23 AG23",
+            "AJ32 AK32 AK31 AL30 AL34 AL31 AK34 AL29",
+            "AJ34 AH32 AJ30 AH34 AF31 AG30 AG31 AF30",
+            "AE32 AC33 AF33 AC32 AD34 AC34 AE33 AE31",
+            "AE26 AF29 AE24 AF28 AF24 AG25 AF26 AF25",
+            "AN34 AP30 AM33 AN29 AP32 AP29 AM31 AP31",
+        ),
+        "dqs_p": "AK16 AM17 AP21 AH20 AK33 AG33 AE34 AE27 AN32",
+        "dqs_n": "AK17 AM18 AP22 AJ20 AL33 AH33 AF34 AE28 AP33",
+        "clk_p": "AN25",
+        "clk_n": "AP25",
+    },
+    1: {
+        "a": "E27 C27 B28 D27 C24 D24 C25 A24 A25 J24 F26 D26 H25 D25 B26",
+        "ba": "F24 J25 E24",
+        "ras_n": "E28",
+        "cas_n": "E26",
+        "we_n": "F25",
+        "cs_n": "F28",
+        "cke": "A28",
+        "odt": "B27",
+        "reset_n": "F18",
+        "dq": (
+            "A29 B33 A31 C33 C32 A30 B30 A33",
+            "D31 F33 D30 D29 E33 E34 E31 F34",
+            "B23 A21 C23 B20 B22 A23 C20 B21",
+            "G31 G32 F29 F31 E29 G33 H33 H32",
+            "B18 C17 C19 B16 A18 A16 C18 B17",
+            "K27 L24 K24 L28 K26 M27 L25 M26",
+            "F16 E18 E16 H19 H17 H20 E17 H18",
+            "D20 F21 E23 G21 G20 D21 F20 F23",
+            "L34 K34 K31 K33 L31 J30 L33 J34",
+        ),
+        "dqs_p": "B31 D34 A19 H29 D16 K28 G17 G22 K32",
+        "dqs_n": "B32 C34 A20 H30 D17 K29 G18 G23 J32",
+        "clk_p": "B25",
+        "clk_n": "A26",
+    },
+}
+
+
+def add_reduced_ddram_resource(platform, channel, byte_groups):
+    pins = YPCB_DDRAM_PINS[channel]
+    dqs_p = pins["dqs_p"].split()
+    dqs_n = pins["dqs_n"].split()
+    selected_dq = []
+    selected_dqs_p = []
+    selected_dqs_n = []
+    for group in byte_groups:
+        selected_dq.extend(pins["dq"][group].split())
+        selected_dqs_p.append(dqs_p[group])
+        selected_dqs_n.append(dqs_n[group])
+
+    name = "ddram_reduced"
+    platform.add_extension([
+        (name, channel,
+            Subsignal("a",       Pins(pins["a"]),       IOStandard("SSTL15")),
+            Subsignal("ba",      Pins(pins["ba"]),      IOStandard("SSTL15")),
+            Subsignal("ras_n",   Pins(pins["ras_n"]),   IOStandard("SSTL15")),
+            Subsignal("cas_n",   Pins(pins["cas_n"]),   IOStandard("SSTL15")),
+            Subsignal("we_n",    Pins(pins["we_n"]),    IOStandard("SSTL15")),
+            Subsignal("cs_n",    Pins(pins["cs_n"]),    IOStandard("SSTL15")),
+            Subsignal("cke",     Pins(pins["cke"]),     IOStandard("SSTL15")),
+            Subsignal("odt",     Pins(pins["odt"]),     IOStandard("SSTL15")),
+            Subsignal("reset_n", Pins(pins["reset_n"]), IOStandard("SSTL15")),
+            Subsignal("dq",      Pins(" ".join(selected_dq)),    IOStandard("SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
+            Subsignal("dqs_p",   Pins(" ".join(selected_dqs_p)), IOStandard("DIFF_SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
+            Subsignal("dqs_n",   Pins(" ".join(selected_dqs_n)), IOStandard("DIFF_SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
+            Subsignal("clk_p",   Pins(pins["clk_p"]), IOStandard("DIFF_SSTL15")),
+            Subsignal("clk_n",   Pins(pins["clk_n"]), IOStandard("DIFF_SSTL15")),
+            Misc("SLEW=FAST"),
+        )
+    ])
+    return platform.request(name, channel)
 
 
 def phy_timing(sys_clk_freq):
@@ -212,7 +304,10 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             **kwargs,
         )
 
-        pads = PHYPadsReducer(platform.request("ddram", dram_channel), list(byte_groups))
+        if len(byte_groups) == 9:
+            pads = PHYPadsReducer(platform.request("ddram", dram_channel), list(byte_groups))
+        else:
+            pads = add_reduced_ddram_resource(platform, dram_channel, byte_groups)
         self.submodules.ddrphy = s7ddrphy.A7DDRPHY(
             pads=pads,
             memtype="DDR3",
