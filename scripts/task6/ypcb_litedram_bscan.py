@@ -195,8 +195,10 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
     ddr_phase_nonzero_now = ddr_phase_status & 0xF
     ddr_phase_nonzero_seen = (ddr_phase_status >> 4) & 0xF
     ddr_phase_nonzero_toggle_seen = (ddr_phase_status >> 8) & 0xF
+    ddr_phase_first_mask = (ddr_phase_status >> 12) & 0xF
+    ddr_phase_first_valid = (ddr_phase_status >> 16) & 0x1
     ddr_phase_seen_high = (value >> 960) & 0xFFFFFFFF
-    ddr_phase_toggle_seen = (value >> 992) & 0xFFFFFFFF
+    ddr_phase_first_word = (value >> 992) & 0xFFFFFFFF
     return {
         "raw": f"0x{value:0256x}",
         "alignment": alignment,
@@ -266,8 +268,10 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
         "ddr_phase_nonzero_now": f"0x{ddr_phase_nonzero_now:x}",
         "ddr_phase_nonzero_seen": f"0x{ddr_phase_nonzero_seen:x}",
         "ddr_phase_nonzero_toggle_seen": f"0x{ddr_phase_nonzero_toggle_seen:x}",
+        "ddr_phase_first_valid": bool(ddr_phase_first_valid),
+        "ddr_phase_first_mask": f"0x{ddr_phase_first_mask:x}",
         "ddr_phase_seen_high": f"0x{ddr_phase_seen_high:08x}",
-        "ddr_phase_toggle_seen": f"0x{ddr_phase_toggle_seen:08x}",
+        "ddr_phase_first_word": f"0x{ddr_phase_first_word:08x}",
     }
 
 
