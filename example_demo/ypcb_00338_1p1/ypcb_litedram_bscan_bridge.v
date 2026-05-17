@@ -4,7 +4,9 @@
 // USER2 (IR 0x03, JTAG_CHAIN=2) shifts in a 128-bit command payload.
 
 module ypcb_litedram_bscan_bridge #(
-    parameter [31:0] BYTE_GROUP_MASK = 32'h0000000f
+    parameter [31:0] BYTE_GROUP_MASK = 32'h0000000f,
+    parameter [1:0] RDPHASE = 2'd2,
+    parameter [1:0] WRPHASE = 2'd3
 ) (
     input  wire        sys_clk,
     input  wire        sys_rst,
@@ -52,12 +54,28 @@ module ypcb_litedram_bscan_bridge #(
     localparam [7:0] OP_WB_READ       = 8'h31;
     localparam [7:0] OP_APPLY_RDLY    = 8'h40;
     localparam [7:0] OP_MEM32_CHECK   = 8'h41;
+    localparam [7:0] OP_DFII_PATTERN  = 8'h42;
 
     localparam [31:0] CSR_DDRPHY_DLY_SEL             = 32'h00000804;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_RST         = 32'h00000814;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_INC         = 32'h00000818;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP_RST = 32'h0000081c;
     localparam [31:0] CSR_DDRPHY_RDLY_DQ_BITSLIP     = 32'h00000820;
+    localparam [31:0] CSR_SDRAM_DFII_BASE             = 32'h00001804;
+
+    localparam [31:0] DFII_PATTERN0_HI = 32'hdb6db001;
+    localparam [31:0] DFII_PATTERN0_LO = 32'h00400007;
+    localparam [31:0] DFII_PATTERN1_HI = 32'hbb0aa0ee;
+    localparam [31:0] DFII_PATTERN1_LO = 32'h1ab3ce79;
+    localparam [31:0] DFII_PATTERN2_HI = 32'he6b84bf7;
+    localparam [31:0] DFII_PATTERN2_LO = 32'h4cfacd77;
+    localparam [31:0] DFII_PATTERN3_HI = 32'hed76555a;
+    localparam [31:0] DFII_PATTERN3_LO = 32'hd4f69721;
+
+    localparam [31:0] DFII_CMD_ACT     = 32'h00000009;
+    localparam [31:0] DFII_CMD_WRITE   = 32'h00000017;
+    localparam [31:0] DFII_CMD_READ    = 32'h00000025;
+    localparam [31:0] DFII_CMD_PRE     = 32'h0000000b;
 
     wire read_capture;
     wire read_drck;
@@ -109,6 +127,61 @@ module ypcb_litedram_bscan_bridge #(
     reg [31:0] diag_count;
     reg [31:0] diag_error_count;
     reg [7:0] diag_status;
+    reg [7:0] diag_phase;
+    reg [7:0] diag_wait_count;
+
+    function [31:0] phase_reg;
+        input [1:0] phase;
+        input [7:0] offset;
+        begin
+            phase_reg = CSR_SDRAM_DFII_BASE + {28'd0, phase, 5'd0} + {24'd0, offset};
+        end
+    endfunction
+
+    function [29:0] phase_wadr;
+        input [1:0] phase;
+        input [7:0] offset;
+        reg [31:0] byte_addr;
+        begin
+            byte_addr = phase_reg(phase, offset);
+            phase_wadr = byte_addr[31:2];
+        end
+    endfunction
+
+    function [5:0] popcount32;
+        input [31:0] value;
+        integer i;
+        begin
+            popcount32 = 6'd0;
+            for (i = 0; i < 32; i = i + 1) begin
+                popcount32 = popcount32 + value[i];
+            end
+        end
+    endfunction
+
+    function [31:0] pattern_hi;
+        input [1:0] phase;
+        begin
+            case (phase)
+                2'd0: pattern_hi = DFII_PATTERN0_HI;
+                2'd1: pattern_hi = DFII_PATTERN1_HI;
+                2'd2: pattern_hi = DFII_PATTERN2_HI;
+                default: pattern_hi = DFII_PATTERN3_HI;
+            endcase
+        end
+    endfunction
+
+    function [31:0] pattern_lo;
+        input [1:0] phase;
+        begin
+            case (phase)
+                2'd0: pattern_lo = DFII_PATTERN0_LO;
+                2'd1: pattern_lo = DFII_PATTERN1_LO;
+                2'd2: pattern_lo = DFII_PATTERN2_LO;
+                default: pattern_lo = DFII_PATTERN3_LO;
+            endcase
+        end
+    endfunction
 
     assign wb_sel = 4'hf;
 
@@ -272,6 +345,8 @@ module ypcb_litedram_bscan_bridge #(
             diag_count <= 32'd0;
             diag_error_count <= 32'd0;
             diag_status <= 8'd0;
+            diag_phase <= 8'd0;
+            diag_wait_count <= 8'd0;
         end else begin
             counter <= counter + 1'd1;
             bist_reset <= 1'b0;
@@ -382,7 +457,17 @@ module ypcb_litedram_bscan_bridge #(
                         wb_is_read <= 1'b0;
                         wb_timeout_counter <= 20'd0;
                         wb_status <= 8'b0000_0001;
-                        diag_state <= (diag_opcode == OP_MEM32_CHECK) ? 8'd12 : 8'd20;
+                        if (diag_opcode == OP_MEM32_CHECK) begin
+                            diag_state <= 8'd12;
+                        end else if (diag_opcode == OP_DFII_PATTERN) begin
+                            diag_phase <= 8'd0;
+                            diag_wait_count <= 8'd0;
+                            diag_actual <= 32'd0;
+                            diag_error_count <= 32'd0;
+                            diag_state <= 8'd30;
+                        end else begin
+                            diag_state <= 8'd20;
+                        end
                     end
                     8'd12: begin
                         wb_addr_byte <= diag_addr;
@@ -412,6 +497,274 @@ module ypcb_litedram_bscan_bridge #(
                         diag_count <= diag_count + 1'd1;
                         diag_status <= 8'h02;
                         diag_active <= 1'b0;
+                    end
+                    8'd30: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h08);
+                        wb_adr <= phase_wadr(2'd0, 8'h08);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd31;
+                    end
+                    8'd32: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h0c);
+                        wb_adr <= phase_wadr(2'd0, 8'h0c);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd33;
+                    end
+                    8'd34: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h00);
+                        wb_adr <= phase_wadr(2'd0, 8'h00);
+                        wb_dat_w <= DFII_CMD_ACT;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd35;
+                    end
+                    8'd36: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h04);
+                        wb_adr <= phase_wadr(2'd0, 8'h04);
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_phase <= 8'd0;
+                        diag_state <= 8'd37;
+                    end
+                    8'd38: begin
+                        wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h10);
+                        wb_adr <= phase_wadr(diag_phase[1:0], 8'h10);
+                        wb_dat_w <= pattern_hi(diag_phase[1:0]);
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd39;
+                    end
+                    8'd40: begin
+                        wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h14);
+                        wb_adr <= phase_wadr(diag_phase[1:0], 8'h14);
+                        wb_dat_w <= pattern_lo(diag_phase[1:0]);
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd41;
+                    end
+                    8'd42: begin
+                        wb_addr_byte <= phase_reg(WRPHASE, 8'h08);
+                        wb_adr <= phase_wadr(WRPHASE, 8'h08);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd43;
+                    end
+                    8'd44: begin
+                        wb_addr_byte <= phase_reg(WRPHASE, 8'h0c);
+                        wb_adr <= phase_wadr(WRPHASE, 8'h0c);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd45;
+                    end
+                    8'd46: begin
+                        wb_addr_byte <= phase_reg(WRPHASE, 8'h00);
+                        wb_adr <= phase_wadr(WRPHASE, 8'h00);
+                        wb_dat_w <= DFII_CMD_WRITE;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd47;
+                    end
+                    8'd48: begin
+                        wb_addr_byte <= phase_reg(WRPHASE, 8'h04);
+                        wb_adr <= phase_wadr(WRPHASE, 8'h04);
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_wait_count <= 8'd0;
+                        diag_state <= 8'd49;
+                    end
+                    8'd49: begin
+                        if (diag_wait_count == 8'd64) begin
+                            diag_state <= 8'd50;
+                        end else begin
+                            diag_wait_count <= diag_wait_count + 1'd1;
+                        end
+                    end
+                    8'd50: begin
+                        wb_addr_byte <= phase_reg(RDPHASE, 8'h08);
+                        wb_adr <= phase_wadr(RDPHASE, 8'h08);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd51;
+                    end
+                    8'd52: begin
+                        wb_addr_byte <= phase_reg(RDPHASE, 8'h0c);
+                        wb_adr <= phase_wadr(RDPHASE, 8'h0c);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd53;
+                    end
+                    8'd54: begin
+                        wb_addr_byte <= phase_reg(RDPHASE, 8'h00);
+                        wb_adr <= phase_wadr(RDPHASE, 8'h00);
+                        wb_dat_w <= DFII_CMD_READ;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd55;
+                    end
+                    8'd56: begin
+                        wb_addr_byte <= phase_reg(RDPHASE, 8'h04);
+                        wb_adr <= phase_wadr(RDPHASE, 8'h04);
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_wait_count <= 8'd0;
+                        diag_state <= 8'd57;
+                    end
+                    8'd57: begin
+                        if (diag_wait_count == 8'd64) begin
+                            diag_phase <= 8'd0;
+                            diag_state <= 8'd58;
+                        end else begin
+                            diag_wait_count <= diag_wait_count + 1'd1;
+                        end
+                    end
+                    8'd58: begin
+                        wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h18);
+                        wb_adr <= phase_wadr(diag_phase[1:0], 8'h18);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b0;
+                        wb_is_read <= 1'b1;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd59;
+                    end
+                    8'd60: begin
+                        wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h1c);
+                        wb_adr <= phase_wadr(diag_phase[1:0], 8'h1c);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b0;
+                        wb_is_read <= 1'b1;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd61;
+                    end
+                    8'd62: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h08);
+                        wb_adr <= phase_wadr(2'd0, 8'h08);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd63;
+                    end
+                    8'd64: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h0c);
+                        wb_adr <= phase_wadr(2'd0, 8'h0c);
+                        wb_dat_w <= 32'd0;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd65;
+                    end
+                    8'd66: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h00);
+                        wb_adr <= phase_wadr(2'd0, 8'h00);
+                        wb_dat_w <= DFII_CMD_PRE;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_state <= 8'd67;
+                    end
+                    8'd68: begin
+                        wb_addr_byte <= phase_reg(2'd0, 8'h04);
+                        wb_adr <= phase_wadr(2'd0, 8'h04);
+                        wb_dat_w <= 32'd1;
+                        wb_cyc <= 1'b1;
+                        wb_stb <= 1'b1;
+                        wb_we <= 1'b1;
+                        wb_is_read <= 1'b0;
+                        wb_timeout_counter <= 20'd0;
+                        wb_status <= 8'b0000_0001;
+                        diag_wait_count <= 8'd0;
+                        diag_state <= 8'd69;
+                    end
+                    8'd69: begin
+                        if (diag_wait_count == 8'd64) begin
+                            diag_count <= diag_count + 1'd1;
+                            diag_status <= (diag_error_count == 32'd0) ? 8'h02 : 8'h03;
+                            diag_active <= 1'b0;
+                        end else begin
+                            diag_wait_count <= diag_wait_count + 1'd1;
+                        end
                     end
                     default: begin
                         diag_status <= 8'he0;
@@ -445,6 +798,41 @@ module ypcb_litedram_bscan_bridge #(
                                 diag_active <= 1'b0;
                             end
                         end
+                        8'd31: diag_state <= 8'd32;
+                        8'd33: diag_state <= 8'd34;
+                        8'd35: diag_state <= 8'd36;
+                        8'd37: diag_state <= 8'd38;
+                        8'd39: diag_state <= 8'd40;
+                        8'd41: begin
+                            if (diag_phase == 8'd3) begin
+                                diag_state <= 8'd42;
+                            end else begin
+                                diag_phase <= diag_phase + 1'd1;
+                                diag_state <= 8'd38;
+                            end
+                        end
+                        8'd43: diag_state <= 8'd44;
+                        8'd45: diag_state <= 8'd46;
+                        8'd47: diag_state <= 8'd48;
+                        8'd51: diag_state <= 8'd52;
+                        8'd53: diag_state <= 8'd54;
+                        8'd55: diag_state <= 8'd56;
+                        8'd59: begin
+                            diag_error_count <= diag_error_count + popcount32(diag_actual ^ pattern_hi(diag_phase[1:0]));
+                            diag_state <= 8'd60;
+                        end
+                        8'd61: begin
+                            diag_error_count <= diag_error_count + popcount32(diag_actual ^ pattern_lo(diag_phase[1:0]));
+                            if (diag_phase == 8'd3) begin
+                                diag_state <= 8'd62;
+                            end else begin
+                                diag_phase <= diag_phase + 1'd1;
+                                diag_state <= 8'd58;
+                            end
+                        end
+                        8'd63: diag_state <= 8'd64;
+                        8'd65: diag_state <= 8'd66;
+                        8'd67: diag_state <= 8'd68;
                         default: begin
                         end
                     endcase
@@ -495,7 +883,7 @@ module ypcb_litedram_bscan_bridge #(
                             wb_status <= 8'b0000_0001;
                         end
                     end
-                    OP_APPLY_RDLY, OP_MEM32_CHECK: begin
+                    OP_APPLY_RDLY, OP_MEM32_CHECK, OP_DFII_PATTERN: begin
                         if (!wb_cyc && !diag_active) begin
                             diag_active <= 1'b1;
                             diag_opcode <= command_opcode_tck;

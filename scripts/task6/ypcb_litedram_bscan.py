@@ -32,6 +32,7 @@ OP_WB_WRITE = 0x30
 OP_WB_READ = 0x31
 OP_APPLY_RDLY = 0x40
 OP_MEM32_CHECK = 0x41
+OP_DFII_PATTERN = 0x42
 
 DFII_CONTROL_SEL = 0x01
 DFII_CONTROL_CKE = 0x02
@@ -664,6 +665,8 @@ def run_bridge_diag(client, args: argparse.Namespace, opcode: int) -> dict[str, 
             pass_status = sample["diag_status"] == "0x02"
             if opcode == OP_MEM32_CHECK:
                 pass_status = pass_status and sample["diag_actual_int"] == args.data
+            if opcode == OP_DFII_PATTERN:
+                pass_status = pass_status and sample["diag_error_count"] == 0
             return {"before": before, "after": sample, "samples": samples, "pass": pass_status}
         if time.monotonic() >= deadline:
             return {"before": before, "samples": samples, "pass": False, "timeout": True}
@@ -749,6 +752,7 @@ def parse_args() -> argparse.Namespace:
             "bridge-apply-rdly",
             "bridge-mem32-check",
             "bridge-mem32-sweep",
+            "bridge-dfii-pattern-check",
             "memtest",
         ),
     )
@@ -835,6 +839,8 @@ def main() -> int:
             result = run_bridge_diag(client, args, OP_MEM32_CHECK)
         elif args.action == "bridge-mem32-sweep":
             result = run_bridge_mem32_sweep(client, args)
+        elif args.action == "bridge-dfii-pattern-check":
+            result = run_bridge_diag(client, args, OP_DFII_PATTERN)
         else:
             result = run_memtest(client, args)
     finally:

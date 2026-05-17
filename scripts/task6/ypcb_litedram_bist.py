@@ -46,7 +46,7 @@ class _CRG(Module):
 
 
 class RawBSCANLiteDRAMBIST(Module):
-    def __init__(self, platform, soc, byte_group_mask, with_bist=True):
+    def __init__(self, platform, soc, byte_group_mask, rdphase, wrphase, with_bist=True):
         bist_reset = Signal()
         generator_start = Signal()
         checker_start = Signal()
@@ -103,6 +103,8 @@ class RawBSCANLiteDRAMBIST(Module):
         self.specials += Instance(
             "ypcb_litedram_bscan_bridge",
             p_BYTE_GROUP_MASK=byte_group_mask,
+            p_RDPHASE=rdphase,
+            p_WRPHASE=wrphase,
             i_sys_clk=ClockSignal("sys"),
             i_sys_rst=ResetSignal("sys"),
             i_clkin=soc.crg.pll.clkin,
@@ -201,6 +203,8 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
                 self.platform,
                 self,
                 byte_group_mask,
+                rdphase=self.ddrphy.settings.read_phase,
+                wrphase=self.ddrphy.settings.write_phase,
                 with_bist=with_bist,
             )
 

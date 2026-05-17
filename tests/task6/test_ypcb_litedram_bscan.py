@@ -48,7 +48,7 @@ class RawBscanProtocolTest(unittest.TestCase):
         payload |= 1 << 511
         payload |= 0x12 << 512
         payload |= 0x03 << 520
-        payload |= bscan.OP_MEM32_CHECK << 528
+        payload |= bscan.OP_DFII_PATTERN << 528
         payload |= 0x01 << 536
         payload |= 0x02 << 544
         payload |= 0x03 << 552
@@ -63,7 +63,7 @@ class RawBscanProtocolTest(unittest.TestCase):
         self.assertTrue(status["diag_active"])
         self.assertEqual(status["diag_state"], 0x12)
         self.assertEqual(status["diag_status"], "0x03")
-        self.assertEqual(status["diag_opcode"], "0x41")
+        self.assertEqual(status["diag_opcode"], "0x42")
         self.assertEqual(status["diag_module_mask_int"], 1)
         self.assertEqual(status["diag_bitslip"], 2)
         self.assertEqual(status["diag_delay"], 3)
