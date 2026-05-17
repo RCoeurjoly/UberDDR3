@@ -1183,3 +1183,39 @@ this legal integrated build, and DFII CSR readback remains all-zero in the
 older sampler. The useful next step is to convert this first-hit sweep into a
 byte-lane calibration selector, then use the selected delays for a controlled
 read/write BIST attempt.
+
+Selector follow-up:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-calibrate \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --init-first \
+    --sys-clk-freq 100e6 \
+    --mr1 0x0004 \
+    --tdqs \
+    --module-mask 0xf \
+    --max-bitslip 0 \
+    --max-delay 31 \
+    --count 4 \
+    --json-only \
+    --summary-only \
+    --timeout-s 5 \
+    --poll-s 0.005 \
+    --settle-s 0.005
+```
+
+Observed 2026-05-17 selected windows:
+
+| module mask | hit count | selected bitslip | selected delay | window |
+|---:|---:|---:|---:|---:|
+| `0x1` | 28 | 0 | 8 | 0..17 |
+| `0x2` | 26 | 0 | 17 | 12..23 |
+| `0x4` | 31 | 0 | 11 | 0..22 |
+| `0x8` | 32 | 0 | 15 | 0..31 |
+
+The selector returned `pass=true` and applied these per-byte-group delays via
+the LiteDRAM DDRPHY read-delay CSRs. This is still too slow as a host-side
+calibration primitive because it runs many JTAG Wishbone transactions; if the
+approach continues to work, the sweep/selection should move into fabric.
