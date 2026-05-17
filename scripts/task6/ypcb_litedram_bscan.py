@@ -1024,6 +1024,23 @@ def parse_rdly_set(value: str) -> list[tuple[int, int, int]]:
     return selections
 
 
+def parse_bool_list(value: str) -> list[bool]:
+    values = []
+    for item in value.split(","):
+        item = item.strip().lower()
+        if not item:
+            continue
+        if item in ("1", "true", "yes", "on"):
+            values.append(True)
+        elif item in ("0", "false", "no", "off"):
+            values.append(False)
+        else:
+            raise argparse.ArgumentTypeError(f"invalid boolean value: {item}")
+    if not values:
+        raise argparse.ArgumentTypeError("expected at least one boolean")
+    return values
+
+
 def apply_read_leveling_set(
     client,
     args: argparse.Namespace,
@@ -1087,6 +1104,75 @@ def run_phase_memtest_sweep(client, args: argparse.Namespace) -> dict[str, objec
     if args.summary_only:
         zero_error_samples = [sample for sample in samples if sample["pass"]]
         result.pop("init")
+        result.pop("samples")
+        result["sample_count"] = len(samples)
+        result["zero_error_count"] = len(zero_error_samples)
+        result["zero_error_samples"] = zero_error_samples[:8]
+    return result
+
+
+def run_mr1_memtest_sweep(client, args: argparse.Namespace) -> dict[str, object]:
+    samples = []
+    best = None
+    original_mr1 = args.mr1
+    original_tdqs = args.tdqs
+
+    try:
+        for mr1 in args.mr1_values:
+            for tdqs in args.tdqs_values:
+                args.mr1 = mr1
+                args.tdqs = tdqs
+                init = run_ddr3_init(client, args)
+                for rdphase in args.rdphase_values:
+                    for wrphase in args.wrphase_values:
+                        wb_write_checked(client, args, CSR_DDRPHY_RDPHASE, rdphase)
+                        wb_write_checked(client, args, CSR_DDRPHY_WRPHASE, wrphase)
+                        applied = apply_read_leveling_set(client, args, args.rdly_set)
+                        result = run_memtest(client, args)
+                        after = result["after"]
+                        summary = {
+                            "mr1_base": f"0x{mr1:04x}",
+                            "mr1_programmed": f"0x{ddr3_mr1(tdqs=tdqs, override=mr1):04x}",
+                            "tdqs": tdqs,
+                            "rdphase": rdphase,
+                            "wrphase": wrphase,
+                            "applied_rdly": applied,
+                            "checker_errors": after["checker_errors"],
+                            "checker_done": after["checker_done"],
+                            "generator_done": after["generator_done"],
+                            "checker_ticks": after["checker_ticks"],
+                            "generator_ticks": after["generator_ticks"],
+                            "ddr_phase_first_mask": after["ddr_phase_first_mask"],
+                            "ddr_phase_first_word": after["ddr_phase_first_word"],
+                            "ddr_phase_nonzero_seen": after["ddr_phase_nonzero_seen"],
+                            "ddr_phase_seen_high": after["ddr_phase_seen_high"],
+                            "init_pass": init["pass"],
+                            "pass": result["pass"],
+                        }
+                        samples.append(summary)
+                        if best is None or (
+                            summary["checker_errors"],
+                            not summary["checker_done"],
+                            not summary["generator_done"],
+                        ) < (
+                            best["checker_errors"],
+                            not best["checker_done"],
+                            not best["generator_done"],
+                        ):
+                            best = summary
+                        if args.stop_on_zero and summary["pass"]:
+                            result = {"best": best, "samples": samples, "pass": True}
+                            if args.summary_only:
+                                result.pop("samples")
+                                result["sample_count"] = len(samples)
+                            return result
+    finally:
+        args.mr1 = original_mr1
+        args.tdqs = original_tdqs
+
+    result = {"best": best, "samples": samples, "pass": bool(best and best["pass"])}
+    if args.summary_only:
+        zero_error_samples = [sample for sample in samples if sample["pass"]]
         result.pop("samples")
         result["sample_count"] = len(samples)
         result["zero_error_count"] = len(zero_error_samples)
@@ -1222,6 +1308,7 @@ def parse_args() -> argparse.Namespace:
             "write-leveling-sweep",
             "write-leveling-calibrate",
             "phase-memtest-sweep",
+            "mr1-memtest-sweep",
             "memtest",
         ),
     )
@@ -1251,6 +1338,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-delay", type=int, default=31)
     parser.add_argument("--rdphase-values", type=parse_int_list, default=parse_int_list("0,1,2,3"))
     parser.add_argument("--wrphase-values", type=parse_int_list, default=parse_int_list("0,1,2,3"))
+    parser.add_argument("--mr1-values", type=parse_int_list, default=parse_int_list("0x0000,0x0002,0x0004,0x0006"))
+    parser.add_argument("--tdqs-values", type=parse_bool_list, default=parse_bool_list("0,1"))
     parser.add_argument(
         "--rdly-set",
         type=parse_rdly_set,
@@ -1356,6 +1445,8 @@ def main() -> int:
             result = run_write_leveling_calibrate(client, args)
         elif args.action == "phase-memtest-sweep":
             result = run_phase_memtest_sweep(client, args)
+        elif args.action == "mr1-memtest-sweep":
+            result = run_mr1_memtest_sweep(client, args)
         else:
             result = run_memtest(client, args)
     finally:
