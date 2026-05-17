@@ -1315,3 +1315,115 @@ has errors. Because this artifact misses the nominal 100 MHz system clock badly
 The next useful step is either a timing-clean smaller BIST artifact or an
 integrated selector-plus-BIST sweep that searches around the selected delay
 centers without collapsing all byte groups to one delay.
+
+## 2026-05-17 50 MHz BIST Follow-Up
+
+Built a lower-clock four-byte-group BIST artifact to separate ordinary fabric
+timing pressure from PHY/electrical issues:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-bist-4lane-50mhz-cleanports-firsthit-sampler-ignore-lock \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --sys-clk-freq 50e6 \
+    --byte-groups 0,1,2,3 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --build
+```
+
+This build was VREF-patched and is timing-clean for the intended 50 MHz system
+clock even though nextpnr still reports against a broad 200 MHz target:
+
+- post-route `main_clkout_buf0` maximum frequency: `78.05 MHz`
+- BSCAN status readback works after programming
+- exported `pll_locked=false` remains a known limitation of the ignore-lock
+  diagnostic build, so host-side memtest now has `--ignore-pll-lock` for this
+  artifact class
+
+Selector result at 50 MHz:
+
+| module mask | hit count | selected bitslip | selected delay | window |
+|---:|---:|---:|---:|---:|
+| `0x1` | 32 | 0 | 15 | 0..31 |
+| `0x2` | 23 | 0 | 6 | 0..12 |
+| `0x4` | 32 | 0 | 15 | 0..31 |
+| `0x8` | 32 | 0 | 15 | 0..31 |
+
+Small BIST after applying the selected delays:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py memtest \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --base 0x40000000 \
+    --length 0x100 \
+    --random 0 \
+    --json-only \
+    --ignore-pll-lock \
+    --timeout-s 10 \
+    --poll-s 0.01 \
+    --settle-s 0.005
+```
+
+Observed result:
+
+- `pass=false`
+- generator completed in 9 ticks
+- checker completed in 25 ticks
+- `checker_errors=7`
+- `ddr_phase_first_mask=0x2`
+- `ddr_phase_first_word=0x00001000`
+- `ddr_phase_nonzero_seen=0xf`
+- `ddr_phase_seen_high=0xfe009407`
+
+The full `sweep-read` across all 256 global bitslip/delay points found no
+zero-error point:
+
+```json
+{
+  "best": {
+    "bitslip": 0,
+    "delay": 0,
+    "checker_errors": 7,
+    "checker_done": true,
+    "generator_done": true
+  },
+  "pass": false,
+  "sample_count": 256,
+  "zero_error_count": 0
+}
+```
+
+This weakens the hypothesis that the 100 MHz failure was only a generic fabric
+timing problem. The four-byte design is timing-clean at 50 MHz and still fails
+with the same 7-error signature after selector calibration.
+
+Also tested a reduced byte-group-0-only artifact:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-bist-byte0-50mhz-cleanports-firsthit-sampler-ignore-lock \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --sys-clk-freq 50e6 \
+    --byte-groups 0 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --build
+```
+
+The byte-group-0 artifact routes cleanly for 50 MHz
+(`main_clkout_buf0=75.38 MHz`) but does not behave like the full topology:
+
+- write-leveling selector found no hits for `module_mask=0x1`
+- small BIST completed but reported `checker_errors=31`
+- DQ sticky toggle status stayed zero while internal DFI phase samples changed
+
+This means deleting byte groups is not currently a faithful lane-isolation
+method. The remaining high-value path is to keep the full four-byte topology
+and match the PHY/electrical behavior against the Vivado/MIG oracle: VREF,
+ODT/MR1, TDQS, DQS phase, write/read phase, DQ/DQS mapping, and any OpenXC7
+primitive support gaps around the 7-series DDR PHY.
