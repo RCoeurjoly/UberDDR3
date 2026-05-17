@@ -425,6 +425,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd1;
                     end
+                    8'd1: if (wb_status[1]) diag_state <= 8'd2;
                     8'd2: begin
                         wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_RST;
                         wb_adr <= CSR_DDRPHY_RDLY_DQ_RST[31:2];
@@ -437,6 +438,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd3;
                     end
+                    8'd3: if (wb_status[1]) diag_state <= 8'd4;
                     8'd4: begin
                         wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_BITSLIP_RST;
                         wb_adr <= CSR_DDRPHY_RDLY_DQ_BITSLIP_RST[31:2];
@@ -449,6 +451,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd5;
                     end
+                    8'd5: if (wb_status[1]) diag_state <= 8'd6;
                     8'd6: begin
                         if (diag_bitslip_count < diag_bitslip_target) begin
                             wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_BITSLIP;
@@ -465,6 +468,7 @@ module ypcb_litedram_bscan_bridge #(
                             diag_state <= 8'd8;
                         end
                     end
+                    8'd7: if (wb_status[1]) diag_state <= 8'd6;
                     8'd8: begin
                         if (diag_delay_count < diag_delay_target) begin
                             wb_addr_byte <= CSR_DDRPHY_RDLY_DQ_INC;
@@ -481,6 +485,7 @@ module ypcb_litedram_bscan_bridge #(
                             diag_state <= 8'd10;
                         end
                     end
+                    8'd9: if (wb_status[1]) diag_state <= 8'd8;
                     8'd10: begin
                         wb_addr_byte <= CSR_DDRPHY_DLY_SEL;
                         wb_adr <= CSR_DDRPHY_DLY_SEL[31:2];
@@ -503,6 +508,7 @@ module ypcb_litedram_bscan_bridge #(
                             diag_state <= 8'd20;
                         end
                     end
+                    8'd11: if (wb_status[1]) diag_state <= 8'd20;
                     8'd29: begin
                         wb_addr_byte <= CSR_SDRAM_DFII_CONTROL;
                         wb_adr <= CSR_SDRAM_DFII_CONTROL[31:2];
@@ -515,6 +521,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd28;
                     end
+                    8'd28: if (wb_status[1]) diag_state <= 8'd30;
                     8'd12: begin
                         wb_addr_byte <= diag_addr;
                         wb_adr <= diag_addr[31:2];
@@ -527,6 +534,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd13;
                     end
+                    8'd13: if (wb_status[1]) diag_state <= 8'd14;
                     8'd14: begin
                         wb_addr_byte <= diag_addr;
                         wb_adr <= diag_addr[31:2];
@@ -538,6 +546,16 @@ module ypcb_litedram_bscan_bridge #(
                         wb_timeout_counter <= 20'd0;
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd15;
+                    end
+                    8'd15: if (wb_status[1]) begin
+                        if (diag_actual == diag_expected) begin
+                            diag_state <= 8'd20;
+                        end else begin
+                            diag_status <= 8'h03;
+                            diag_error_count <= diag_error_count + 1'd1;
+                            diag_count <= diag_count + 1'd1;
+                            diag_active <= 1'b0;
+                        end
                     end
                     8'd20: begin
                         diag_count <= diag_count + 1'd1;
@@ -556,6 +574,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd31;
                     end
+                    8'd31: if (wb_status[1]) diag_state <= 8'd32;
                     8'd32: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h0c);
                         wb_adr <= phase_wadr(2'd0, 8'h0c);
@@ -568,6 +587,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd33;
                     end
+                    8'd33: if (wb_status[1]) diag_state <= 8'd34;
                     8'd34: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h00);
                         wb_adr <= phase_wadr(2'd0, 8'h00);
@@ -580,6 +600,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd35;
                     end
+                    8'd35: if (wb_status[1]) diag_state <= 8'd36;
                     8'd36: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h04);
                         wb_adr <= phase_wadr(2'd0, 8'h04);
@@ -593,6 +614,7 @@ module ypcb_litedram_bscan_bridge #(
                         diag_phase <= 8'd0;
                         diag_state <= 8'd37;
                     end
+                    8'd37: if (wb_status[1]) diag_state <= 8'd38;
                     8'd38: begin
                         wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h10);
                         wb_adr <= phase_wadr(diag_phase[1:0], 8'h10);
@@ -605,6 +627,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd39;
                     end
+                    8'd39: if (wb_status[1]) diag_state <= 8'd40;
                     8'd40: begin
                         wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h14);
                         wb_adr <= phase_wadr(diag_phase[1:0], 8'h14);
@@ -616,6 +639,14 @@ module ypcb_litedram_bscan_bridge #(
                         wb_timeout_counter <= 20'd0;
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd41;
+                    end
+                    8'd41: if (wb_status[1]) begin
+                        if (diag_phase == 8'd3) begin
+                            diag_state <= 8'd42;
+                        end else begin
+                            diag_phase <= diag_phase + 1'd1;
+                            diag_state <= 8'd38;
+                        end
                     end
                     8'd42: begin
                         wb_addr_byte <= phase_reg(WRPHASE, 8'h08);
@@ -629,6 +660,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd43;
                     end
+                    8'd43: if (wb_status[1]) diag_state <= 8'd44;
                     8'd44: begin
                         wb_addr_byte <= phase_reg(WRPHASE, 8'h0c);
                         wb_adr <= phase_wadr(WRPHASE, 8'h0c);
@@ -641,6 +673,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd45;
                     end
+                    8'd45: if (wb_status[1]) diag_state <= 8'd46;
                     8'd46: begin
                         wb_addr_byte <= phase_reg(WRPHASE, 8'h00);
                         wb_adr <= phase_wadr(WRPHASE, 8'h00);
@@ -653,6 +686,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd47;
                     end
+                    8'd47: if (wb_status[1]) diag_state <= 8'd48;
                     8'd48: begin
                         wb_addr_byte <= phase_reg(WRPHASE, 8'h04);
                         wb_adr <= phase_wadr(WRPHASE, 8'h04);
@@ -685,6 +719,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd51;
                     end
+                    8'd51: if (wb_status[1]) diag_state <= 8'd52;
                     8'd52: begin
                         wb_addr_byte <= phase_reg(RDPHASE, 8'h0c);
                         wb_adr <= phase_wadr(RDPHASE, 8'h0c);
@@ -697,6 +732,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd53;
                     end
+                    8'd53: if (wb_status[1]) diag_state <= 8'd54;
                     8'd54: begin
                         wb_addr_byte <= phase_reg(RDPHASE, 8'h00);
                         wb_adr <= phase_wadr(RDPHASE, 8'h00);
@@ -709,6 +745,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd55;
                     end
+                    8'd55: if (wb_status[1]) diag_state <= 8'd56;
                     8'd56: begin
                         wb_addr_byte <= phase_reg(RDPHASE, 8'h04);
                         wb_adr <= phase_wadr(RDPHASE, 8'h04);
@@ -742,6 +779,10 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd59;
                     end
+                    8'd59: if (wb_status[1]) begin
+                        diag_error_count <= diag_error_count + popcount32(wb_rdata_q ^ pattern_hi(diag_phase[1:0]));
+                        diag_state <= 8'd60;
+                    end
                     8'd60: begin
                         wb_addr_byte <= phase_reg(diag_phase[1:0], 8'h1c);
                         wb_adr <= phase_wadr(diag_phase[1:0], 8'h1c);
@@ -753,6 +794,15 @@ module ypcb_litedram_bscan_bridge #(
                         wb_timeout_counter <= 20'd0;
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd61;
+                    end
+                    8'd61: if (wb_status[1]) begin
+                        diag_error_count <= diag_error_count + popcount32(wb_rdata_q ^ pattern_lo(diag_phase[1:0]));
+                        if (diag_phase == 8'd3) begin
+                            diag_state <= 8'd62;
+                        end else begin
+                            diag_phase <= diag_phase + 1'd1;
+                            diag_state <= 8'd58;
+                        end
                     end
                     8'd62: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h08);
@@ -766,6 +816,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd63;
                     end
+                    8'd63: if (wb_status[1]) diag_state <= 8'd64;
                     8'd64: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h0c);
                         wb_adr <= phase_wadr(2'd0, 8'h0c);
@@ -778,6 +829,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd65;
                     end
+                    8'd65: if (wb_status[1]) diag_state <= 8'd66;
                     8'd66: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h00);
                         wb_adr <= phase_wadr(2'd0, 8'h00);
@@ -790,6 +842,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd67;
                     end
+                    8'd67: if (wb_status[1]) diag_state <= 8'd68;
                     8'd68: begin
                         wb_addr_byte <= phase_reg(2'd0, 8'h04);
                         wb_adr <= phase_wadr(2'd0, 8'h04);
@@ -822,6 +875,7 @@ module ypcb_litedram_bscan_bridge #(
                         wb_status <= 8'b0000_0001;
                         diag_state <= 8'd71;
                     end
+                    8'd71: if (wb_status[1]) diag_state <= 8'd72;
                     8'd72: begin
                         diag_count <= diag_count + 1'd1;
                         diag_status <= (diag_error_count == 32'd0) ? 8'h02 : 8'h03;
