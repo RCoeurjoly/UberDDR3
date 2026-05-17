@@ -1615,3 +1615,33 @@ sufficient:
 This keeps the failure in the same active-but-wrong class. The next experiments
 should focus on structural mismatches rather than repeating global timing,
 phase, MR1, TDQS, VREF, or input-termination sweeps.
+
+## 2026-05-17 LiteDRAM vs MIG Pin-Map Check
+
+Added `scripts/task6/compare_ypcb_litedram_mig_pins.py` to compare the
+LiteDRAM YPCB pin map against the Vivado/MIG `mig.prj` export and summarize
+MIG's selected DQ/DQS input termination.
+
+Command:
+
+```sh
+python3 scripts/task6/compare_ypcb_litedram_mig_pins.py --byte-groups 0,1,2,3
+```
+
+Result:
+
+- LiteDRAM pin count: 117
+- MIG pin count: 117
+- total pin mismatches: 0
+- selected byte-group mismatches: 0
+- selected MIG DQ/DQS input termination: `UNTUNED_SPLIT_50`
+
+So the current four-byte LiteDRAM build is not failing because of a simple
+package pin-order mismatch against the Vivado/MIG oracle. The remaining
+structural suspects are now narrower:
+
+- generated PHY byte/DFI ordering inside LiteDRAM;
+- address/command mapping differences between the reduced x32 LiteDRAM test and
+  the x72 ECC MIG channel;
+- no-ODELAY/write-leveling limitations on this HR-bank pinout;
+- OpenXC7 primitive/bitstream feature gaps around the 7-series DDR PHY.
