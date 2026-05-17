@@ -20,6 +20,9 @@ export CHIPDB="${CHIPDB:-${OUT}/chipdb}"
 mkdir -p "${CHIPDB}"
 
 export PYTHONPATH="${MIGEN_ROOT}:${LITEX_ROOT}:${LITEDRAM_ROOT}:${LITEX_BOARDS_ROOT}:${LITEPCIE_ROOT}:${LITEETH_ROOT}:${PYTHONDATA_COMPILER_RT_ROOT}:${PYTHONDATA_VEXRISCV_ROOT}:${PYTHONDATA_TAPCFG_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+if [ -n "${NEXTPNR_XILINX_BIN:-}" ]; then
+  export PATH="$(dirname "${NEXTPNR_XILINX_BIN}"):${PATH}"
+fi
 
 python3 "${ROOT}/scripts/task6/ypcb_litedram_bist.py" \
   --output-dir "${OUT}" \
