@@ -669,3 +669,52 @@ write-leveling mode, the controller should be able to strobe DQS and observe
 some feedback from the memory. Seeing no high bits with and without TDQS points
 earlier in the path: command/MR acceptance, DQS output-enable/drive, DQ input
 capture, or an OpenXC7 feature mismatch in the 7-series DDR I/O primitives.
+
+## Kintex-7 LiteDRAM PHY Attempt
+
+The first reduced LiteDRAM shells used `A7DDRPHY`, which is the Artix-7
+no-ODELAY path. That was useful as a minimal raw-BSCAN/DFII smoke test, but it
+is not the right long-term PHY class for this Kintex-7 board. The generator now
+has a `--s7-phy a7|k7` option so the same YPCB shell can be built with
+`K7DDRPHY`.
+
+Command:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-k7-cleanports-ignore-lock \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --s7-phy k7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only \
+  --build
+```
+
+Observed 2026-05-17 result:
+
+- LiteDRAM generation succeeds and instantiates the intended Kintex-7 path:
+  `K7DDRPHY`, `IDELAYCTRL`, `IDELAYE2`, `ODELAYE2`, `ISERDESE2`, and
+  `OSERDESE2`;
+- Yosys synthesis reaches nextpnr packing;
+- nextpnr/OpenXC7 aborts during I/O packing:
+
+```text
+ERROR: ODELAYE2 'ODELAYE2' has DATAOUT connected to unsupported cell type IOB33M_OUTBUF
+```
+
+This is now the highest-priority fully-open-flow blocker. The A7/no-ODELAY
+shell proves raw-BSCAN/CSR plumbing and DDR command sequencing are alive but
+returns all-zero DDR feedback. The K7/ODELAY shell is the more appropriate
+electrical/PHY experiment, and it currently cannot reach bitstream generation
+because nextpnr rejects an `ODELAYE2 -> IOB33M_OUTBUF` topology.
+
+The adjacent nextpnr-xilinx XC7 packer code already recognizes direct
+`IOB33_OUTBUF`/`IOB33M_OUTBUF` cells in related output-buffer discovery logic,
+so the immediate tooling task is to make the `ODELAYE2.DATAOUT` legality check
+accept those direct output-buffer cell types as well, then rebuild nextpnr and
+rerun this K7 LiteDRAM shell.
