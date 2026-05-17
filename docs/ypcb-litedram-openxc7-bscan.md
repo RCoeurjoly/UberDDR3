@@ -1219,3 +1219,38 @@ The selector returned `pass=true` and applied these per-byte-group delays via
 the LiteDRAM DDRPHY read-delay CSRs. This is still too slow as a host-side
 calibration primitive because it runs many JTAG Wishbone transactions; if the
 approach continues to work, the sweep/selection should move into fabric.
+
+DFII pattern check caveat:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py bridge-dfii-pattern-check \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --sys-clk-freq 100e6 \
+    --mr1 0x0004 \
+    --tdqs \
+    --module-mask 0xf \
+    --bitslip 0 \
+    --delay 0 \
+    --json-only \
+    --timeout-s 5 \
+    --poll-s 0.005 \
+    --settle-s 0.005
+```
+
+Observed result:
+
+- `pass=false`
+- `diag_status=0x03`
+- `diag_error_count=129`
+- `ddr_phase_nonzero_seen=0xf`
+- `ddr_phase_seen_high=0xffffffff`
+
+This command is not a valid test of the per-byte selected delay set above,
+because `bridge-dfii-pattern-check` applies its own single `--delay` to the
+selected `--module-mask` before running the pattern. With `--module-mask 0xf`
+and `--delay 0`, it overwrote the selector's per-byte delays. A valid next
+test needs either a combined calibrate-and-BIST action or a BIST-capable
+bitstream plus a command path that does not collapse all byte groups to one
+delay.
