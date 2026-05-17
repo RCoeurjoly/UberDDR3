@@ -1009,3 +1009,84 @@ inside or immediately around the LiteDRAM 7-series no-ODELAY PHY read-capture
 and DFI propagation path, plus the still-unexplained MMCM `LOCKED=false`
 status. It is no longer credible to blame only the raw BSCAN transport or
 basic pad input visibility.
+
+Follow-up diagnostic:
+
+- commit `aaf5542` exposes a compact all-phase DFI read-data summary in the
+  top 96 bits of the existing 1024-bit USER1 payload;
+- commit `21e6b81` adds `clear-phy-sample`, and the host now clears the sticky
+  PHY sample registers immediately before write-leveling strobes.
+
+Clean hardware build:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-allphase-clear-sampler-ignore-lock \
+nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+  --toolchain openxc7 \
+  --sys-clk-freq 100e6 \
+  --byte-groups 0,1,2,3 \
+  --with-raw-bscan \
+  --ignore-pll-lock-reset \
+  --no-bist \
+  --dfii-only \
+  --build
+```
+
+This build completed, was patched with `ypcb_vref.features`, and routed with
+post-route `main_clkout_buf0` around `103.53 MHz`. nextpnr still prints a
+global FAIL because the generated command asks it to report against `200 MHz`,
+but this artifact is timing-clean enough for the intended `100 MHz` diagnostic
+clock.
+
+Program:
+
+```sh
+nix develop .#default --command openocd \
+  -f interface/ftdi/digilent_jtag_hs3.cfg \
+  -c "adapter serial 210299BF3824" \
+  -f cpld/xilinx-xc7.cfg \
+  -c "adapter speed 6000" \
+  -c "init" \
+  -c "pld load 0 artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-dfii-only-4lane-100mhz-cleanports-allphase-clear-sampler-ignore-lock/gateware/ypcb_00338_1p1.bit" \
+  -c "exit"
+```
+
+Clean write-leveling probe:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sample \
+  --serial 210299BF3824 \
+  --tdo-bit 7 \
+  --init-first \
+  --sys-clk-freq 100e6 \
+  --mr1 0x0004 \
+  --tdqs \
+  --count 8 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed 2026-05-17 result after the sticky clear:
+
+- `pass=false`
+- all eight DFII CSR samples are still all-zero on phases 0 through 3
+- final `ddr_dq_seen_high=0x00000000`
+- final `ddr_phase_nonzero_seen=0x2`
+- final `ddr_phase_nonzero_toggle_seen=0x2`
+- final `ddr_phase_seen_high=0x00020000`
+- final `ddr_phase_toggle_seen=0x00020000`
+- DQS status fields remain zero in this integrated build because DQS is not
+  legally tapped outside the LiteDRAM PHY
+
+This is the cleanest boundary result so far. During the write-leveling window,
+the integrated PHY-facing DFI read-data signal sees a transient high on phase
+1, bit 17, but the DFII CSR readback path never returns a nonzero byte. That
+means there is some feedback activity inside the no-ODELAY A7DDRPHY read path,
+but the current host-side CSR sampling method is missing it. The next target
+is a fabric-side write-leveling/read-window sampler that latches the DFI
+read-data bus at strobe time, rather than relying on slow JTAG CSR reads after
+the event.
