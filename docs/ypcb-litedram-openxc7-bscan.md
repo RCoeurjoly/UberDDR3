@@ -604,3 +604,68 @@ the cause of the uniform all-zero DFII readback. This pushes the next work
 toward the actual PHY/electrical/open-bitstream boundary: DQ/DQS output-enable
 features, ISERDES/OSERDES/IDELAY programming, LiteDRAM MR/ODT settings versus
 MIG, and OpenXC7 support gaps.
+
+## Write-Leveling Feedback Probe
+
+The raw-BSCAN host now has a `write-leveling-sample` action. It uses the
+generated LiteDRAM write-leveling CSRs:
+
+- `ddrphy_wlevel_en` at `0x080c`
+- `ddrphy_wlevel_strobe` at `0x0810`
+
+The probe:
+
+1. optionally runs `init-ddr3`;
+2. switches DFII to software control;
+3. writes MR1 with write-leveling enabled;
+4. asserts LiteDRAM `wlevel_en`;
+5. pulses `wlevel_strobe`;
+6. reads all four DFII phase read-data words;
+7. restores MR1 and hardware control.
+
+Command:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sample \
+  --init-first \
+  --sys-clk-freq 100e6 \
+  --count 8 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed 2026-05-17 result:
+
+- corrected 100 MHz initialization still completes;
+- MR1 write-leveling value is `0x0086`;
+- all eight samples return `0x0000000000000000` on phases 0, 1, 2, and 3;
+- `pass=false`, meaning no sampled DFII read-data byte was nonzero.
+
+TDQS does not change that result:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py write-leveling-sample \
+  --init-first \
+  --sys-clk-freq 100e6 \
+  --tdqs \
+  --count 8 \
+  --json-only \
+  --timeout-s 5 \
+  --poll-s 0.005 \
+  --settle-s 0.005
+```
+
+Observed:
+
+- MR1 write-leveling value is `0x0886`;
+- all sampled phase words are still zero.
+
+This is a stronger failure signature than a missing read-leveling window. In
+write-leveling mode, the controller should be able to strobe DQS and observe
+some feedback from the memory. Seeing no high bits with and without TDQS points
+earlier in the path: command/MR acceptance, DQS output-enable/drive, DQ input
+capture, or an OpenXC7 feature mismatch in the 7-series DDR I/O primitives.
