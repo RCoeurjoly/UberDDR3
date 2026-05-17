@@ -681,6 +681,84 @@ def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, obj
     }
 
 
+def run_write_leveling_sweep(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+    samples = []
+    hits = []
+
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_SOFTWARE)
+    dfii_command_p0(
+        client,
+        args,
+        ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1),
+        1,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+    )
+    cdelay(args, 100)
+    wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 1)
+    cdelay(args, 100)
+
+    try:
+        sample_count = max(1, args.count)
+        for module_mask in selected_module_masks(args.module_mask):
+            for bitslip in range(args.max_bitslip + 1):
+                for delay in range(args.max_delay + 1):
+                    set_read_leveling(client, args, module_mask, bitslip, delay)
+                    write_command(client, args, OP_CLEAR_PHY_SAMPLE)
+                    cdelay(args, 10)
+                    for _ in range(sample_count):
+                        wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_STROBE, 1)
+                        cdelay(args, 100)
+                    status = read_status(client, args)
+                    summary = {
+                        "module_mask": module_mask,
+                        "bitslip": bitslip,
+                        "delay": delay,
+                        "first_valid": status["ddr_phase_first_valid"],
+                        "first_mask": status["ddr_phase_first_mask"],
+                        "first_word": status["ddr_phase_first_word"],
+                        "nonzero_seen": status["ddr_phase_nonzero_seen"],
+                        "nonzero_toggle_seen": status["ddr_phase_nonzero_toggle_seen"],
+                        "seen_high": status["ddr_phase_seen_high"],
+                        "dq_seen_high": status["ddr_dq_seen_high"],
+                    }
+                    samples.append(summary)
+                    if status["ddr_phase_first_valid"]:
+                        hits.append(summary)
+                        if args.stop_on_zero:
+                            return {
+                                "init": init,
+                                "tdqs": args.tdqs,
+                                "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1):04x}",
+                                "hits": hits,
+                                "samples": samples,
+                                "pass": True,
+                            }
+    finally:
+        wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 0)
+        dfii_command_p0(
+            client,
+            args,
+            ddr3_mr1(tdqs=args.tdqs, override=args.mr1),
+            1,
+            DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+        )
+        cdelay(args, 100)
+        wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_HARDWARE)
+
+    after = read_status(client, args)
+    return {
+        "init": init,
+        "tdqs": args.tdqs,
+        "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs, override=args.mr1):04x}",
+        "mr1_restore": f"0x{ddr3_mr1(tdqs=args.tdqs, override=args.mr1):04x}",
+        "hits": hits,
+        "samples": samples,
+        "after": after,
+        "pass": bool(hits),
+    }
+
+
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     before = read_status(client, args)
     write_command(client, args, OP_RESET_BIST)
@@ -923,6 +1001,7 @@ def parse_args() -> argparse.Namespace:
             "bridge-dfii-pattern-check",
             "bridge-dfii-pattern-sweep",
             "write-leveling-sample",
+            "write-leveling-sweep",
             "memtest",
         ),
     )
@@ -1030,6 +1109,8 @@ def main() -> int:
             result = run_bridge_dfii_pattern_sweep(client, args)
         elif args.action == "write-leveling-sample":
             result = run_write_leveling_sample(client, args)
+        elif args.action == "write-leveling-sweep":
+            result = run_write_leveling_sweep(client, args)
         else:
             result = run_memtest(client, args)
     finally:
