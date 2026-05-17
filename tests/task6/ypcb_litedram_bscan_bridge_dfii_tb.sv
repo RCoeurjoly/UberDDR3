@@ -53,6 +53,7 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
     reg [31:0] sim_command_addr = 32'd0;
     reg [31:0] sim_command_data = 32'd0;
     reg [31:0] ddr_dq_sample = 32'hffff0000;
+    reg [127:0] ddr_phase_sample = 128'h00000000_00000000_22220000_00001111;
     reg [3:0] ddr_dqs_p_sample = 4'h3;
     reg [3:0] ddr_dqs_n_sample = 4'hc;
 
@@ -128,6 +129,7 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
             sim_command_valid <= 1'b0;
         end
         ddr_dq_sample <= {ddr_dq_sample[30:0], ddr_dq_sample[31]};
+        ddr_phase_sample <= {ddr_phase_sample[126:0], ddr_phase_sample[127]};
         ddr_dqs_p_sample <= {ddr_dqs_p_sample[2:0], ddr_dqs_p_sample[3]};
         ddr_dqs_n_sample <= {ddr_dqs_n_sample[2:0], ddr_dqs_n_sample[3]};
     end
@@ -204,6 +206,7 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
         .rst_n_raw(1'b1),
         .pll_locked(1'b1),
         .ddr_dq_sample(ddr_dq_sample),
+        .ddr_phase_sample(ddr_phase_sample),
         .ddr_dqs_p_sample(ddr_dqs_p_sample),
         .ddr_dqs_n_sample(ddr_dqs_n_sample),
         .generator_done(1'b0),

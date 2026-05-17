@@ -15,6 +15,7 @@ module ypcb_litedram_bscan_bridge #(
     input  wire        rst_n_raw,
     input  wire        pll_locked,
     input  wire [31:0] ddr_dq_sample,
+    input  wire [127:0] ddr_phase_sample,
     input  wire [3:0]  ddr_dqs_p_sample,
     input  wire [3:0]  ddr_dqs_n_sample,
 
@@ -153,6 +154,13 @@ module ypcb_litedram_bscan_bridge #(
     reg [31:0] ddr_dq_seen_high;
     reg [31:0] ddr_dq_seen_low;
     reg [31:0] ddr_dq_toggle_seen;
+    reg [127:0] ddr_phase_meta;
+    reg [127:0] ddr_phase_sync;
+    reg [127:0] ddr_phase_prev;
+    reg [31:0] ddr_phase_seen_high;
+    reg [31:0] ddr_phase_toggle_seen;
+    reg [3:0] ddr_phase_nonzero_seen;
+    reg [3:0] ddr_phase_nonzero_toggle_seen;
     reg [3:0] ddr_dqs_p_meta;
     reg [3:0] ddr_dqs_p_sync;
     reg [3:0] ddr_dqs_p_prev;
@@ -248,8 +256,44 @@ module ypcb_litedram_bscan_bridge #(
         ddr_dqs_p_seen_high
     };
 
+    wire [31:0] ddr_phase0_sync = ddr_phase_sync[31:0];
+    wire [31:0] ddr_phase1_sync = ddr_phase_sync[63:32];
+    wire [31:0] ddr_phase2_sync = ddr_phase_sync[95:64];
+    wire [31:0] ddr_phase3_sync = ddr_phase_sync[127:96];
+    wire [31:0] ddr_phase0_prev = ddr_phase_prev[31:0];
+    wire [31:0] ddr_phase1_prev = ddr_phase_prev[63:32];
+    wire [31:0] ddr_phase2_prev = ddr_phase_prev[95:64];
+    wire [31:0] ddr_phase3_prev = ddr_phase_prev[127:96];
+    wire [3:0] ddr_phase_nonzero_now = {
+        |ddr_phase3_sync,
+        |ddr_phase2_sync,
+        |ddr_phase1_sync,
+        |ddr_phase0_sync
+    };
+    wire [3:0] ddr_phase_nonzero_toggle_now = {
+        |(ddr_phase3_sync ^ ddr_phase3_prev),
+        |(ddr_phase2_sync ^ ddr_phase2_prev),
+        |(ddr_phase1_sync ^ ddr_phase1_prev),
+        |(ddr_phase0_sync ^ ddr_phase0_prev)
+    };
+    wire [31:0] ddr_phase_seen_high_next =
+        ddr_phase0_sync | ddr_phase1_sync | ddr_phase2_sync | ddr_phase3_sync;
+    wire [31:0] ddr_phase_toggle_seen_next =
+        (ddr_phase0_sync ^ ddr_phase0_prev) |
+        (ddr_phase1_sync ^ ddr_phase1_prev) |
+        (ddr_phase2_sync ^ ddr_phase2_prev) |
+        (ddr_phase3_sync ^ ddr_phase3_prev);
+    wire [31:0] ddr_phase_status = {
+        20'd0,
+        ddr_phase_nonzero_toggle_seen,
+        ddr_phase_nonzero_seen,
+        ddr_phase_nonzero_now
+    };
+
     wire [1023:0] read_payload = {
-        96'd0,
+        ddr_phase_toggle_seen,
+        ddr_phase_seen_high,
+        ddr_phase_status,
         ddr_dqs_status,
         ddr_dq_toggle_seen,
         ddr_dq_seen_low,
@@ -424,6 +468,13 @@ module ypcb_litedram_bscan_bridge #(
             ddr_dq_seen_high <= 32'd0;
             ddr_dq_seen_low <= 32'd0;
             ddr_dq_toggle_seen <= 32'd0;
+            ddr_phase_meta <= 128'd0;
+            ddr_phase_sync <= 128'd0;
+            ddr_phase_prev <= 128'd0;
+            ddr_phase_seen_high <= 32'd0;
+            ddr_phase_toggle_seen <= 32'd0;
+            ddr_phase_nonzero_seen <= 4'd0;
+            ddr_phase_nonzero_toggle_seen <= 4'd0;
             ddr_dqs_p_meta <= 4'd0;
             ddr_dqs_p_sync <= 4'd0;
             ddr_dqs_p_prev <= 4'd0;
@@ -444,6 +495,13 @@ module ypcb_litedram_bscan_bridge #(
             ddr_dq_seen_high <= ddr_dq_seen_high | ddr_dq_sync;
             ddr_dq_seen_low <= ddr_dq_seen_low | ~ddr_dq_sync;
             ddr_dq_toggle_seen <= ddr_dq_toggle_seen | (ddr_dq_sync ^ ddr_dq_prev);
+            ddr_phase_meta <= ddr_phase_sample;
+            ddr_phase_sync <= ddr_phase_meta;
+            ddr_phase_prev <= ddr_phase_sync;
+            ddr_phase_seen_high <= ddr_phase_seen_high | ddr_phase_seen_high_next;
+            ddr_phase_toggle_seen <= ddr_phase_toggle_seen | ddr_phase_toggle_seen_next;
+            ddr_phase_nonzero_seen <= ddr_phase_nonzero_seen | ddr_phase_nonzero_now;
+            ddr_phase_nonzero_toggle_seen <= ddr_phase_nonzero_toggle_seen | ddr_phase_nonzero_toggle_now;
             ddr_dqs_p_meta <= ddr_dqs_p_sample;
             ddr_dqs_p_sync <= ddr_dqs_p_meta;
             ddr_dqs_p_prev <= ddr_dqs_p_sync;

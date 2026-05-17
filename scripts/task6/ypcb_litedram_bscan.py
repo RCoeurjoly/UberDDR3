@@ -190,6 +190,12 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
     ddr_dqs_n_seen_low = (ddr_dqs_status >> 12) & 0xF
     ddr_dqs_p_toggle_seen = (ddr_dqs_status >> 16) & 0xF
     ddr_dqs_n_toggle_seen = (ddr_dqs_status >> 20) & 0xF
+    ddr_phase_status = (value >> 928) & 0xFFFFFFFF
+    ddr_phase_nonzero_now = ddr_phase_status & 0xF
+    ddr_phase_nonzero_seen = (ddr_phase_status >> 4) & 0xF
+    ddr_phase_nonzero_toggle_seen = (ddr_phase_status >> 8) & 0xF
+    ddr_phase_seen_high = (value >> 960) & 0xFFFFFFFF
+    ddr_phase_toggle_seen = (value >> 992) & 0xFFFFFFFF
     return {
         "raw": f"0x{value:0256x}",
         "alignment": alignment,
@@ -256,6 +262,11 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
         "ddr_dqs_n_seen_low": f"0x{ddr_dqs_n_seen_low:x}",
         "ddr_dqs_p_toggle_seen": f"0x{ddr_dqs_p_toggle_seen:x}",
         "ddr_dqs_n_toggle_seen": f"0x{ddr_dqs_n_toggle_seen:x}",
+        "ddr_phase_nonzero_now": f"0x{ddr_phase_nonzero_now:x}",
+        "ddr_phase_nonzero_seen": f"0x{ddr_phase_nonzero_seen:x}",
+        "ddr_phase_nonzero_toggle_seen": f"0x{ddr_phase_nonzero_toggle_seen:x}",
+        "ddr_phase_seen_high": f"0x{ddr_phase_seen_high:08x}",
+        "ddr_phase_toggle_seen": f"0x{ddr_phase_toggle_seen:08x}",
     }
 
 

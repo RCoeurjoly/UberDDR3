@@ -182,6 +182,7 @@ class RawBSCANLiteDRAMBIST(Module):
         checker_ticks = Signal(32)
         checker_errors = Signal(32)
         ddr_dq_sample = Signal(32)
+        ddr_phase_sample = Signal(128)
         ddr_dqs_p_sample = Signal(4)
         ddr_dqs_n_sample = Signal(4)
         self.wishbone = wishbone.Interface(data_width=32, adr_width=30)
@@ -189,8 +190,17 @@ class RawBSCANLiteDRAMBIST(Module):
 
         rdphase_index = int(rdphase)
         rddata_width = min(len(phy.dfi.phases[rdphase_index].rddata), 32)
+        phase_samples = []
+        for phase in range(min(len(phy.dfi.phases), 4)):
+            phase_sample = Signal(32)
+            phase_width = min(len(phy.dfi.phases[phase].rddata), 32)
+            self.comb += phase_sample[:phase_width].eq(phy.dfi.phases[phase].rddata[:phase_width])
+            phase_samples.append(phase_sample)
+        while len(phase_samples) < 4:
+            phase_samples.append(Constant(0, 32))
         self.comb += [
             ddr_dq_sample[:rddata_width].eq(phy.dfi.phases[rdphase_index].rddata[:rddata_width]),
+            ddr_phase_sample.eq(Cat(*phase_samples)),
             ddr_dqs_p_sample.eq(0),
             ddr_dqs_n_sample.eq(0),
         ]
@@ -245,6 +255,7 @@ class RawBSCANLiteDRAMBIST(Module):
             i_rst_n_raw=soc.crg.rst_n,
             i_pll_locked=soc.crg.pll.locked,
             i_ddr_dq_sample=ddr_dq_sample,
+            i_ddr_phase_sample=ddr_phase_sample,
             i_ddr_dqs_p_sample=ddr_dqs_p_sample,
             i_ddr_dqs_n_sample=ddr_dqs_n_sample,
             i_generator_done=generator_done,
