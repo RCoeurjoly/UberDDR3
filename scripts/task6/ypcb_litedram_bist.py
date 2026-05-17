@@ -20,6 +20,13 @@ from litedram.phy import s7ddrphy
 from patch_ypcb_openxc7_vref import patch_openxc7_vref_bitstream
 
 
+def phy_timing(sys_clk_freq):
+    """Match the LiteDRAM-generated sdram_phy.h values for the tested YPCB builds."""
+    if sys_clk_freq <= 110e6:
+        return {"rdphase": 2, "wrphase": 3}
+    return {"rdphase": 1, "wrphase": 2}
+
+
 class _CRG(Module):
     def __init__(self, platform, sys_clk_freq, ignore_pll_lock_reset=False):
         self.rst = Signal()
@@ -199,12 +206,13 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             byte_group_mask = 0
             for group in byte_groups:
                 byte_group_mask |= 1 << group
+            timing = phy_timing(sys_clk_freq)
             self.submodules.raw_bscan_bist = RawBSCANLiteDRAMBIST(
                 self.platform,
                 self,
                 byte_group_mask,
-                rdphase=self.ddrphy.settings.rdphase,
-                wrphase=self.ddrphy.settings.wrphase,
+                rdphase=timing["rdphase"],
+                wrphase=timing["wrphase"],
                 with_bist=with_bist,
             )
 
