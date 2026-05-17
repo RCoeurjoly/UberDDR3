@@ -1530,3 +1530,36 @@ Result across all sixteen `(rdphase, wrphase)` pairs:
 This rules out a simple LiteDRAM read/write phase CSR mismatch as the only
 remaining issue for the current 50 MHz no-ODELAY artifact. The next knob class
 is MR1/TDQS/termination/ODT behavior, tested on the same full four-byte topology.
+
+## 2026-05-17 MR1/TDQS Memtest Sweep
+
+Added a host-side `mr1-memtest-sweep` action that reinitializes DDR3 for each
+MR1/TDQS candidate, reapplies the known per-module read-delay set, and runs the
+same BIST without rebuilding the FPGA.
+
+Tested the 50 MHz four-byte artifact with LiteDRAM's 50 MHz default
+`rdphase=2`, `wrphase=3` and these MR1 bases:
+
+- `0x0000`
+- `0x0002`
+- `0x0004` (MIG-style `DIC=RZQ/7`, `RTT_NOM=RZQ/4`)
+- `0x0006` (LiteDRAM default base)
+
+Each base was tested with TDQS disabled and enabled. TDQS-enabled samples OR in
+MR1 bit 11.
+
+Result:
+
+- `sample_count=8`
+- `zero_error_count=0`
+- best sample still had `checker_errors=7`
+- best sample was `mr1_base=0x0000`, `tdqs=false`, `rdphase=2`, `wrphase=3`
+- all samples completed generator/checker traffic, so this remains an active
+  but incorrect data path rather than a dead controller path
+
+This rules out the obvious MR1/TDQS settings as a standalone fix for the current
+LiteDRAM/OpenXC7 no-ODELAY path. Since VREF is already patched to 0.750 V and
+phase/MR1/TDQS did not eliminate the stable 7-error signature, the next highest
+value comparison is structural: DQ/DQS lane order, byte-group mapping, address
+mapping, DFI phase byte ordering, and any mismatch between the generated
+LiteDRAM pads and the Vivado/MIG channel-0 oracle.
