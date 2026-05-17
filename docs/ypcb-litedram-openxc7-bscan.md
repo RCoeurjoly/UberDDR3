@@ -1563,3 +1563,55 @@ phase/MR1/TDQS did not eliminate the stable 7-error signature, the next highest
 value comparison is structural: DQ/DQS lane order, byte-group mapping, address
 mapping, DFI phase byte ordering, and any mismatch between the generated
 LiteDRAM pads and the Vivado/MIG channel-0 oracle.
+
+## 2026-05-17 MIG Input-Termination Match
+
+The Vivado/MIG channel-0 XDC uses `IN_TERM UNTUNED_SPLIT_50` on DDR3 DQ and
+DQS pins. The first reduced LiteDRAM resource used `UNTUNED_SPLIT_40`, inherited
+from earlier UberDDR3 experiments. The LiteDRAM generator now defaults reduced
+resources to `UNTUNED_SPLIT_50` and exposes `--in-term` for A/B testing.
+
+Built and programmed:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-bist-4lane-50mhz-mig-interm-ignore-lock \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --sys-clk-freq 50e6 \
+    --byte-groups 0,1,2,3 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --build
+```
+
+The build completed and was VREF-patched. Post-route timing for the system
+clock remained valid for the intended 50 MHz test point:
+
+- `main_clkout_buf0` maximum frequency: `78.05 MHz`
+
+Selector result with MIG-style MR1 and TDQS:
+
+| module mask | hit count | selected bitslip | selected delay | window |
+|---:|---:|---:|---:|---:|
+| `0x1` | 32 | 0 | 15 | 0..31 |
+| `0x2` | 24 | 0 | 7 | 0..14 |
+| `0x4` | 32 | 0 | 15 | 0..31 |
+| `0x8` | 32 | 0 | 15 | 0..31 |
+
+Compared to the previous `UNTUNED_SPLIT_40` build, lane `0x2` moved from delay
+6 to delay 7 and its window widened from 13 to 15 taps. That proves the input
+termination setting is physically visible to the diagnostic, but it is not
+sufficient:
+
+- generator completed in 9 ticks
+- checker completed in 25 ticks
+- `checker_errors=7`
+- `ddr_phase_first_mask=0x2`
+- `ddr_phase_first_word=0x00001000`
+- `ddr_phase_nonzero_seen=0xf`
+- `ddr_phase_seen_high=0xfe00b407`
+
+This keeps the failure in the same active-but-wrong class. The next experiments
+should focus on structural mismatches rather than repeating global timing,
+phase, MR1, TDQS, VREF, or input-termination sweeps.
