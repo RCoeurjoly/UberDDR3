@@ -51,6 +51,8 @@ DFII_COMMAND_RDDATA = 0x20
 
 CSR_DDRPHY_RST = 0x0800
 CSR_DDRPHY_DLY_SEL = 0x0804
+CSR_DDRPHY_WLEVEL_EN = 0x080C
+CSR_DDRPHY_WLEVEL_STROBE = 0x0810
 CSR_DDRPHY_RDLY_DQ_RST = 0x0814
 CSR_DDRPHY_RDLY_DQ_INC = 0x0818
 CSR_DDRPHY_RDLY_DQ_BITSLIP_RST = 0x081C
@@ -80,6 +82,7 @@ READ_CHECK_TEST_PATTERN_MAX_ERRORS = (
     8 * SDRAM_PHY_PHASES * DFII_PIX_DATA_BYTES // SDRAM_PHY_MODULES
 )
 MODULE_BITMASK = (1 << SDRAM_PHY_DQ_DQS_RATIO) - 1
+MR1_WRITE_LEVELING_ENABLE = 1 << 7
 MR1_TDQS_ENABLE = 1 << 11
 
 
@@ -95,6 +98,10 @@ def ddr3_mr1(tdqs: bool = False) -> int:
     if tdqs:
         value |= MR1_TDQS_ENABLE
     return value
+
+
+def ddr3_mr1_write_leveling(tdqs: bool = False) -> int:
+    return ddr3_mr1(tdqs=tdqs) | MR1_WRITE_LEVELING_ENABLE
 
 
 def litedram_ddr3_init_sequence(sys_clk_freq: float, tdqs: bool = False) -> tuple[tuple[str, int, int, int, int, str], ...]:
@@ -560,6 +567,68 @@ def run_ddr3_init(client, args: argparse.Namespace) -> dict[str, object]:
     }
 
 
+def run_write_leveling_sample(client, args: argparse.Namespace) -> dict[str, object]:
+    init = run_ddr3_init(client, args) if args.init_first else None
+
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_SOFTWARE)
+    dfii_command_p0(
+        client,
+        args,
+        ddr3_mr1_write_leveling(tdqs=args.tdqs),
+        1,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+    )
+    cdelay(args, 100)
+    wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 1)
+    cdelay(args, 100)
+
+    samples = []
+    sample_count = max(1, args.count)
+    for index in range(sample_count):
+        wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_STROBE, 1)
+        cdelay(args, 100)
+        phases = []
+        for phase in range(SDRAM_PHY_PHASES):
+            values = dfii_read_data(client, args, phase)
+            phases.append(
+                {
+                    "phase": phase,
+                    "bytes": [f"0x{value:02x}" for value in values],
+                    "word": f"0x{pack_le_bytes(values):016x}",
+                    "nonzero": any(values),
+                }
+            )
+        samples.append(
+            {
+                "index": index,
+                "phases": phases,
+                "any_nonzero": any(phase["nonzero"] for phase in phases),
+            }
+        )
+
+    wb_write_checked(client, args, CSR_DDRPHY_WLEVEL_EN, 0)
+    dfii_command_p0(
+        client,
+        args,
+        ddr3_mr1(tdqs=args.tdqs),
+        1,
+        DFII_COMMAND_RAS | DFII_COMMAND_CAS | DFII_COMMAND_WE | DFII_COMMAND_CS,
+    )
+    cdelay(args, 100)
+    wb_write_checked(client, args, CSR_SDRAM_DFII_CONTROL, DFII_CONTROL_HARDWARE)
+    after = read_status(client, args)
+    any_nonzero = any(sample["any_nonzero"] for sample in samples)
+    return {
+        "init": init,
+        "tdqs": args.tdqs,
+        "mr1_wlevel": f"0x{ddr3_mr1_write_leveling(tdqs=args.tdqs):04x}",
+        "mr1_restore": f"0x{ddr3_mr1(tdqs=args.tdqs):04x}",
+        "samples": samples,
+        "after": after,
+        "pass": any_nonzero,
+    }
+
+
 def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     before = read_status(client, args)
     write_command(client, args, OP_RESET_BIST)
@@ -800,6 +869,7 @@ def parse_args() -> argparse.Namespace:
             "bridge-mem32-sweep",
             "bridge-dfii-pattern-check",
             "bridge-dfii-pattern-sweep",
+            "write-leveling-sample",
             "memtest",
         ),
     )
@@ -834,6 +904,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--timeout-s", type=float, default=5.0)
     parser.add_argument("--sys-clk-freq", type=float, default=125e6)
     parser.add_argument("--tdqs", action="store_true")
+    parser.add_argument("--count", type=int, default=8)
     parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
@@ -890,6 +961,8 @@ def main() -> int:
             result = run_bridge_diag(client, args, OP_DFII_PATTERN)
         elif args.action == "bridge-dfii-pattern-sweep":
             result = run_bridge_dfii_pattern_sweep(client, args)
+        elif args.action == "write-leveling-sample":
+            result = run_write_leveling_sample(client, args)
         else:
             result = run_memtest(client, args)
     finally:
