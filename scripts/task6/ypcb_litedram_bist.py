@@ -80,7 +80,7 @@ YPCB_DDRAM_PINS = {
 }
 
 
-def add_reduced_ddram_resource(platform, channel, byte_groups):
+def add_reduced_ddram_resource(platform, channel, byte_groups, in_term):
     pins = YPCB_DDRAM_PINS[channel]
     dqs_p = pins["dqs_p"].split()
     dqs_n = pins["dqs_n"].split()
@@ -104,9 +104,9 @@ def add_reduced_ddram_resource(platform, channel, byte_groups):
             Subsignal("cke",     Pins(pins["cke"]),     IOStandard("SSTL15")),
             Subsignal("odt",     Pins(pins["odt"]),     IOStandard("SSTL15")),
             Subsignal("reset_n", Pins(pins["reset_n"]), IOStandard("SSTL15")),
-            Subsignal("dq",      Pins(" ".join(selected_dq)),    IOStandard("SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
-            Subsignal("dqs_p",   Pins(" ".join(selected_dqs_p)), IOStandard("DIFF_SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
-            Subsignal("dqs_n",   Pins(" ".join(selected_dqs_n)), IOStandard("DIFF_SSTL15"), Misc("IN_TERM=UNTUNED_SPLIT_40")),
+            Subsignal("dq",      Pins(" ".join(selected_dq)),    IOStandard("SSTL15"), Misc(f"IN_TERM={in_term}")),
+            Subsignal("dqs_p",   Pins(" ".join(selected_dqs_p)), IOStandard("DIFF_SSTL15"), Misc(f"IN_TERM={in_term}")),
+            Subsignal("dqs_n",   Pins(" ".join(selected_dqs_n)), IOStandard("DIFF_SSTL15"), Misc(f"IN_TERM={in_term}")),
             Subsignal("clk_p",   Pins(pins["clk_p"]), IOStandard("DIFF_SSTL15")),
             Subsignal("clk_n",   Pins(pins["clk_n"]), IOStandard("DIFF_SSTL15")),
             Misc("SLEW=FAST"),
@@ -306,6 +306,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         dfii_only=False,
         ignore_pll_lock_reset=False,
         s7_phy="a7",
+        in_term="UNTUNED_SPLIT_50",
         toolchain="openxc7",
         **kwargs,
     ):
@@ -333,7 +334,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
         if len(byte_groups) == 9:
             pads = PHYPadsReducer(platform.request("ddram", dram_channel), list(byte_groups))
         else:
-            pads = add_reduced_ddram_resource(platform, dram_channel, byte_groups)
+            pads = add_reduced_ddram_resource(platform, dram_channel, byte_groups, in_term)
         phy_cls = {
             "a7": s7ddrphy.A7DDRPHY,
             "k7": s7ddrphy.K7DDRPHY,
@@ -407,6 +408,15 @@ def main():
     )
     parser.add_argument("--ignore-pll-lock-reset", action="store_true")
     parser.add_argument(
+        "--in-term",
+        default="UNTUNED_SPLIT_50",
+        choices=("UNTUNED_SPLIT_40", "UNTUNED_SPLIT_50"),
+        help=(
+            "DQ/DQS input termination for reduced resources. The default follows "
+            "the Vivado/MIG oracle for YPCB channel 0."
+        ),
+    )
+    parser.add_argument(
         "--no-openxc7-vref-patch",
         action="store_true",
         help="Do not append the YPCB 0.750 V internal VREF FASM features after OpenXC7 builds.",
@@ -428,6 +438,7 @@ def main():
         dfii_only=args.dfii_only,
         ignore_pll_lock_reset=args.ignore_pll_lock_reset,
         s7_phy=args.s7_phy,
+        in_term=args.in_term,
         toolchain=args.toolchain,
     )
     builder = Builder(
