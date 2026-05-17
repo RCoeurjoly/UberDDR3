@@ -1254,3 +1254,64 @@ and `--delay 0`, it overwrote the selector's per-byte delays. A valid next
 test needs either a combined calibrate-and-BIST action or a BIST-capable
 bitstream plus a command path that does not collapse all byte groups to one
 delay.
+
+BIST-capable artifact:
+
+```sh
+OUT=artifacts/task6/litedram-reference/ypcb-raw-bscan-openxc7-bist-4lane-100mhz-cleanports-firsthit-sampler-ignore-lock \
+  nix develop .#default --command \
+  scripts/task6/generate_ypcb_litedram_bist_reference.sh \
+    --toolchain openxc7 \
+    --sys-clk-freq 100e6 \
+    --byte-groups 0,1,2,3 \
+    --with-raw-bscan \
+    --ignore-pll-lock-reset \
+    --build
+```
+
+The BIST artifact built and was VREF-patched, but timing is poor:
+
+- `main_clkout_buf0` maximum frequency reported as 71.04 MHz after routing
+- the design still programmed and BSCAN status readback worked
+
+Selector result on the BIST artifact:
+
+| module mask | hit count | selected bitslip | selected delay | window |
+|---:|---:|---:|---:|---:|
+| `0x1` | 22 | 0 | 25 | 23..27 |
+| `0x2` | 29 | 0 | 24 | 18..31 |
+| `0x4` | 26 | 0 | 10 | 7..14 |
+| `0x8` | 31 | 0 | 8 | 0..17 |
+
+Small BIST after applying the selected delays:
+
+```sh
+nix develop .#default --command \
+  python3 scripts/task6/ypcb_litedram_bscan.py memtest \
+    --serial 210299BF3824 \
+    --tdo-bit 7 \
+    --base 0x40000000 \
+    --length 0x100 \
+    --random 0 \
+    --json-only \
+    --timeout-s 10 \
+    --poll-s 0.01 \
+    --settle-s 0.005
+```
+
+Observed result:
+
+- `pass=false`
+- generator completed in 6 ticks
+- checker completed in 26 ticks
+- `checker_errors=7`
+- `ddr_phase_nonzero_seen=0xf`
+- `ddr_phase_seen_high=0xff020003`
+
+This is the first BIST-level evidence on the LiteDRAM/OpenXC7 path: the memory
+path is active enough that generator/checker complete, but the data path still
+has errors. Because this artifact misses the nominal 100 MHz system clock badly
+(71.04 MHz report), the result must be treated as mixed PHY/timing evidence.
+The next useful step is either a timing-clean smaller BIST artifact or an
+integrated selector-plus-BIST sweep that searches around the selected delay
+centers without collapsing all byte groups to one delay.
