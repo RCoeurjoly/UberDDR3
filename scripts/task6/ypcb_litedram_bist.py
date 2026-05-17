@@ -203,8 +203,8 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
                 self.platform,
                 self,
                 byte_group_mask,
-                rdphase=self.ddrphy.settings.read_phase,
-                wrphase=self.ddrphy.settings.write_phase,
+                rdphase=self.ddrphy.settings.rdphase,
+                wrphase=self.ddrphy.settings.wrphase,
                 with_bist=with_bist,
             )
 
