@@ -14,6 +14,8 @@ PYTHONDATA_VEXRISCV_ROOT="${PYTHONDATA_VEXRISCV_ROOT:-/home/roland/pythondata-cp
 PYTHONDATA_TAPCFG_ROOT="${PYTHONDATA_TAPCFG_ROOT:-/home/roland/pythondata-misc-tapcfg}"
 
 OUT="${OUT:-${ROOT}/artifacts/task6/litedram-reference/ypcb-bist-openxc7}"
+mkdir -p "${OUT}"
+OUT="$(cd "${OUT}" && pwd)"
 export CHIPDB="${CHIPDB:-${OUT}/chipdb}"
 mkdir -p "${CHIPDB}"
 

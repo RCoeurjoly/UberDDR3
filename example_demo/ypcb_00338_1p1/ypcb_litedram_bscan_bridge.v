@@ -1,6 +1,6 @@
 // Raw BSCAN status/control bridge for YPCB LiteDRAM BIST experiments.
 //
-// USER1 (IR 0x02, JTAG_CHAIN=1) shifts out a 768-bit status payload.
+// USER1 (IR 0x02, JTAG_CHAIN=1) shifts out a 1024-bit status payload.
 // USER2 (IR 0x03, JTAG_CHAIN=2) shifts in a 128-bit command payload.
 
 module ypcb_litedram_bscan_bridge #(
@@ -14,6 +14,9 @@ module ypcb_litedram_bscan_bridge #(
     input  wire        idelay_clk,
     input  wire        rst_n_raw,
     input  wire        pll_locked,
+    input  wire [31:0] ddr_dq_sample,
+    input  wire [3:0]  ddr_dqs_p_sample,
+    input  wire [3:0]  ddr_dqs_n_sample,
 
     input  wire        generator_done,
     input  wire [31:0] generator_ticks,
@@ -107,7 +110,7 @@ module ypcb_litedram_bscan_bridge #(
     wire write_tdi;
     wire write_update;
 
-    reg [767:0] read_shift_q;
+    reg [1023:0] read_shift_q;
     reg [127:0] write_shift_q;
 
     reg [31:0] clkin_counter;
@@ -144,6 +147,24 @@ module ypcb_litedram_bscan_bridge #(
     reg [7:0] diag_status;
     reg [7:0] diag_phase;
     reg [7:0] diag_wait_count;
+    reg [31:0] ddr_dq_meta;
+    reg [31:0] ddr_dq_sync;
+    reg [31:0] ddr_dq_prev;
+    reg [31:0] ddr_dq_seen_high;
+    reg [31:0] ddr_dq_seen_low;
+    reg [31:0] ddr_dq_toggle_seen;
+    reg [3:0] ddr_dqs_p_meta;
+    reg [3:0] ddr_dqs_p_sync;
+    reg [3:0] ddr_dqs_p_prev;
+    reg [3:0] ddr_dqs_p_seen_high;
+    reg [3:0] ddr_dqs_p_seen_low;
+    reg [3:0] ddr_dqs_p_toggle_seen;
+    reg [3:0] ddr_dqs_n_meta;
+    reg [3:0] ddr_dqs_n_sync;
+    reg [3:0] ddr_dqs_n_prev;
+    reg [3:0] ddr_dqs_n_seen_high;
+    reg [3:0] ddr_dqs_n_seen_low;
+    reg [3:0] ddr_dqs_n_toggle_seen;
 
 `ifdef YPCB_BRIDGE_SIM
     assign sim_diag_active = diag_active;
@@ -217,7 +238,23 @@ module ypcb_litedram_bscan_bridge #(
         ~sys_rst
     };
 
-    wire [767:0] read_payload = {
+    wire [31:0] ddr_dqs_status = {
+        8'd0,
+        ddr_dqs_n_toggle_seen,
+        ddr_dqs_p_toggle_seen,
+        ddr_dqs_n_seen_low,
+        ddr_dqs_p_seen_low,
+        ddr_dqs_n_seen_high,
+        ddr_dqs_p_seen_high
+    };
+
+    wire [1023:0] read_payload = {
+        96'd0,
+        ddr_dqs_status,
+        ddr_dq_toggle_seen,
+        ddr_dq_seen_low,
+        ddr_dq_seen_high,
+        ddr_dq_sync,
         48'd0,
         diag_error_count,
         diag_count,
@@ -293,7 +330,7 @@ module ypcb_litedram_bscan_bridge #(
             read_tdo <= read_payload[0];
         end else if (read_sel && read_shift) begin
             read_tdo <= read_shift_q[0];
-            read_shift_q <= {1'b0, read_shift_q[767:1]};
+            read_shift_q <= {1'b0, read_shift_q[1023:1]};
         end
     end
 
@@ -381,8 +418,44 @@ module ypcb_litedram_bscan_bridge #(
             diag_status <= 8'd0;
             diag_phase <= 8'd0;
             diag_wait_count <= 8'd0;
+            ddr_dq_meta <= 32'd0;
+            ddr_dq_sync <= 32'd0;
+            ddr_dq_prev <= 32'd0;
+            ddr_dq_seen_high <= 32'd0;
+            ddr_dq_seen_low <= 32'd0;
+            ddr_dq_toggle_seen <= 32'd0;
+            ddr_dqs_p_meta <= 4'd0;
+            ddr_dqs_p_sync <= 4'd0;
+            ddr_dqs_p_prev <= 4'd0;
+            ddr_dqs_p_seen_high <= 4'd0;
+            ddr_dqs_p_seen_low <= 4'd0;
+            ddr_dqs_p_toggle_seen <= 4'd0;
+            ddr_dqs_n_meta <= 4'd0;
+            ddr_dqs_n_sync <= 4'd0;
+            ddr_dqs_n_prev <= 4'd0;
+            ddr_dqs_n_seen_high <= 4'd0;
+            ddr_dqs_n_seen_low <= 4'd0;
+            ddr_dqs_n_toggle_seen <= 4'd0;
         end else begin
             counter <= counter + 1'd1;
+            ddr_dq_meta <= ddr_dq_sample;
+            ddr_dq_sync <= ddr_dq_meta;
+            ddr_dq_prev <= ddr_dq_sync;
+            ddr_dq_seen_high <= ddr_dq_seen_high | ddr_dq_sync;
+            ddr_dq_seen_low <= ddr_dq_seen_low | ~ddr_dq_sync;
+            ddr_dq_toggle_seen <= ddr_dq_toggle_seen | (ddr_dq_sync ^ ddr_dq_prev);
+            ddr_dqs_p_meta <= ddr_dqs_p_sample;
+            ddr_dqs_p_sync <= ddr_dqs_p_meta;
+            ddr_dqs_p_prev <= ddr_dqs_p_sync;
+            ddr_dqs_p_seen_high <= ddr_dqs_p_seen_high | ddr_dqs_p_sync;
+            ddr_dqs_p_seen_low <= ddr_dqs_p_seen_low | ~ddr_dqs_p_sync;
+            ddr_dqs_p_toggle_seen <= ddr_dqs_p_toggle_seen | (ddr_dqs_p_sync ^ ddr_dqs_p_prev);
+            ddr_dqs_n_meta <= ddr_dqs_n_sample;
+            ddr_dqs_n_sync <= ddr_dqs_n_meta;
+            ddr_dqs_n_prev <= ddr_dqs_n_sync;
+            ddr_dqs_n_seen_high <= ddr_dqs_n_seen_high | ddr_dqs_n_sync;
+            ddr_dqs_n_seen_low <= ddr_dqs_n_seen_low | ~ddr_dqs_n_sync;
+            ddr_dqs_n_toggle_seen <= ddr_dqs_n_toggle_seen | (ddr_dqs_n_sync ^ ddr_dqs_n_prev);
             bist_reset <= 1'b0;
             generator_start <= 1'b0;
             checker_start <= 1'b0;

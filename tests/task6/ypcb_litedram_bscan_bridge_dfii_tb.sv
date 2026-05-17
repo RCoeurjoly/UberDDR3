@@ -52,6 +52,9 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
     reg [7:0] sim_command_opcode = 8'd0;
     reg [31:0] sim_command_addr = 32'd0;
     reg [31:0] sim_command_data = 32'd0;
+    reg [31:0] ddr_dq_sample = 32'hffff0000;
+    reg [3:0] ddr_dqs_p_sample = 4'h3;
+    reg [3:0] ddr_dqs_n_sample = 4'hc;
 
     wire [29:0] wb_adr;
     wire [31:0] wb_dat_w;
@@ -124,6 +127,9 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
         end else begin
             sim_command_valid <= 1'b0;
         end
+        ddr_dq_sample <= {ddr_dq_sample[30:0], ddr_dq_sample[31]};
+        ddr_dqs_p_sample <= {ddr_dqs_p_sample[2:0], ddr_dqs_p_sample[3]};
+        ddr_dqs_n_sample <= {ddr_dqs_n_sample[2:0], ddr_dqs_n_sample[3]};
     end
 
     always @(posedge sys_clk) begin
@@ -197,6 +203,9 @@ module ypcb_litedram_bscan_bridge_dfii_tb;
         .idelay_clk(sys_clk),
         .rst_n_raw(1'b1),
         .pll_locked(1'b1),
+        .ddr_dq_sample(ddr_dq_sample),
+        .ddr_dqs_p_sample(ddr_dqs_p_sample),
+        .ddr_dqs_n_sample(ddr_dqs_n_sample),
         .generator_done(1'b0),
         .generator_ticks(32'd0),
         .checker_done(1'b0),

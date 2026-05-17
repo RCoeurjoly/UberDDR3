@@ -168,7 +168,7 @@ class LiteDRAMDFIIOnly(Module, AutoCSR):
 
 
 class RawBSCANLiteDRAMBIST(Module):
-    def __init__(self, platform, soc, byte_group_mask, rdphase, wrphase, with_bist=True):
+    def __init__(self, platform, soc, phy, byte_group_mask, rdphase, wrphase, with_bist=True):
         bist_reset = Signal()
         generator_start = Signal()
         checker_start = Signal()
@@ -181,8 +181,19 @@ class RawBSCANLiteDRAMBIST(Module):
         checker_done = Signal()
         checker_ticks = Signal(32)
         checker_errors = Signal(32)
+        ddr_dq_sample = Signal(32)
+        ddr_dqs_p_sample = Signal(4)
+        ddr_dqs_n_sample = Signal(4)
         self.wishbone = wishbone.Interface(data_width=32, adr_width=30)
         soc.bus.add_master(name="raw_bscan", master=self.wishbone)
+
+        rdphase_index = int(rdphase)
+        rddata_width = min(len(phy.dfi.phases[rdphase_index].rddata), 32)
+        self.comb += [
+            ddr_dq_sample[:rddata_width].eq(phy.dfi.phases[rdphase_index].rddata[:rddata_width]),
+            ddr_dqs_p_sample.eq(0),
+            ddr_dqs_n_sample.eq(0),
+        ]
 
         if with_bist:
             generator_port = soc.sdram.crossbar.get_port()
@@ -233,6 +244,9 @@ class RawBSCANLiteDRAMBIST(Module):
             i_idelay_clk=ClockSignal("idelay"),
             i_rst_n_raw=soc.crg.rst_n,
             i_pll_locked=soc.crg.pll.locked,
+            i_ddr_dq_sample=ddr_dq_sample,
+            i_ddr_dqs_p_sample=ddr_dqs_p_sample,
+            i_ddr_dqs_n_sample=ddr_dqs_n_sample,
             i_generator_done=generator_done,
             i_generator_ticks=generator_ticks,
             i_checker_done=checker_done,
@@ -345,6 +359,7 @@ class YPCBLiteDRAMBISTSoC(SoCCore):
             self.submodules.raw_bscan_bist = RawBSCANLiteDRAMBIST(
                 self.platform,
                 self,
+                self.ddrphy,
                 byte_group_mask,
                 rdphase=timing["rdphase"],
                 wrphase=timing["wrphase"],

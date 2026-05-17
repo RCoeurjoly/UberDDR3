@@ -179,8 +179,19 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
     diag_actual = (value >> 624) & 0xFFFFFFFF
     diag_count = (value >> 656) & 0xFFFFFFFF
     diag_error_count = (value >> 688) & 0xFFFFFFFF
+    ddr_dq_now = (value >> 768) & 0xFFFFFFFF
+    ddr_dq_seen_high = (value >> 800) & 0xFFFFFFFF
+    ddr_dq_seen_low = (value >> 832) & 0xFFFFFFFF
+    ddr_dq_toggle_seen = (value >> 864) & 0xFFFFFFFF
+    ddr_dqs_status = (value >> 896) & 0xFFFFFFFF
+    ddr_dqs_p_seen_high = ddr_dqs_status & 0xF
+    ddr_dqs_n_seen_high = (ddr_dqs_status >> 4) & 0xF
+    ddr_dqs_p_seen_low = (ddr_dqs_status >> 8) & 0xF
+    ddr_dqs_n_seen_low = (ddr_dqs_status >> 12) & 0xF
+    ddr_dqs_p_toggle_seen = (ddr_dqs_status >> 16) & 0xF
+    ddr_dqs_n_toggle_seen = (ddr_dqs_status >> 20) & 0xF
     return {
-        "raw": f"0x{value:0192x}",
+        "raw": f"0x{value:0256x}",
         "alignment": alignment,
         "magic": f"0x{magic:08x}",
         "magic_ok": magic == READ_MAGIC,
@@ -235,6 +246,16 @@ def decode_status(value: int) -> dict[str, int | str | bool]:
         "diag_actual_int": diag_actual,
         "diag_count": diag_count,
         "diag_error_count": diag_error_count,
+        "ddr_dq_now": f"0x{ddr_dq_now:08x}",
+        "ddr_dq_seen_high": f"0x{ddr_dq_seen_high:08x}",
+        "ddr_dq_seen_low": f"0x{ddr_dq_seen_low:08x}",
+        "ddr_dq_toggle_seen": f"0x{ddr_dq_toggle_seen:08x}",
+        "ddr_dqs_p_seen_high": f"0x{ddr_dqs_p_seen_high:x}",
+        "ddr_dqs_n_seen_high": f"0x{ddr_dqs_n_seen_high:x}",
+        "ddr_dqs_p_seen_low": f"0x{ddr_dqs_p_seen_low:x}",
+        "ddr_dqs_n_seen_low": f"0x{ddr_dqs_n_seen_low:x}",
+        "ddr_dqs_p_toggle_seen": f"0x{ddr_dqs_p_toggle_seen:x}",
+        "ddr_dqs_n_toggle_seen": f"0x{ddr_dqs_n_toggle_seen:x}",
     }
 
 
@@ -896,7 +917,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--read-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--write-ir", type=lambda value: int(value, 0), default=0x03)
-    parser.add_argument("--read-bits", type=int, default=768)
+    parser.add_argument("--read-bits", type=int, default=1024)
     parser.add_argument("--write-bits", type=int, default=128)
     parser.add_argument("--scratch", type=lambda value: int(value, 0), default=0x5A17C0DE)
     parser.add_argument("--addr", type=lambda value: int(value, 0), default=0)
