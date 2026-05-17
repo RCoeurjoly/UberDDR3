@@ -878,14 +878,16 @@ def run_memtest(client, args: argparse.Namespace) -> dict[str, object]:
     write_command(client, args, OP_START_CHECK)
     checker = poll_until(client, args, "checker_done")
     after = read_status(client, args)
+    pll_ok = after["pll_locked"] or args.ignore_pll_lock
     return {
         "before": before,
         "generator": generator,
         "checker": checker,
         "after": after,
+        "pll_ok": pll_ok,
         "pass": (
             after["magic_ok"]
-            and after["pll_locked"]
+            and pll_ok
             and after["generator_done"]
             and after["checker_done"]
             and after["checker_errors"] == 0
@@ -940,12 +942,24 @@ def run_read_sweep(client, args: argparse.Namespace) -> dict[str, object]:
                 best = summary
             if args.stop_on_zero and summary["checker_errors"] == 0 and summary["checker_done"]:
                 return {"init": init, "best": best, "samples": samples, "pass": True}
-    return {
+    result = {
         "init": init,
         "best": best,
         "samples": samples,
         "pass": bool(best and best["checker_errors"] == 0 and best["checker_done"]),
     }
+    if args.summary_only:
+        zero_error_samples = [
+            sample
+            for sample in samples
+            if sample["checker_errors"] == 0 and sample["checker_done"] and sample["generator_done"]
+        ]
+        result.pop("init")
+        result.pop("samples")
+        result["sample_count"] = len(samples)
+        result["zero_error_count"] = len(zero_error_samples)
+        result["zero_error_samples"] = zero_error_samples[:8]
+    return result
 
 
 def run_bridge_diag(client, args: argparse.Namespace, opcode: int) -> dict[str, object]:
@@ -1153,6 +1167,15 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-delay-s", type=float, default=0.00001)
     parser.add_argument("--json-only", action="store_true")
     parser.add_argument("--summary-only", action="store_true")
+    parser.add_argument(
+        "--ignore-pll-lock",
+        action="store_true",
+        help=(
+            "Do not fail memtest solely because the exported PLL-lock bit is low. "
+            "Use this with ignore-lock diagnostic bitstreams where fabric counters "
+            "and BSCAN access prove the clock is running."
+        ),
+    )
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
     return parser.parse_args()
 
