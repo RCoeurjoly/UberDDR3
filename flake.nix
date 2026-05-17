@@ -196,6 +196,7 @@ EOF
             prjxrayPythonDeps
             pkgs.libftdi1
             pkgs.gnumake
+            pkgs.verilog
             pkgs.openfpgaloader
             pkgs.openocd
             pkgs.pypy3

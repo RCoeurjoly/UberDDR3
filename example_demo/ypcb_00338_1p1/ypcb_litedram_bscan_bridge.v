@@ -38,6 +38,17 @@ module ypcb_litedram_bscan_bridge #(
     output reg         wb_we,
     input  wire        wb_ack,
     input  wire        wb_err
+`ifdef YPCB_BRIDGE_SIM
+    ,
+    input  wire        sim_command_valid,
+    input  wire [7:0]  sim_command_opcode,
+    input  wire [31:0] sim_command_addr,
+    input  wire [31:0] sim_command_data,
+    output wire        sim_diag_active,
+    output wire [7:0]  sim_diag_status,
+    output wire [31:0] sim_diag_count,
+    output wire [31:0] sim_diag_error_count
+`endif
 );
     localparam [31:0] READ_MAGIC  = 32'h4c445244; // "LDRD"
     localparam [31:0] WRITE_MAGIC = 32'h4c44434e; // "LDCN"
@@ -133,6 +144,13 @@ module ypcb_litedram_bscan_bridge #(
     reg [7:0] diag_status;
     reg [7:0] diag_phase;
     reg [7:0] diag_wait_count;
+
+`ifdef YPCB_BRIDGE_SIM
+    assign sim_diag_active = diag_active;
+    assign sim_diag_status = diag_status;
+    assign sim_diag_count = diag_count;
+    assign sim_diag_error_count = diag_error_count;
+`endif
 
     function [31:0] phase_reg;
         input [1:0] phase;
@@ -300,6 +318,18 @@ module ypcb_litedram_bscan_bridge #(
     reg [7:0] command_opcode_sys;
     reg [31:0] command_addr_sys;
     reg [31:0] command_data_sys;
+
+`ifdef YPCB_BRIDGE_SIM
+    wire command_pending_sys = sim_command_valid || (command_toggle_sys[2] != command_toggle_sys[1]);
+    wire [7:0] command_opcode_active = sim_command_valid ? sim_command_opcode : command_opcode_tck;
+    wire [31:0] command_addr_active = sim_command_valid ? sim_command_addr : command_addr_tck;
+    wire [31:0] command_data_active = sim_command_valid ? sim_command_data : command_data_tck;
+`else
+    wire command_pending_sys = command_toggle_sys[2] != command_toggle_sys[1];
+    wire [7:0] command_opcode_active = command_opcode_tck;
+    wire [31:0] command_addr_active = command_addr_tck;
+    wire [31:0] command_data_active = command_data_tck;
+`endif
 
     always @(posedge clkin) begin
         clkin_counter <= clkin_counter + 1'd1;
@@ -872,29 +902,29 @@ module ypcb_litedram_bscan_bridge #(
                 end
             end
 
-            if (command_toggle_sys[2] != command_toggle_sys[1]) begin
-                command_opcode_sys <= command_opcode_tck;
-                command_addr_sys <= command_addr_tck;
-                command_data_sys <= command_data_tck;
+            if (command_pending_sys) begin
+                command_opcode_sys <= command_opcode_active;
+                command_addr_sys <= command_addr_active;
+                command_data_sys <= command_data_active;
                 command_count <= command_count + 1'd1;
-                last_opcode <= command_opcode_tck;
-                case (command_opcode_tck)
-                    OP_WRITE_SCRATCH: scratch <= command_data_tck;
+                last_opcode <= command_opcode_active;
+                case (command_opcode_active)
+                    OP_WRITE_SCRATCH: scratch <= command_data_active;
                     OP_CLEAR_SCRATCH: scratch <= 32'd0;
                     OP_START_GEN:     generator_start <= 1'b1;
                     OP_START_CHECK:   checker_start <= 1'b1;
                     OP_RESET_BIST:    bist_reset <= 1'b1;
-                    OP_SET_BASE:      bist_base <= command_data_tck;
-                    OP_SET_LENGTH:    bist_length <= command_data_tck;
+                    OP_SET_BASE:      bist_base <= command_data_active;
+                    OP_SET_LENGTH:    bist_length <= command_data_active;
                     OP_SET_RANDOM: begin
-                        bist_random_data <= command_data_tck[0];
-                        bist_random_addr <= command_data_tck[1];
+                        bist_random_data <= command_data_active[0];
+                        bist_random_addr <= command_data_active[1];
                     end
                     OP_WB_WRITE: begin
                         if (!wb_cyc && !diag_active) begin
-                            wb_addr_byte <= command_addr_tck;
-                            wb_adr <= command_addr_tck[31:2];
-                            wb_dat_w <= command_data_tck;
+                            wb_addr_byte <= command_addr_active;
+                            wb_adr <= command_addr_active[31:2];
+                            wb_dat_w <= command_data_active;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;
                             wb_we <= 1'b1;
@@ -905,8 +935,8 @@ module ypcb_litedram_bscan_bridge #(
                     end
                     OP_WB_READ: begin
                         if (!wb_cyc && !diag_active) begin
-                            wb_addr_byte <= command_addr_tck;
-                            wb_adr <= command_addr_tck[31:2];
+                            wb_addr_byte <= command_addr_active;
+                            wb_adr <= command_addr_active[31:2];
                             wb_dat_w <= 32'd0;
                             wb_cyc <= 1'b1;
                             wb_stb <= 1'b1;
@@ -919,14 +949,14 @@ module ypcb_litedram_bscan_bridge #(
                     OP_APPLY_RDLY, OP_MEM32_CHECK, OP_DFII_PATTERN: begin
                         if (!wb_cyc && !diag_active) begin
                             diag_active <= 1'b1;
-                            diag_opcode <= command_opcode_tck;
+                            diag_opcode <= command_opcode_active;
                             diag_state <= 8'd0;
-                            diag_module_mask <= command_data_tck[7:0];
-                            diag_bitslip_target <= command_data_tck[15:8];
-                            diag_delay_target <= command_data_tck[23:16];
+                            diag_module_mask <= command_data_active[7:0];
+                            diag_bitslip_target <= command_data_active[15:8];
+                            diag_delay_target <= command_data_active[23:16];
                             diag_bitslip_count <= 8'd0;
                             diag_delay_count <= 8'd0;
-                            diag_addr <= command_addr_tck;
+                            diag_addr <= command_addr_active;
                             diag_expected <= scratch;
                             diag_actual <= 32'd0;
                             diag_status <= 8'h01;
