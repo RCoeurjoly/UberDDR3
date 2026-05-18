@@ -7,6 +7,31 @@ proc env_default {name default} {
     return $default
 }
 
+proc resolve_file_path {path} {
+    set candidate $path
+    if {[file exists $candidate]} {
+        return [file normalize $candidate]
+    }
+    set cwd_candidate [file normalize [file join [pwd] $path]]
+    if {[file exists $cwd_candidate]} {
+        return $cwd_candidate
+    }
+    if {[file exists [info script]]} {
+        set script_dir [file dirname [file normalize [info script]]]
+        set script_candidate [file normalize [file join $script_dir $path]]
+        if {[file exists $script_candidate]} {
+            return $script_candidate
+        }
+    }
+    if {[file exists $path]} {
+        return [file normalize $path]
+    }
+    if {[file exists [file join [file dirname [file normalize [info script]]] $path]]} {
+        return [file normalize [file join [file dirname [file normalize [info script]]] $path]]
+    }
+    return $candidate
+}
+
 proc write_file {path text} {
     set fh [open $path w]
     puts -nonewline $fh $text
@@ -37,6 +62,7 @@ proc resolve_probe_nets {alias pattern_list} {
 
 proc insert_phaser_byte_lane_ila {out_dir} {
     file mkdir $out_dir
+    global PHASER_BYTE_LANE_ORACLE_PROBES
     if {![info exists PHASER_BYTE_LANE_ORACLE_PROBES]} {
         error "probe mapping not loaded: PHASER_BYTE_LANE_ORACLE_PROBES is not defined"
     }
@@ -112,15 +138,20 @@ if {$argc < 1 || $argc > 2} {
 }
 
 set out_dir [lindex $argv 0]
-set default_probe_map [file join [file dirname [info script]] "ypcb_phaser_byte_lane_oracle_probes.tcl"]
+set script_dir [file dirname [file normalize [info script]]]
+set default_probe_map [file join $script_dir "ypcb_phaser_byte_lane_oracle_probes.tcl"]
 set probe_map_path [env_default "YPCB_PHASER_BYTE_LANE_ORACLE_PROBE_MAP" $default_probe_map]
 if {$argc == 2} {
     set probe_map_path [lindex $argv 1]
 }
+set probe_map_path [resolve_file_path $probe_map_path]
 if {![file exists $probe_map_path]} {
     error "No probe map file found at $probe_map_path"
 }
 source $probe_map_path
+if {![info exists PHASER_BYTE_LANE_ORACLE_PROBES] && [info exists ::PHASER_BYTE_LANE_ORACLE_PROBES]} {
+    set PHASER_BYTE_LANE_ORACLE_PROBES $::PHASER_BYTE_LANE_ORACLE_PROBES
+}
 if {![info exists PHASER_BYTE_LANE_ORACLE_PROBES]} {
     error "Probe map file $probe_map_path must define PHASER_BYTE_LANE_ORACLE_PROBES"
 }
