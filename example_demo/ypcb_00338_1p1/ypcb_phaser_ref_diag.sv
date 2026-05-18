@@ -21,7 +21,7 @@ module ypcb_phaser_ref_diag (
     wire phaser_ref_locked;
     wire phaser_pll_locked;
 
-    (* keep, dont_touch *)
+    (* keep, dont_touch, PHASER_FREQ_BACKBONE_ACTIVE = 1 *)
     PLLE2_ADV #(
         .BANDWIDTH("OPTIMIZED"),
         .COMPENSATION("INTERNAL"),
