@@ -35,9 +35,12 @@ OVERLAY_ROWS = {
 }
 
 XC7K480T_TILE_BITS = {
-    "CMT_TOP_R_UPPER_B_X8Y31": {"offset": 53, "words": 22},
-    "CMT_TOP_R_LOWER_T_X8Y18": {"offset": 34, "words": 7},
-    "CMT_FIFO_R_X7Y8": {"offset": 14, "words": 4},
+    "CMT_TOP_R_UPPER_B_X8Y31": {"baseaddr": "0x00460080", "offset": 53, "words": 22},
+    "CMT_TOP_R_UPPER_B_X8Y239": {"baseaddr": "0x00000080", "offset": 53, "words": 22},
+    "CMT_TOP_R_LOWER_T_X8Y18": {"baseaddr": "0x00460080", "offset": 34, "words": 7},
+    "CMT_TOP_R_LOWER_T_X8Y226": {"baseaddr": "0x00000080", "offset": 34, "words": 7},
+    "CMT_FIFO_R_X7Y8": {"baseaddr": "0x00460080", "offset": 14, "words": 4},
+    "CMT_FIFO_R_X7Y241": {"baseaddr": "0x00000080", "offset": 14, "words": 4},
 }
 
 XC7K480T_TILECONN_EXTRA = (
@@ -123,7 +126,6 @@ PPIP_EXTRA_ROWS = {
 }
 
 BIT_BLOCK = "CLB_IO_CLK"
-SEGMENT_BASEADDR = "0x00460080"
 SEGMENT_FRAMES = 30
 
 
@@ -251,7 +253,7 @@ def write_xc7k480t_tilegrid(source_db: Path, overlay_db: Path) -> None:
         tile = tilegrid[tile_name]
         tile["bits"] = {
             BIT_BLOCK: {
-                "baseaddr": SEGMENT_BASEADDR,
+                "baseaddr": window["baseaddr"],
                 "frames": SEGMENT_FRAMES,
                 "offset": window["offset"],
                 "words": window["words"],
