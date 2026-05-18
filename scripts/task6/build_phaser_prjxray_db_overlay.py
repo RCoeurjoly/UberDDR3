@@ -75,7 +75,7 @@ PROVISIONAL_BIT_EXCLUDES = {
     (
         "segbits_cmt_top_r_lower_t.db",
         "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
-    ): {"24_73", "25_58", "25_74", "25_78"},
+    ): {"24_59", "24_73", "25_58", "25_74", "25_78"},
     (
         "segbits_cmt_top_r_upper_b.db",
         "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
