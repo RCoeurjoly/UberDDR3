@@ -95,12 +95,19 @@ PROVISIONAL_ROW_ALIASES = {
 }
 
 EXTRA_SEGBIT_ROWS = {
+    "segbits_cmt_top_r_lower_b.db": (
+        "CMT_TOP_R_LOWER_B.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE "
+        "28_1058 28_1068 28_1069 28_1076 28_1077 29_1057",
+    ),
     "segbits_cmt_top_r_upper_b.db": (
         "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE "
         "28_674 28_677 28_681 28_684 28_685 28_692 "
         "28_693 28_696 28_697 28_698 28_699 29_673 "
         "29_676 29_677 29_680 29_683 29_684 29_687 "
         "29_688 29_691 29_692 29_697",
+    ),
+    "segbits_hclk_cmt.db": (
+        "HCLK_CMT.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE 28_156 29_156",
     ),
 }
 
@@ -356,6 +363,17 @@ def main() -> int:
             filename=filename,
             word_offset=word_offset,
             row_paths=row_paths,
+        )
+        print(f"{out_db / filename}: {row_count} rows")
+
+    for filename in sorted(set(EXTRA_SEGBIT_ROWS) - set(OVERLAY_ROWS)):
+        row_count = write_overlay_file(
+            source_db=source_db,
+            overlay_db=out_db,
+            oracle_root=oracle_root,
+            filename=filename,
+            word_offset=0,
+            row_paths=(),
         )
         print(f"{out_db / filename}: {row_count} rows")
 
