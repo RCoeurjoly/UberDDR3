@@ -16,6 +16,19 @@ from types import SimpleNamespace
 from typing import Any
 
 from ypcb_jtag_transport import JtagTransportConfig, ScriptJtagTransport
+from ypcb_phaser_shell import (
+    PHASER_SHELL_COMMAND_BITS,
+    PHASER_SHELL_MAGIC,
+    PHASER_SHELL_OP_READ_CHUNK,
+    PHASER_SHELL_OP_READ_LOWBYTE,
+    PHASER_SHELL_OP_WRITE_CHUNK,
+    PHASER_SHELL_OP_WRITE_LOWBYTE,
+    PHASER_SHELL_STATUS_BITS,
+    PhaserShellCommand,
+    decode_phaser_status_readback,
+    phaser_command_json,
+    phaser_status_summary,
+)
 
 ROWSTREAM_COMMAND_BITS = 192
 ROWSTREAM_LOADER_MAGIC = 0x33445244
@@ -30,13 +43,6 @@ ROWSTREAM_OP_READ_WB2_DEBUG = 0x07
 BEAT_BYTES = 64
 CHUNK_BYTES = 16
 CHUNKS_PER_BEAT = BEAT_BYTES // CHUNK_BYTES
-PHASER_SHELL_COMMAND_BITS = 256
-PHASER_SHELL_MAGIC = 0x5048434E  # "PHCN"
-PHASER_SHELL_OP_WRITE_CHUNK = 0x01
-PHASER_SHELL_OP_READ_CHUNK = 0x02
-PHASER_SHELL_OP_WRITE_LOWBYTE = 0x03
-PHASER_SHELL_OP_READ_LOWBYTE = 0x04
-PHASER_SHELL_STATUS_BITS = 256
 
 
 @dataclass(frozen=True)
@@ -65,39 +71,6 @@ class RowstreamCommand:
             | (self.chunk << 40)
             | (self.addr << 48)
             | (payload_data << 64)
-        )
-
-
-@dataclass(frozen=True)
-class PhaserShellCommand:
-    opcode: int
-    addr: int
-    flags: int = 0
-    chunk: int = 0
-    aux: int = 0
-    data128: int = 0
-
-    def encode(self) -> int:
-        if not 0 <= self.opcode <= 0xFF:
-            raise ValueError("opcode must fit in 8 bits")
-        if not 0 <= self.flags <= 0xFF:
-            raise ValueError("flags must fit in 8 bits")
-        if not 0 <= self.chunk <= 0xFF:
-            raise ValueError("chunk must fit in 8 bits")
-        if not 0 <= self.addr <= 0xFFFFFFFF:
-            raise ValueError("addr must fit in 32 bits")
-        if not 0 <= self.aux < (1 << 40):
-            raise ValueError("aux must fit in 40 bits")
-        if not 0 <= self.data128 < (1 << 128):
-            raise ValueError("data128 must fit in 128 bits")
-        return (
-            PHASER_SHELL_MAGIC
-            | (self.opcode << 32)
-            | (self.flags << 40)
-            | (self.chunk << 48)
-            | (self.addr << 56)
-            | (self.aux << 88)
-            | (self.data128 << 128)
         )
 
 
@@ -169,9 +142,43 @@ class YpcbDdr3Driver:
     def read_status(self) -> dict[str, Any]:
         return decode_status(self.read_raw_status(), self.args)
 
+    def send_phaser(self, command: PhaserShellCommand) -> list[dict[str, Any]]:
+        results = []
+        for _ in range(self.args.phaser_command_repeats):
+            results.append(
+                self.transport.write_payload(
+                    command.encode(),
+                    bits=PHASER_SHELL_COMMAND_BITS,
+                )
+            )
+        return results
+
+    def read_phaser_status_raw(
+        self,
+        *,
+        bits: int | None = None,
+        user_ir: int | None = None,
+    ) -> dict[str, Any]:
+        return self.transport.read_debug(
+            bits=self.args.phaser_status_bits if bits is None else bits,
+            user_ir=self.args.phaser_status_user_ir if user_ir is None else user_ir,
+        )
+
+    def read_phaser_status(
+        self,
+        *,
+        bits: int | None = None,
+        user_ir: int | None = None,
+    ) -> dict[str, Any]:
+        bit_count = self.args.phaser_status_bits if bits is None else bits
+        return decode_phaser_status_readback(
+            self.read_phaser_status_raw(bits=bit_count, user_ir=user_ir),
+            bit_count=bit_count,
+        )
+
     @staticmethod
     def command_count_advanced(current: int, previous: int, delta: int) -> bool:
-        return ((current - previous) & 0xFF) >= delta
+        return ((current - previous) & 0xFFFF) >= delta
 
     def wait_ready(
         self,
@@ -211,6 +218,60 @@ class YpcbDdr3Driver:
                     f"loader_state={status['loader_state']}"
                 )
             time.sleep(self.args.poll_interval)
+
+    def wait_phaser_ready(
+        self,
+        *,
+        previous_command_count: int,
+        min_command_delta: int,
+        bits: int | None = None,
+        user_ir: int | None = None,
+    ) -> dict[str, Any]:
+        deadline = time.monotonic() + self.args.timeout
+        bit_count = self.args.phaser_status_bits if bits is None else bits
+        while True:
+            status = self.read_phaser_status(bits=bit_count, user_ir=user_ir)
+            if (
+                status["ready"]
+                and self.command_count_advanced(
+                    int(status["command_count"]),
+                    previous_command_count,
+                    min_command_delta,
+                )
+            ):
+                return status
+            if status["error"]:
+                raise RuntimeError(
+                    "PHASER shell entered error state: "
+                    f"state={status['state']} last_opcode={status['last_opcode']}"
+                )
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    "PHASER shell did not become ready: "
+                    f"state={status['state']} command_count={status['command_count']}"
+                )
+            time.sleep(self.args.poll_interval)
+
+    def phaser_transact(
+        self,
+        command: PhaserShellCommand,
+        *,
+        min_command_delta: int | None = None,
+        bits: int | None = None,
+        user_ir: int | None = None,
+    ) -> dict[str, Any]:
+        before = self.read_phaser_status(bits=bits, user_ir=user_ir)
+        self.send_phaser(command)
+        return self.wait_phaser_ready(
+            previous_command_count=int(before["command_count"]),
+            min_command_delta=(
+                self.args.phaser_command_repeats
+                if min_command_delta is None
+                else min_command_delta
+            ),
+            bits=bits,
+            user_ir=user_ir,
+        )
 
     def transact(self, command: RowstreamCommand) -> dict[str, Any]:
         return self.transact_with_ack_delta(command, self.args.min_ack_delta)
@@ -316,18 +377,6 @@ def command_json(command: RowstreamCommand) -> dict[str, Any]:
     }
 
 
-def phaser_command_json(command: PhaserShellCommand) -> dict[str, Any]:
-    return {
-        "addr": f"0x{command.addr:08x}",
-        "aux": f"0x{command.aux:010x}",
-        "chunk": command.chunk,
-        "command_hex": f"0x{command.encode():064x}",
-        "data128": f"0x{command.data128:032x}",
-        "flags": f"0x{command.flags:02x}",
-        "opcode": f"0x{command.opcode:02x}",
-    }
-
-
 def fullbeat_write_commands(beat_addr: int, data: bytes) -> list[RowstreamCommand]:
     if len(data) != BEAT_BYTES:
         raise ValueError(f"full-beat writes require exactly {BEAT_BYTES} bytes")
@@ -426,11 +475,18 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--bits", type=int, default=1024)
     parser.add_argument("--variant", default="rowstream192")
     parser.add_argument("--command-repeats", type=int, default=2)
+    parser.add_argument("--phaser-command-repeats", type=int, default=1)
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("--update-mode", choices=("idle", "stop-at-update"), default="idle")
     parser.add_argument("--poll-interval", type=float, default=0.05)
     parser.add_argument("--timeout", type=float, default=10.0)
     parser.add_argument("--min-ack-delta", type=int, default=1)
+    parser.add_argument("--phaser-status-bits", type=int, default=PHASER_SHELL_STATUS_BITS)
+    parser.add_argument(
+        "--phaser-status-user-ir",
+        type=lambda value: int(value, 0),
+        default=0x02,
+    )
     parser.add_argument(
         "--minimal-loader-status",
         action="store_true",
@@ -502,9 +558,11 @@ def build_parser() -> argparse.ArgumentParser:
     phaser_encode.add_argument("--aux", type=lambda value: int(value, 0), default=0)
     phaser_encode.add_argument("--data128", type=lambda value: int(value, 0), default=0)
 
-    phaser_status = subparsers.add_parser("phaser-status-raw")
-    phaser_status.add_argument("--status-bits", type=int, default=PHASER_SHELL_STATUS_BITS)
-    phaser_status.add_argument("--status-user-ir", type=lambda value: int(value, 0), default=0x02)
+    subparsers.add_parser("phaser-status")
+
+    phaser_status_raw = subparsers.add_parser("phaser-status-raw")
+    phaser_status_raw.add_argument("--status-bits", type=int, default=PHASER_SHELL_STATUS_BITS)
+    phaser_status_raw.add_argument("--status-user-ir", type=lambda value: int(value, 0), default=0x02)
 
     phaser_write_low = subparsers.add_parser("phaser-write-lowbyte")
     phaser_write_low.add_argument("--addr", type=lambda value: int(value, 0), required=True)
@@ -628,13 +686,22 @@ def main() -> int:
                 "bits": PHASER_SHELL_COMMAND_BITS,
                 "command_hex": f"0x{command.encode():064x}",
                 "fields": phaser_command_json(command),
-                "magic": f"0x{PHASER_SHELL_MAGIC:08x}",
             }
         )
         return 0
 
     if args.command == "status":
         print_json(driver.read_status())
+        return 0
+
+    if args.command == "phaser-status":
+        status = driver.read_phaser_status()
+        print_json(
+            {
+                "status": status,
+                "summary": phaser_status_summary(status),
+            }
+        )
         return 0
 
     if args.command == "phaser-status-raw":
@@ -689,12 +756,8 @@ def main() -> int:
         if args.dry_run:
             print_json(phaser_command_json(command))
             return 0
-        print_json(
-            driver.transport.write_payload(
-                command.encode(),
-                bits=PHASER_SHELL_COMMAND_BITS,
-            )
-        )
+        status = driver.phaser_transact(command)
+        print_json({"command": phaser_command_json(command), "status": status})
         return 0
 
     if args.command == "phaser-read-lowbyte":
@@ -702,12 +765,8 @@ def main() -> int:
         if args.dry_run:
             print_json(phaser_command_json(command))
             return 0
-        print_json(
-            driver.transport.write_payload(
-                command.encode(),
-                bits=PHASER_SHELL_COMMAND_BITS,
-            )
-        )
+        status = driver.phaser_transact(command)
+        print_json({"command": phaser_command_json(command), "status": status})
         return 0
 
     if args.command == "write-beat":
@@ -770,14 +829,13 @@ def main() -> int:
                 }
             )
             return 0
+        statuses = [driver.phaser_transact(command) for command in commands]
         print_json(
-            [
-                driver.transport.write_payload(
-                    command.encode(),
-                    bits=PHASER_SHELL_COMMAND_BITS,
-                )
-                for command in commands
-            ]
+            {
+                "addr": f"0x{args.addr:x}",
+                "commands": [phaser_command_json(command) for command in commands],
+                "status": [phaser_status_summary(status) for status in statuses],
+            }
         )
         return 0
 
@@ -791,14 +849,18 @@ def main() -> int:
                 }
             )
             return 0
+        statuses = [driver.phaser_transact(command) for command in commands]
         print_json(
-            [
-                driver.transport.write_payload(
-                    command.encode(),
-                    bits=PHASER_SHELL_COMMAND_BITS,
-                )
-                for command in commands
-            ]
+            {
+                "addr": f"0x{args.addr:x}",
+                "commands": [phaser_command_json(command) for command in commands],
+                "observed_bytes": [
+                    byte
+                    for status in statuses
+                    for byte in status["read_data128_bytes"]
+                ],
+                "status": [phaser_status_summary(status) for status in statuses],
+            }
         )
         return 0
 

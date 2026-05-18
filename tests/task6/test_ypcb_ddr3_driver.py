@@ -65,6 +65,10 @@ class YpcbDdr3DriverTest(unittest.TestCase):
             driver.bytes_to_little_int(data[-driver.CHUNK_BYTES :]),
         )
 
+    def test_command_count_advanced_handles_16bit_wrap(self):
+        self.assertTrue(driver.YpcbDdr3Driver.command_count_advanced(0x0001, 0xFFFF, 1))
+        self.assertFalse(driver.YpcbDdr3Driver.command_count_advanced(0x0000, 0xFFFF, 2))
+
 
 if __name__ == "__main__":
     unittest.main()
