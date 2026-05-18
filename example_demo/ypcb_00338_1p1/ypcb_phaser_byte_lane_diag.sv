@@ -39,7 +39,7 @@ module ypcb_phaser_byte_lane_diag (
         .COMPENSATION("INTERNAL"),
         .STARTUP_WAIT("FALSE"),
         .DIVCLK_DIVIDE(1),
-        .CLKFBOUT_MULT(16),
+        .CLKFBOUT_MULT(8),
         .CLKFBOUT_PHASE(0.000),
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
@@ -129,9 +129,9 @@ module ypcb_phaser_byte_lane_diag (
     PHASER_IN_PHY #(
         .CLKOUT_DIV(4),
         .OUTPUT_CLK_SRC("PHASE_REF"),
-        .REFCLK_PERIOD(2.500),
-        .MEMREFCLK_PERIOD(2.500),
-        .PHASEREFCLK_PERIOD(2.500)
+        .REFCLK_PERIOD(5.000),
+        .MEMREFCLK_PERIOD(5.000),
+        .PHASEREFCLK_PERIOD(5.000)
     ) phaser_in_i (
         .DQSFOUND(`YPCB_PHASER_DIAG_CONN(dqs_found)),
         .DQSOUTOFRANGE(`YPCB_PHASER_DIAG_CONN(dqs_out_of_range)),
@@ -176,9 +176,9 @@ module ypcb_phaser_byte_lane_diag (
     PHASER_OUT_PHY #(
         .CLKOUT_DIV(4),
         .OUTPUT_CLK_SRC("PHASE_REF"),
-        .REFCLK_PERIOD(2.500),
-        .MEMREFCLK_PERIOD(2.500),
-        .PHASEREFCLK_PERIOD(2.500)
+        .REFCLK_PERIOD(5.000),
+        .MEMREFCLK_PERIOD(5.000),
+        .PHASEREFCLK_PERIOD(5.000)
     ) phaser_out_i (
         .COARSEOVERFLOW(`YPCB_PHASER_DIAG_CONN(out_coarse_overflow)),
         .FINEOVERFLOW(`YPCB_PHASER_DIAG_CONN(out_fine_overflow)),
