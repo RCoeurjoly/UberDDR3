@@ -65,6 +65,9 @@ proc variant_body {variant} {
         phaser_ref {
             return $common
         }
+        phaser_ref_clocked {
+            return $phaser_ref_clocked
+        }
         phy_control {
             return "$common
     (* keep = \"true\", dont_touch = \"true\" *)
@@ -228,8 +231,11 @@ proc variant_body {variant} {
 
 proc placement_constraints {variant} {
     set locks ""
-    if {$variant in {phaser_ref phy_control phaser_in_div4 phaser_in_div2 phaser_in_div4_clocked phaser_out_div4 phaser_out_div4_clocked in_fifo out_fifo}} {
+    if {$variant in {phaser_ref phaser_ref_clocked phy_control phaser_in_div4 phaser_in_div2 phaser_in_div4_clocked phaser_out_div4 phaser_out_div4_clocked in_fifo out_fifo}} {
         append locks "set_property LOC PHASER_REF_X0Y0 \[get_cells phaser_ref_i\]\n"
+    }
+    if {$variant in {phaser_ref_clocked}} {
+        append locks "set_property LOC PLLE2_ADV_X0Y1 \[get_cells phaser_pll_i\]\n"
     }
     if {$variant in {phaser_in_div4_clocked phaser_out_div4_clocked}} {
         append locks "set_property LOC PLLE2_ADV_X0Y1 \[get_cells phaser_pll_i\]\n"

@@ -18,6 +18,7 @@ module ypcb_phaser_ref_diag (
 
     wire phaser_pll_fb;
     wire phaser_freq_refclk;
+    (* keep *) wire phaser_sync_refclk;
     wire phaser_ref_locked;
     wire phaser_pll_locked;
 
@@ -32,10 +33,14 @@ module ypcb_phaser_ref_diag (
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
         .CLKOUT0_DUTY_CYCLE(0.500),
+        .CLKOUT1_DIVIDE(2),
+        .CLKOUT1_PHASE(0.000),
+        .CLKOUT1_DUTY_CYCLE(0.500),
         .CLKIN1_PERIOD(20.000)
     ) phaser_pll_i (
         .CLKFBOUT(phaser_pll_fb),
         .CLKOUT0(phaser_freq_refclk),
+        .CLKOUT1(phaser_sync_refclk),
         .CLKFBIN(phaser_pll_fb),
         .CLKIN1(clk50),
         .CLKINSEL(1'b1),
