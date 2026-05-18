@@ -11,6 +11,9 @@ module ypcb_phaser_byte_lane_diag (
     input  wire       rst_n,
     output wire [2:0] led
 );
+    localparam [31:0] READ_MAGIC = 32'h50485344; // "PHSD"
+    localparam [7:0] READ_VERSION = 8'd1;
+
     wire rst = ~rst_n;
 
     reg [25:0] heartbeat_q = 26'h0;
@@ -310,14 +313,54 @@ module ypcb_phaser_byte_lane_diag (
 `else
     wire fifo_activity = 1'b0;
 `endif
+    wire [31:0] status_word = {
+        20'd0,
+        phyctl_empty,
+        phyctl_full,
+        phyctl_almost_full,
+        fifo_activity,
+        heartbeat_q[25],
+        rst_n,
+        phyctl_ready,
+        in_phase_locked,
+        phaser_ref_locked,
+        phaser_pll_locked
+    };
+    wire [127:0] read_payload = {
+        31'd0,
+        out_counter_read,
+        in_counter_read,
+        phyctl_pc_enable_calib,
+        phyctl_out_burst_pending,
+        phyctl_in_burst_pending,
+        status_word,
+        READ_VERSION,
+        READ_MAGIC
+    };
+
     assign led[0] = phaser_ref_locked;
     assign led[1] = in_phase_locked ^ phyctl_ready;
     assign led[2] = heartbeat_q[25] ^ fifo_activity;
 `else
+    wire [127:0] read_payload = {
+        30'd0,
+        heartbeat_q,
+        32'd0,
+        READ_VERSION,
+        READ_MAGIC
+    };
+
     assign led[0] = heartbeat_q[23];
     assign led[1] = heartbeat_q[24];
     assign led[2] = heartbeat_q[25];
 `endif
+
+    ypcb_bscan_readback #(
+        .WIDTH(128),
+        .JTAG_CHAIN(1)
+    ) readback_port (
+        .payload_i(read_payload)
+    );
 endmodule
 
 `undef YPCB_PHASER_DIAG_CONN
