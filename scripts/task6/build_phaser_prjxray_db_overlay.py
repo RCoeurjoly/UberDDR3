@@ -40,6 +40,25 @@ XC7K480T_TILE_BITS = {
     "CMT_FIFO_R_X7Y8": {"offset": 14, "words": 4},
 }
 
+XC7K480T_TILECONN_EXTRA = (
+    {
+        "grid_deltas": [0, 26],
+        "tile_types": ["HCLK_CMT", "BRKH_CMT"],
+        "wire_pairs": [
+            [f"HCLK_CMT_FREQ_REF_NS{i}", f"BRKH_CMT_FREQ_REF_NS{i}"]
+            for i in range(4)
+        ],
+    },
+    {
+        "grid_deltas": [0, 26],
+        "tile_types": ["BRKH_CMT", "HCLK_CMT"],
+        "wire_pairs": [
+            [f"BRKH_CMT_FREQ_REF_NS{i}", f"HCLK_CMT_FREQ_REF_NS{i}"]
+            for i in range(4)
+        ],
+    },
+)
+
 BIT_BLOCK = "CLB_IO_CLK"
 SEGMENT_BASEADDR = "0x00460080"
 SEGMENT_FRAMES = 30
@@ -143,6 +162,37 @@ def write_xc7k480t_tilegrid(source_db: Path, overlay_db: Path) -> None:
     )
 
 
+def write_xc7k480t_tileconn(source_db: Path, overlay_db: Path) -> None:
+    source_device_dir = source_db / "xc7k480t"
+    overlay_device_dir = overlay_db / "xc7k480t"
+    tileconn_path = overlay_device_dir / "tileconn.json"
+    if tileconn_path.is_symlink():
+        tileconn_path.unlink()
+
+    tileconn = json.loads((source_device_dir / "tileconn.json").read_text(encoding="utf-8"))
+    existing = {
+        (
+            tuple(entry["grid_deltas"]),
+            tuple(entry["tile_types"]),
+            tuple(tuple(pair) for pair in entry["wire_pairs"]),
+        )
+        for entry in tileconn
+    }
+    for entry in XC7K480T_TILECONN_EXTRA:
+        key = (
+            tuple(entry["grid_deltas"]),
+            tuple(entry["tile_types"]),
+            tuple(tuple(pair) for pair in entry["wire_pairs"]),
+        )
+        if key not in existing:
+            tileconn.append(entry)
+
+    tileconn_path.write_text(
+        json.dumps(tileconn, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -176,6 +226,7 @@ def main() -> int:
         shutil.rmtree(out_db)
     add_symlink_tree(source_db, out_db)
     write_xc7k480t_tilegrid(source_db, out_db)
+    write_xc7k480t_tileconn(source_db, out_db)
 
     for filename, (word_offset, row_paths) in OVERLAY_ROWS.items():
         row_count = write_overlay_file(
