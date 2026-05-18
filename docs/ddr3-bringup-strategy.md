@@ -153,3 +153,10 @@ direct MIG init gates that feed them. Reduce that capture into a sequence JSON
 with `scripts/task6/extract_ypcb_phaser_sequence.py`, regenerate the step ROM,
 then rebuild both open and Vivado byte-lane diagnostics against the same
 captured sequence.
+
+In parallel, the host-side PHASER command surface is no longer undefined. The
+shared Python protocol and the `ypcb_phaser_shell_smoke` RTL target now give a
+buildable command/status contract for low-byte and full-beat PHASER-shell
+transactions, but that smoke shell is not a substitute for the real PHASER
+byte-lane/x8 DDR3 shell. The critical-path blocker remains the missing Vivado
+sequence capture.

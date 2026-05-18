@@ -1259,6 +1259,117 @@ MMCM/reset state, not the byte-lane control path listed in the plan
 task is therefore to capture those signals from the working larger MIG design
 and replace the observe-only placeholder with the captured byte-lane sequence.
 
+### PHASER Shell Contract
+
+The host-side PHASER contract is now a defined command-and-status protocol,
+rather than a placeholder set of raw 256-bit writes in the driver. The shared
+Python definition lives at:
+
+```text
+scripts/task6/ypcb_phaser_shell.py
+```
+
+Command payloads remain 256 bits wide:
+
+| Bits | Field |
+| --- | --- |
+| `[31:0]` | magic `0x5048434e` (`PHCN`) |
+| `[39:32]` | opcode |
+| `[47:40]` | flags |
+| `[55:48]` | chunk |
+| `[87:56]` | address |
+| `[127:88]` | aux |
+| `[255:128]` | data128 |
+
+The status readback is now a separate 384-bit contract so one 128-bit read
+chunk can travel with the shell state:
+
+| Bits | Field |
+| --- | --- |
+| `[31:0]` | magic `0x50485354` (`PHST`) |
+| `[39:32]` | version |
+| `[47:40]` | shell state |
+| `[55:48]` | last opcode |
+| `[63:56]` | last chunk |
+| `[79:64]` | command count |
+| `[95:80]` | write count |
+| `[111:96]` | read count |
+| `[127:112]` | flags |
+| `[159:128]` | last address |
+| `[191:160]` | user0 |
+| `[223:192]` | user1 |
+| `[255:224]` | user2 |
+| `[383:256]` | read data 128 |
+
+Current status-flag names are:
+
+- `ready`
+- `error`
+- `command_valid`
+- `write_data_staged`
+- `read_data_valid`
+- `calib_done`
+- `phaser_ref_locked`
+- `in_phase_locked`
+- `phyctl_ready`
+- `sequence_active`
+- `sequence_done`
+- `write_pending`
+- `read_pending`
+- `lowbyte_mode`
+- `fullbeat_mode`
+
+The driver now decodes that status layout directly:
+
+```text
+python3 scripts/task6/ypcb_ddr3_driver.py phaser-status
+python3 scripts/task6/ypcb_ddr3_driver.py phaser-write-lowbyte --addr 0x0 --byte 0x5a
+python3 scripts/task6/ypcb_ddr3_driver.py phaser-read-lowbyte --addr 0x0
+python3 scripts/task6/ypcb_ddr3_driver.py phaser-write-beat --addr 0x4 --data-hex <64-byte-hex>
+python3 scripts/task6/ypcb_ddr3_driver.py phaser-read-beat --addr 0x4
+```
+
+These commands now perform a PHASER-side command/status transaction, using the
+384-bit status chain to wait for `command_count` advancement and to gather the
+128-bit read chunk returned by the shell.
+
+### PHASER Shell Smoke Target
+
+The checked-in shell-side contract exerciser is:
+
+```text
+example_demo/ypcb_00338_1p1/ypcb_phaser_shell_smoke.sv
+```
+
+It builds with:
+
+```text
+make -C example_demo/ypcb_00338_1p1 phaser-shell-smoke-bit
+```
+
+and uses the reusable BSCAN port wrapper at:
+
+```text
+fpga/rtl/task6_ypcb_phaser_shell_bscan_port.sv
+```
+
+This is deliberately a smoke target, not the final PHASER DDR3 shell. It gives
+the host protocol a matching RTL implementation that:
+
+- accepts the 256-bit PHASER command format on USER2,
+- exposes the 384-bit PHASER status format on USER1,
+- stores four 128-bit chunks per logical beat in a small scratch memory,
+- round-trips `phaser-write-lowbyte` / `phaser-read-lowbyte`,
+- round-trips `phaser-write-beat` / `phaser-read-beat`,
+- keeps `user0` / `user1` / `user2` as scratch debug fields for bring-up.
+
+The smoke target does not claim PHASER DDR3 functionality. It does not drive
+`PHASER_REF`, `PHY_CONTROL`, or the byte-lane primitives, and it does not
+satisfy the deliverable acceptance gate from the plan. Its purpose is narrower:
+lock the shell contract and the host UX now, so the later PHASER-backed x8
+shell can reuse the same command and status surface instead of inventing one at
+the end.
+
 ## Upstream Patch Queue
 
 Keep local patches small and ready to split out:
