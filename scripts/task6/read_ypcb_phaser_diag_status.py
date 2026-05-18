@@ -20,27 +20,37 @@ BITS = 128
 
 
 def decode_status(payload: int) -> dict:
+    version = unsigned_field(payload, 32, 8)
     status = unsigned_field(payload, 40, 32)
     fields = {
         "magic": unsigned_field(payload, 0, 32),
-        "version": unsigned_field(payload, 32, 8),
+        "version": version,
         "status_word": status,
         "phaser_pll_locked": bool(status & (1 << 0)),
         "phaser_ref_locked": bool(status & (1 << 1)),
         "in_phase_locked": bool(status & (1 << 2)),
-        "phyctl_ready": bool(status & (1 << 3)),
         "rst_n": bool(status & (1 << 4)),
         "heartbeat_bit": bool(status & (1 << 5)),
-        "fifo_activity": bool(status & (1 << 6)),
-        "phyctl_almost_full": bool(status & (1 << 7)),
-        "phyctl_full": bool(status & (1 << 8)),
-        "phyctl_empty": bool(status & (1 << 9)),
-        "phyctl_in_burst_pending": unsigned_field(payload, 72, 4),
-        "phyctl_out_burst_pending": unsigned_field(payload, 76, 4),
-        "phyctl_pc_enable_calib": unsigned_field(payload, 80, 2),
-        "in_counter_read": unsigned_field(payload, 82, 6),
-        "out_counter_read": unsigned_field(payload, 88, 9),
     }
+    if version == 2:
+        fields.update({
+            "diagnostic": "phaser_ref_only",
+            "reserved_status_bit_3": bool(status & (1 << 3)),
+        })
+    else:
+        fields.update({
+            "diagnostic": "phaser_byte_lane",
+            "phyctl_ready": bool(status & (1 << 3)),
+            "fifo_activity": bool(status & (1 << 6)),
+            "phyctl_almost_full": bool(status & (1 << 7)),
+            "phyctl_full": bool(status & (1 << 8)),
+            "phyctl_empty": bool(status & (1 << 9)),
+            "phyctl_in_burst_pending": unsigned_field(payload, 72, 4),
+            "phyctl_out_burst_pending": unsigned_field(payload, 76, 4),
+            "phyctl_pc_enable_calib": unsigned_field(payload, 80, 2),
+            "in_counter_read": unsigned_field(payload, 82, 6),
+            "out_counter_read": unsigned_field(payload, 88, 9),
+        })
     return {
         "raw_hex": f"0x{payload:032x}",
         "magic_ok": fields["magic"] == MAGIC,
