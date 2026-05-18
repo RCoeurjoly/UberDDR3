@@ -28,19 +28,21 @@ def decode_status(payload: int) -> dict:
         "status_word": status,
         "phaser_pll_locked": bool(status & (1 << 0)),
         "phaser_ref_locked": bool(status & (1 << 1)),
-        "in_phase_locked": bool(status & (1 << 2)),
-        "rst_n": bool(status & (1 << 4)),
-        "heartbeat_bit": bool(status & (1 << 5)),
     }
     if version == 2:
         fields.update({
             "diagnostic": "phaser_ref_only",
-            "reserved_status_bit_3": bool(status & (1 << 3)),
+            "reserved_status_bit_2": bool(status & (1 << 2)),
+            "rst_n": bool(status & (1 << 3)),
+            "heartbeat_bit": bool(status & (1 << 4)),
         })
     else:
         fields.update({
             "diagnostic": "phaser_byte_lane",
+            "in_phase_locked": bool(status & (1 << 2)),
             "phyctl_ready": bool(status & (1 << 3)),
+            "rst_n": bool(status & (1 << 4)),
+            "heartbeat_bit": bool(status & (1 << 5)),
             "fifo_activity": bool(status & (1 << 6)),
             "phyctl_almost_full": bool(status & (1 << 7)),
             "phyctl_full": bool(status & (1 << 8)),
