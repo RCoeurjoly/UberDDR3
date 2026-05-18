@@ -142,7 +142,7 @@ BIST_SOURCES = \
 
 ROWSTREAM_SOURCES = \
 	${ROWSTREAM_PROJECT}.v \
-	../../fpga/rtl/task6_ypcb_uberddr3_bist_rowstream_loader_top.sv \
+	../../fpga/rtl/task6_ypcb_uberddr3_rowstream_loader_top.sv \
 	../../rtl/ddr3_controller.v \
 	../../rtl/ddr3_phy.v \
 	../../rtl/ddr3_top.v \

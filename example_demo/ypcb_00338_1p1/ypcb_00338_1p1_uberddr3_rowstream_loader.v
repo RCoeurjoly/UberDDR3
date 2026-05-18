@@ -1,8 +1,9 @@
 `default_nettype none
 
 module ypcb_00338_1p1_uberddr3_rowstream_loader #(
-    parameter ENABLE_WB2_DEBUG = 0,
-    parameter CONTROLLER_BIST_ADDR_BITS = 0
+    parameter COMMAND_WB_ENABLE = 1,
+    parameter COMMAND_JTAG_ENABLE = 1,
+    parameter DEBUG_LOADER_PAYLOAD_ENABLE = 1
 ) (
     input  wire        clk50,
     input  wire        rst_n,
@@ -22,10 +23,11 @@ module ypcb_00338_1p1_uberddr3_rowstream_loader #(
     inout  wire [7:0]  ddr3_dqs_n,
     output wire [0:0]  ddr3_odt
 );
-  task6_ypcb_uberddr3_bist_rowstream_loader_top #(
-        .ENABLE_WB2_DEBUG(ENABLE_WB2_DEBUG),
-        .CONTROLLER_BIST_ADDR_BITS(CONTROLLER_BIST_ADDR_BITS)
-    ) bist_top (
+  task6_ypcb_uberddr3_rowstream_loader_top #(
+        .COMMAND_WB_ENABLE(COMMAND_WB_ENABLE),
+        .COMMAND_JTAG_ENABLE(COMMAND_JTAG_ENABLE),
+        .DEBUG_LOADER_PAYLOAD_ENABLE(DEBUG_LOADER_PAYLOAD_ENABLE)
+    ) rowstream_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),
         .ddram_a(ddr3_addr),
