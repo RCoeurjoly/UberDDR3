@@ -63,7 +63,23 @@ PROVISIONAL_BIT_EXCLUDES = {
     (
         "segbits_cmt_fifo_r.db",
         "CMT_FIFO_R.IN_FIFO_X0Y0.IN_USE",
-    ): {"1_29", "1_93"},
+    ): {"1_29", "1_93", "24_105"},
+    (
+        "segbits_cmt_fifo_r.db",
+        "CMT_FIFO_R.OUT_FIFO_X0Y0.IN_USE",
+    ): {"1_21", "1_85"},
+    (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
+    ): {"25_156"},
+    (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
+    ): {"24_73", "25_74", "25_78"},
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
+    ): {"1_597"},
 }
 
 BIT_BLOCK = "CLB_IO_CLK"

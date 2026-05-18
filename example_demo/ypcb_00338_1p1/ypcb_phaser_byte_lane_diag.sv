@@ -206,6 +206,7 @@ module ypcb_phaser_byte_lane_diag (
         .COUNTERLOADVAL(`YPCB_PHASER_DIAG_CONN(heartbeat_q[8:0]))
     );
 
+`ifdef YPCB_PHASER_BYTE_LANE_DIAG_FIFO
     wire in_fifo_almost_empty;
     wire in_fifo_almost_full;
     wire in_fifo_empty;
@@ -301,9 +302,14 @@ module ypcb_phaser_byte_lane_diag (
         .D8(`YPCB_PHASER_DIAG_CONN(heartbeat_q[15:8])),
         .D9(`YPCB_PHASER_DIAG_CONN(heartbeat_q[16:9]))
     );
+`endif
 
 `ifdef YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
+`ifdef YPCB_PHASER_BYTE_LANE_DIAG_FIFO
     wire fifo_activity = in_fifo_empty ^ in_fifo_full ^ out_fifo_empty ^ out_fifo_full;
+`else
+    wire fifo_activity = 1'b0;
+`endif
     assign led[0] = phaser_ref_locked;
     assign led[1] = in_phase_locked ^ phyctl_ready;
     assign led[2] = heartbeat_q[25] ^ fifo_activity;
