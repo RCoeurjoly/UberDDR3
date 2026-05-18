@@ -40,7 +40,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x03)
     parser.add_argument("--bit-delay-us", type=float, default=0.0)
-    parser.add_argument("--byte", dest="byte_value", type=lambda value: int(value, 0), required=True)
+    parser.add_argument(
+        "--payload",
+        type=lambda value: int(value, 0),
+        help="Write this exact DR payload instead of assembling a protocol-specific command.",
+    )
+    parser.add_argument("--byte", dest="byte_value", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--data128", type=lambda value: int(value, 0))
     parser.add_argument("--addr", dest="addr_value", type=lambda value: int(value, 0), default=0)
     parser.add_argument("--bits", type=int, default=16)
@@ -63,7 +68,7 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    if args.byte_value < 0 or args.byte_value > 0xFF:
+    if args.payload is None and (args.byte_value < 0 or args.byte_value > 0xFF):
         raise SystemExit("--byte must fit in 8 bits")
     if args.data128 is not None and not 0 <= args.data128 < (1 << 128):
         raise SystemExit("--data128 must fit in 128 bits")
@@ -78,23 +83,28 @@ def main() -> int:
     if args.chunk < 0 or args.chunk > 0x3:
         raise SystemExit("--chunk must fit in 2 bits")
 
-    if args.bits == 16:
-        if args.addr_value > 0xFF:
-            raise SystemExit("--addr must fit in 8 bits for 16-bit commands")
-        command = (args.magic_nibble << 12) | (1 << 8) | args.byte_value
+    if args.payload is not None:
+        if args.payload < 0 or args.payload >= (1 << args.bits):
+            raise SystemExit("--payload must fit in --bits bits")
+        command = args.payload
     else:
-        if args.bits < 72:
-            raise SystemExit("--bits must be 16 or at least 72 for rowstream loader commands")
-        if args.addr_value > 0xFFFFFFFF:
-            raise SystemExit("--addr must fit in 32 bits for rowstream loader commands")
-        payload_data = args.data128 if args.data128 is not None else args.byte_value
-        command = (
-            args.loader_magic
-            | (args.opcode << 32)
-            | (args.chunk << 40)
-            | (args.addr_value << 48)
-            | (payload_data << 64)
-        )
+        if args.bits == 16:
+            if args.addr_value > 0xFF:
+                raise SystemExit("--addr must fit in 8 bits for 16-bit commands")
+            command = (args.magic_nibble << 12) | (1 << 8) | args.byte_value
+        else:
+            if args.bits < 72:
+                raise SystemExit("--bits must be 16 or at least 72 for rowstream loader commands")
+            if args.addr_value > 0xFFFFFFFF:
+                raise SystemExit("--addr must fit in 32 bits for rowstream loader commands")
+            payload_data = args.data128 if args.data128 is not None else args.byte_value
+            command = (
+                args.loader_magic
+                | (args.opcode << 32)
+                | (args.chunk << 40)
+                | (args.addr_value << 48)
+                | (payload_data << 64)
+            )
     if args.backend == "mpsse":
         client = FtdiMpsseJtag(
             serial=args.serial,
@@ -130,6 +140,7 @@ def main() -> int:
         "command": f"0x{command:0{args.bits // 4}x}",
         "loader_magic": f"0x{args.loader_magic:08x}",
         "opcode": f"0x{args.opcode:02x}",
+        "payload_override": f"0x{args.payload:x}" if args.payload is not None else None,
         "update_mode": args.update_mode,
     }
     if not args.json_only:
