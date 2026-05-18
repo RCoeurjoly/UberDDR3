@@ -272,11 +272,15 @@ phaser-smoke:
 
 .PHONY: phaser-ref-diag
 phaser-ref-diag: PNR_PRE_PACK =
-phaser-ref-diag: PNR_PRE_PLACE = --pre-place ${PHASER_REF_DIAG_PRE_PLACE}
+phaser-ref-diag: PNR_PRE_PLACE =
 phaser-ref-diag: APPEND_YPCB_VREF = 0
 phaser-ref-diag:
 	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
 	$(MAKE) ${PHASER_REF_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: phaser-ref-diag-locked
+phaser-ref-diag-locked: PNR_PRE_PLACE = --pre-place ${PHASER_REF_DIAG_PRE_PLACE}
+phaser-ref-diag-locked: phaser-ref-diag
 
 .PHONY: phaser-byte-lane-diag
 phaser-byte-lane-diag: PNR_PRE_PACK =
