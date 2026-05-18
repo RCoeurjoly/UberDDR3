@@ -82,6 +82,15 @@ PROVISIONAL_BIT_EXCLUDES = {
     ): {"1_597"},
 }
 
+PROVISIONAL_ROW_ALIASES = {
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE",
+    ): (
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y4.IN_USE",
+    ),
+}
+
 PPIP_EXTRA_ROWS = {
     "ppips_cmt_top_r_upper_b.db": (
         "CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFOUT0.PLLOUT_CLK_FREQ_BB_REBUFIN0 always",
@@ -96,6 +105,8 @@ PPIP_EXTRA_ROWS = {
         "CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT1.PLLOUT_CLK_FREQ_BB_REBUFOUT1 always",
         "CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT2.PLLOUT_CLK_FREQ_BB_REBUFOUT2 always",
         "CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT3.PLLOUT_CLK_FREQ_BB_REBUFOUT3 always",
+        "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.PLLOUT_CLK_FREQ_BB_REBUFIN0 always",
+        "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.PLLOUT_CLK_FREQ_BB_REBUFIN1 always",
         "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN0 always",
         "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN1 always",
         "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN2 always",
@@ -149,6 +160,14 @@ def filter_provisional_bits(filename: str, row: str) -> str:
     return " ".join(field for field in fields if field not in excluded)
 
 
+def provisional_alias_rows(filename: str, row: str) -> list[str]:
+    fields = row.split()
+    if not fields:
+        return []
+    aliases = PROVISIONAL_ROW_ALIASES.get((filename, fields[0]), ())
+    return [" ".join((alias, *fields[1:])) for alias in aliases]
+
+
 def add_symlink_tree(source_db: Path, overlay_db: Path) -> None:
     overlay_db.mkdir(parents=True, exist_ok=True)
     for source in source_db.iterdir():
@@ -177,7 +196,9 @@ def write_overlay_file(
         for line in row_file.read_text(encoding="utf-8").splitlines():
             row = clean_row(line, word_offset)
             if row is not None:
-                rows.append(filter_provisional_bits(filename, row))
+                row = filter_provisional_bits(filename, row)
+                rows.append(row)
+                rows.extend(provisional_alias_rows(filename, row))
 
     target = overlay_db / filename
     if target.is_symlink():
