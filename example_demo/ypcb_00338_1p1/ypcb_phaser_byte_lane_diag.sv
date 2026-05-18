@@ -314,10 +314,7 @@ module ypcb_phaser_byte_lane_diag (
     wire fifo_activity = 1'b0;
 `endif
     wire [31:0] status_word = {
-        20'd0,
-        phyctl_empty,
-        phyctl_full,
-        phyctl_almost_full,
+        23'd0,
         fifo_activity,
         heartbeat_q[25],
         rst_n,
