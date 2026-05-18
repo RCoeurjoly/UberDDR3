@@ -59,6 +59,13 @@ XC7K480T_TILECONN_EXTRA = (
     },
 )
 
+PROVISIONAL_BIT_EXCLUDES = {
+    (
+        "segbits_cmt_fifo_r.db",
+        "CMT_FIFO_R.IN_FIFO_X0Y0.IN_USE",
+    ): {"1_29"},
+}
+
 BIT_BLOCK = "CLB_IO_CLK"
 SEGMENT_BASEADDR = "0x00460080"
 SEGMENT_FRAMES = 30
@@ -85,6 +92,16 @@ def clean_row(line: str, word_offset: int) -> str | None:
                 continue
         fields.append(field)
     return " ".join(fields)
+
+
+def filter_provisional_bits(filename: str, row: str) -> str:
+    fields = row.split()
+    if not fields:
+        return row
+    excluded = PROVISIONAL_BIT_EXCLUDES.get((filename, fields[0]), set())
+    if not excluded:
+        return row
+    return " ".join(field for field in fields if field not in excluded)
 
 
 def add_symlink_tree(source_db: Path, overlay_db: Path) -> None:
@@ -115,7 +132,7 @@ def write_overlay_file(
         for line in row_file.read_text(encoding="utf-8").splitlines():
             row = clean_row(line, word_offset)
             if row is not None:
-                rows.append(row)
+                rows.append(filter_provisional_bits(filename, row))
 
     target = overlay_db / filename
     if target.is_symlink():
