@@ -6,6 +6,7 @@ CALIB_PROJECT = ypcb_00338_1p1_uberddr3_calib_only
 BSCAN_SMOKE_PROJECT = ypcb_bscan_smoke
 BSCAN_DDR_PINS_PROJECT = ypcb_bscan_ddr_pins
 PHASER_SMOKE_PROJECT = ypcb_phaser_smoke
+PHASER_REF_DIAG_PROJECT = ypcb_phaser_ref_diag
 PHASER_BYTE_LANE_DIAG_PROJECT = ypcb_phaser_byte_lane_diag
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
@@ -22,6 +23,8 @@ BSCAN_SMOKE_XDC = ${BSCAN_SMOKE_PROJECT}.xdc
 BSCAN_DDR_PINS_XDC = ${BSCAN_DDR_PINS_PROJECT}.xdc
 PHASER_SMOKE_XDC = ${PHASER_SMOKE_PROJECT}.xdc
 PHASER_SMOKE_PRE_PLACE = ${PHASER_SMOKE_PROJECT}_pre_place.py
+PHASER_REF_DIAG_XDC = ${PHASER_BYTE_LANE_DIAG_PROJECT}.xdc
+PHASER_REF_DIAG_PRE_PLACE = ${PHASER_REF_DIAG_PROJECT}_pre_place.py
 PHASER_BYTE_LANE_DIAG_XDC = ${PHASER_BYTE_LANE_DIAG_PROJECT}.xdc
 PHASER_BYTE_LANE_DIAG_PRE_PLACE = ${PHASER_BYTE_LANE_DIAG_PROJECT}_pre_place.py
 CHIPDB ?= .
@@ -175,6 +178,10 @@ BSCAN_DDR_PINS_SOURCES = \
 PHASER_SMOKE_SOURCES = \
 	${PHASER_SMOKE_PROJECT}.sv
 
+PHASER_REF_DIAG_SOURCES = \
+	${BSCAN_SMOKE_PROJECT}.sv \
+	${PHASER_REF_DIAG_PROJECT}.sv
+
 PHASER_BYTE_LANE_DIAG_SOURCES = \
 	${BSCAN_SMOKE_PROJECT}.sv \
 	${PHASER_BYTE_LANE_DIAG_PROJECT}.sv
@@ -262,6 +269,14 @@ phaser-smoke: PNR_PRE_PLACE = --pre-place ${PHASER_SMOKE_PRE_PLACE}
 phaser-smoke: APPEND_YPCB_VREF = 0
 phaser-smoke:
 	$(MAKE) ${PHASER_SMOKE_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: phaser-ref-diag
+phaser-ref-diag: PNR_PRE_PACK =
+phaser-ref-diag: PNR_PRE_PLACE = --pre-place ${PHASER_REF_DIAG_PRE_PLACE}
+phaser-ref-diag: APPEND_YPCB_VREF = 0
+phaser-ref-diag:
+	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
+	$(MAKE) ${PHASER_REF_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
 
 .PHONY: phaser-byte-lane-diag
 phaser-byte-lane-diag: PNR_PRE_PACK =
@@ -603,6 +618,9 @@ ${BSCAN_DDR_PINS_PROJECT}.json: ${BSCAN_DDR_PINS_SOURCES} Makefile
 ${PHASER_SMOKE_PROJECT}.json: ${PHASER_SMOKE_SOURCES} Makefile
 	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${PHASER_SMOKE_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${PHASER_SMOKE_SOURCES}
 
+${PHASER_REF_DIAG_PROJECT}.json: ${PHASER_REF_DIAG_SOURCES} Makefile
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${PHASER_REF_DIAG_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${PHASER_REF_DIAG_SOURCES}
+
 ${PHASER_BYTE_LANE_DIAG_PROJECT}.json: ${PHASER_BYTE_LANE_DIAG_SOURCES} Makefile
 	yosys ${YOSYS_DEFINES} ${PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${PHASER_BYTE_LANE_DIAG_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${PHASER_BYTE_LANE_DIAG_SOURCES}
 
@@ -665,6 +683,9 @@ ${BSCAN_DDR_PINS_PROJECT}.fasm: ${BSCAN_DDR_PINS_PROJECT}.json ${CHIPDB_BIN} ${B
 ${PHASER_SMOKE_PROJECT}.fasm: ${PHASER_SMOKE_PROJECT}.json ${CHIPDB_BIN} ${PHASER_SMOKE_XDC}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_SMOKE_XDC} --json ${PHASER_SMOKE_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 
+${PHASER_REF_DIAG_PROJECT}.fasm: ${PHASER_REF_DIAG_PROJECT}.json ${CHIPDB_BIN} ${PHASER_REF_DIAG_XDC}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_REF_DIAG_XDC} --json ${PHASER_REF_DIAG_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+
 ${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm: ${PHASER_BYTE_LANE_DIAG_PROJECT}.json ${CHIPDB_BIN} ${PHASER_BYTE_LANE_DIAG_XDC}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_BYTE_LANE_DIAG_XDC} --json ${PHASER_BYTE_LANE_DIAG_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 
@@ -690,6 +711,9 @@ ${BSCAN_DDR_PINS_PROJECT}.frames: ${BSCAN_DDR_PINS_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PHASER_SMOKE_PROJECT}.frames: ${PHASER_SMOKE_PROJECT}.fasm
+	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
+
+${PHASER_REF_DIAG_PROJECT}.frames: ${PHASER_REF_DIAG_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PHASER_BYTE_LANE_DIAG_PROJECT}.frames: ${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm
@@ -719,6 +743,9 @@ ${BSCAN_DDR_PINS_PROJECT}_openxc7.bit: ${BSCAN_DDR_PINS_PROJECT}.frames
 ${PHASER_SMOKE_PROJECT}_openxc7.bit: ${PHASER_SMOKE_PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+${PHASER_REF_DIAG_PROJECT}_openxc7.bit: ${PHASER_REF_DIAG_PROJECT}.frames
+	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
 ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit: ${PHASER_BYTE_LANE_DIAG_PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
@@ -732,5 +759,6 @@ clean:
 		${BSCAN_SMOKE_PROJECT}_openxc7.bit ${BSCAN_SMOKE_PROJECT}.frames ${BSCAN_SMOKE_PROJECT}.fasm ${BSCAN_SMOKE_PROJECT}.json \
 		${BSCAN_DDR_PINS_PROJECT}_openxc7.bit ${BSCAN_DDR_PINS_PROJECT}.frames ${BSCAN_DDR_PINS_PROJECT}.fasm ${BSCAN_DDR_PINS_PROJECT}.json \
 		${PHASER_SMOKE_PROJECT}_openxc7.bit ${PHASER_SMOKE_PROJECT}.frames ${PHASER_SMOKE_PROJECT}.fasm ${PHASER_SMOKE_PROJECT}.json \
+		${PHASER_REF_DIAG_PROJECT}_openxc7.bit ${PHASER_REF_DIAG_PROJECT}.frames ${PHASER_REF_DIAG_PROJECT}.fasm ${PHASER_REF_DIAG_PROJECT}.json \
 		${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit ${PHASER_BYTE_LANE_DIAG_PROJECT}.frames ${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm ${PHASER_BYTE_LANE_DIAG_PROJECT}.json \
 		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${CALIB_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS} ${GENERATED_CALIB_PRE_PLACE_BEL_LOCKS}
