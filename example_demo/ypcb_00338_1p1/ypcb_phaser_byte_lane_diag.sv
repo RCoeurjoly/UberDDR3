@@ -327,12 +327,7 @@ module ypcb_phaser_byte_lane_diag (
         phaser_pll_locked
     };
     wire [127:0] read_payload = {
-        31'd0,
-        out_counter_read,
-        in_counter_read,
-        phyctl_pc_enable_calib,
-        phyctl_out_burst_pending,
-        phyctl_in_burst_pending,
+        56'd0,
         status_word,
         READ_VERSION,
         READ_MAGIC
