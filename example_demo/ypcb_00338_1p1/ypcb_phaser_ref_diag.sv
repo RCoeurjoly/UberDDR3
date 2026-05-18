@@ -27,7 +27,7 @@ module ypcb_phaser_ref_diag (
         .COMPENSATION("INTERNAL"),
         .STARTUP_WAIT("FALSE"),
         .DIVCLK_DIVIDE(1),
-        .CLKFBOUT_MULT(8),
+        .CLKFBOUT_MULT(16),
         .CLKFBOUT_PHASE(0.000),
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
