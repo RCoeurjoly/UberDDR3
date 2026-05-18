@@ -272,7 +272,6 @@ phaser-smoke:
 
 .PHONY: phaser-ref-diag
 phaser-ref-diag: PNR_PRE_PACK =
-phaser-ref-diag: PNR_PRE_PLACE =
 phaser-ref-diag: APPEND_YPCB_VREF = 0
 phaser-ref-diag:
 	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
