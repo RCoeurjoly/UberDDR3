@@ -8,7 +8,7 @@ for cell, bel in LOCKS.items():
     if cell not in ctx.cells:
         missing.append(cell)
         continue
-    ctx.cells[cell].bel = bel
+    ctx.cells[cell].setAttr("BEL", bel)
 
 if missing:
     raise RuntimeError("YPCB PHASER_REF diag pre-place missing cells: " + repr(missing))
