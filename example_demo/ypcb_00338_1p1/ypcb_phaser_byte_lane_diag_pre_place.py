@@ -6,12 +6,12 @@ LOCKS = {
     "phy_control_i": "PHY_CONTROL_X0Y0/PHY_CONTROL",
     "phaser_in_i": "PHASER_IN_PHY_X0Y0/PHASER_IN_PHY",
     "phaser_out_i": "PHASER_OUT_PHY_X0Y0/PHASER_OUT_PHY",
-    "in_fifo_i": "IN_FIFO_X0Y0/IN_FIFO",
-    "out_fifo_i": "OUT_FIFO_X0Y0/OUT_FIFO",
 }
 
 OPTIONAL_LOCKS = {
     "phaser_pll_i": "PLLE2_ADV_X0Y1/PLLE2_ADV",
+    "in_fifo_i": "IN_FIFO_X0Y0/IN_FIFO",
+    "out_fifo_i": "OUT_FIFO_X0Y0/OUT_FIFO",
 }
 
 missing = []
