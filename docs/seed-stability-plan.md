@@ -1,9 +1,15 @@
 # YPCB Rowstream Seed-Stability Plan
 
+This is now the bounded secondary track. The active top-level DDR3 strategy is
+[DDR3 Bring-Up Strategy](ddr3-bringup-strategy.md): PHASER diagnostics are the
+primary durable path, while this no-PHASER UberDDR3 rowstream work remains a
+tactical path for the `openxc7-333` profile and named placement/timing
+hypotheses.
+
 This is the live plan for removing seed dependence in the rowstream
 calibration path while keeping changes upstreamable.
 
-This plan is now the active sequence we will execute on this branch:
+When this track is active, use the sequence below:
 
 1. Lock the layout as much as possible using generated BEL locks.
 2. Validate whether it is seed-stable by sweeping a declared seed set.

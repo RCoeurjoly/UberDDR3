@@ -12,6 +12,12 @@
 
    
 # Brief Description
+
+YPCB-00338-1P1 DDR3 bring-up notes are tracked under `docs/`. Start with
+[`docs/ddr3-bringup-strategy.md`](docs/ddr3-bringup-strategy.md): PHASER is
+the primary open-source path, and the UberDDR3 no-PHASER `openxc7-333` work is
+a bounded tactical track.
+
 This DDR3 controller was originally designed to be used on the [10-Gigabit Ethernet Project](https://github.com/ZipCPU/eth10g) for an 8-lane x8 DDR3 module running at 800 MHz DDR, but this is now being designed to be a more general-purpose DDR3 memory controller with multiple supported FPGA boards. This is a 4:1 memory controller with configurable timing parameters and mode registers so it can be configured to any DDR3 memory device. The user-interface is the basic Wishbone. Optional features include:
 - AXI4 User Interface ([blog post here](https://www.openiphub.com/post/uberddr3-new-feature-axi4-interface))
 - SECDEC for error correction ([blog post here](https://www.openiphub.com/post/uberddr3-feature-update-error-correction-part-1-post-5))

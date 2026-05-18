@@ -5,6 +5,11 @@ The first hardware milestone is the 64-bit non-ECC path. The board also has a
 9th byte lane in the MIG metadata; that lane is intentionally left for a later
 ECC/full-72-bit milestone.
 
+The active strategy is PHASER-first and open-flow-first; see
+[DDR3 Bring-Up Strategy](ddr3-bringup-strategy.md). This document keeps the
+current evidence, commands, and tactical debug notes for both the PHASER path
+and the bounded UberDDR3 no-PHASER path.
+
 ## Execution Plan
 
 The goal is a repeatable OpenXC7 hardware-in-the-loop flow that proves
@@ -775,6 +780,311 @@ set. The remaining gap is coverage, not the basic emission path: the feature DB
 still needs a broader Vivado oracle matrix for non-default PHASER/FIFO/PHY
 parameters before this can be called full MIG-class PHASER support.
 
+### PHASER_REF Connected Diagnostic
+
+The first connected open-source `PHASER_REF` diagnostic now builds, programs,
+and reads back status through JTAG:
+
+```text
+make -C example_demo/ypcb_00338_1p1 phaser-ref-diag
+```
+
+The successful open build used the patched PHASER chipdb, local patched
+`nextpnr-xilinx`, and the provisional PHASER prjxray overlay. It emitted:
+
+```text
+CMT_TOP_R_UPPER_B_X8Y239.PHASER_REF_X0Y4.IN_USE
+CMT_TOP_R_UPPER_B_X8Y239.PHASER_REF_X0Y4.CLOCKED_ORACLE_ROUTE
+```
+
+`fasm2frames` accepted those features after adding the `PHASER_REF_X0Y4`
+`CLOCKED_ORACLE_ROUTE` overlay alias. The generated artifacts were:
+
+```text
+a85c49cd041bc7a0683fe901e55e8a8f1b551c2ba774e5e34f7f066e5ecde20b  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag_openxc7.bit
+757613a4e9af00cbc643642d986fdf4ef0537a0f43c7f3894ab15977d51dec6d  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.fasm
+65cd104bd9773c5278f02344ee5742347aa9e6f4bad39ed7dd31d84a1553c6e5  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.frames
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T14-49-03+0200-phaser-ref-diag-openxc7
+```
+
+The board accepted the bitstream and the readback path worked, but the
+diagnostic failed the PHASER lock condition:
+
+```json
+{
+  "magic_ok": true,
+  "diagnostic": "phaser_ref_only",
+  "phaser_pll_locked": true,
+  "phaser_ref_locked": false,
+  "rst_n": true,
+  "status_word": 9
+}
+```
+
+This is useful progress, but not a passing PHASER diagnostic. Treat the current
+failure as a placement/routing support bug, not as evidence against PHASER. The
+unlocked nextpnr build placed the primitive at `PHASER_REF_X0Y4`; the Vivado
+oracle constrains and successfully routes `PHASER_REF_X0Y0` with
+`PLLE2_ADV_X0Y1`.
+
+The locked open build exposes the next concrete nextpnr blocker:
+
+```text
+Failed to route arc 0 of net 'phaser_freq_refclk',
+from SITEWIRE/PLLE2_ADV_X0Y1/CLKOUT0 to SITEWIRE/PHASER_REF_X0Y0/CLKIN.
+```
+
+The matching clocked Vivado oracle is:
+
+```sh
+scripts/task6/run_ypcb_phaser_feature_oracle.sh phaser_ref_clocked
+/home/roland/Vivado/2025.2.1/Vivado/bin/vivado -mode batch -nojournal -nolog \
+  -source scripts/task6/extract_vivado_phaser_routes.tcl \
+  -tclargs artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_ref_clocked/post-route.dcp \
+           artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_ref_clocked/phaser-routes.txt
+```
+
+The Vivado route for `phaser_freq_refclk` into `PHASER_REF_X0Y0/CLKIN` uses
+these CMT PIPs:
+
+```text
+CMT_TOP_R_UPPER_T_X8Y96.CMT_TOP_R_UPPER_T_PLLE2_CLKOUT0->>PLLOUT_CLK_FREQ_BB_0
+CMT_TOP_R_UPPER_B_X8Y83.PLLOUT_CLK_FREQ_BB_REBUFIN0->>PLLOUT_CLK_FREQ_BB_REBUFOUT3
+CMT_TOP_R_UPPER_B_X8Y83.PLLOUT_CLK_FREQ_BB_REBUFOUT3->>PLL_CLK_FREQBB_REBUFOUT3
+CMT_TOP_R_UPPER_B_X8Y31.PLL_CLK_FREQBB_REBUFOUT3->>CMT_FREQ_BB_PREF_IN3
+CMT_TOP_R_UPPER_B_X8Y31.CMT_FREQ_BB_PREF_IN3->>CMT_FREQ_PHASER_REFMUX_0
+CMT_TOP_R_UPPER_B_X8Y31.CMT_FREQ_PHASER_REFMUX_0->>CMT_PHASER_REF_CLKIN
+```
+
+That route blocker is now cleared for the locked diagnostic. A local
+`nextpnr-xilinx` patch keeps the `CMT_TOP_R_LOWER_B` PHASER frequency-backbone
+rebuffer PIPs out of the blanket `MMCM_CLK_FREQ_BB` blacklist, while preserving
+the rest of the blacklist. The prjxray overlay also adds PPIP rows for the CMT
+backbone features that the locked route emits:
+
+```text
+CMT_TOP_R_LOWER_B_X8Y61.MMCM_CLK_FREQ_BB_REBUF0_NS.MMCM_CLK_FREQ_BB_NS0
+CMT_TOP_R_UPPER_B_X8Y31.CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN0
+CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_REF_CLKIN.CMT_FREQ_PHASER_REFMUX_0
+CMT_TOP_R_UPPER_T_X8Y44.PLL_CLK_FREQ_BB0_NS.PLL_CLK_FREQ_BB_BUFOUT_NS0
+CMT_TOP_R_UPPER_B_X8Y31.PHASER_REF_X0Y0.IN_USE
+CMT_TOP_R_UPPER_B_X8Y31.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE
+CMT_TOP_R_LOWER_B_X8Y9.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE
+HCLK_CMT_X8Y26.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE
+```
+
+The locked open build now routes, passes the router1 legality check, and
+assembles without Vivado-built artifacts:
+
+```text
+4b8f44f8e06b7f15a54ece73d485886a39b65b6f5cf5f0c45180082166f53f02  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag_openxc7.bit
+a656817426757118b07f00d2e567650cdfe039e0e47234127250b09c90be8a57  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.fasm
+8efb12ea2bdafb2a6c3384f5d6a9344a0991452d41c01341da2e6f01733ded7f  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.frames
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T15-21-21+0200-phaser-ref-diag-locked-openxc7
+```
+
+Programming and JTAG readback both succeeded, but the hardware result is still
+not a passing PHASER diagnostic:
+
+```json
+{
+  "magic_ok": true,
+  "diagnostic": "phaser_ref_only",
+  "phaser_pll_locked": true,
+  "phaser_ref_locked": false,
+  "rst_n": true,
+  "heartbeat_bit": true,
+  "status_word": 25
+}
+```
+
+The next concrete blocker is no longer nextpnr failing to route
+`phaser_freq_refclk`; it is the remaining Vivado/open-source configuration or
+route delta that keeps `PHASER_REF.LOCKED` low on hardware for the
+`PHASER_REF_X0Y0` locked bitstream.
+
+Follow-up delta probes narrowed this further. The diagnostic RTL now also
+connects `PLLE2_ADV.CLKOUT1` with the same divide/phase/duty parameters as the
+Vivado oracle, which makes the open FASM emit the `CLKOUT1` enable/divider
+features. The routed open build still differs from Vivado in PLLE2
+`LKTABLE/TABLE` values and in the selected CMT frequency-backbone lane, so three
+generated FASM probes were assembled and tested:
+
+```text
+artifacts/task6/runs/2026-05-18T15-45-49+0200-phaser-ref-diag-vivado-lane3-openxc7
+artifacts/task6/runs/2026-05-18T15-49-44+0200-phaser-ref-diag-vivado-pll-table-openxc7
+artifacts/task6/runs/2026-05-18T15-52-04+0200-phaser-ref-diag-vivado-pll-table-lane3-openxc7
+```
+
+All three programmed and read back successfully, but all still reported
+`phaser_pll_locked=true` and `phaser_ref_locked=false`. This rules out, as
+sufficient fixes, the Vivado lane-3 CMT route, Vivado PLLE2 `LKTABLE/TABLE`
+values, and their combination.
+
+Raw bit comparison then showed the provisional PHASER_REF overlay rows are
+over-broad: the open bitstream sets PHASER_REF `IN_USE` / `CLOCKED_ORACLE_ROUTE`
+bits that the Vivado clocked oracle does not set. A fourth generated probe
+removed those provisional PHASER_REF rows and replaced them with narrow raw
+Vivado-only CMT bits, omitting one HCLK raw row that conflicts with an existing
+routed fabric feature:
+
+```text
+artifacts/task6/runs/2026-05-18T15-58-06+0200-phaser-ref-diag-raw-phaser-cmt-openxc7
+```
+
+That probe also programmed and read back successfully, but still reported
+`phaser_ref_locked=false`.
+
+The Vivado-routed oracle sanity check passes on hardware. The build script is
+`scripts/task6/build_vivado_ypcb_phaser_ref_diag.tcl`, and the routed Vivado
+artifacts are:
+
+```text
+cf33f0373230fa7fc91cd03341afe6de521631331d17be570a52c2004ca7edb4  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_vivado.bit
+8d09c2614e307e18e60f4e52f19a2a5d3c3c5b475cfd71f47ca194aa5ad293dd  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/post-route.dcp
+6aaaaa3cb046fef098d06ff6b3f4c8f4fbd49ff88726129597d3bb0744e3e867  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/implemented.xdc
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T16-03-36+0200-phaser-ref-diag-vivado-oracle
+```
+
+JTAG readback reported `magic_ok=true`, `diagnostic=phaser_ref_only`,
+`rst_n=true`, `phaser_pll_locked=true`, and `phaser_ref_locked=true`. This
+rules out the minimal JTAG diagnostic's board reset, 50 MHz input clock, and
+basic PHASER_REF parameterization as the reason the open bitstream does not
+lock.
+
+The exact Vivado/open bit extraction for the same design is:
+
+```text
+d48e5a26337cb9bf764342b165c0392e2b9a25f54e68b786d35b57185b8920a3  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_vivado.bits
+967d9e4b0d59e0b9e1039d902bd49d45811e4c82b31b487d460d5152c99a6e5f  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_vivado.verbose.fasm
+de3791df1eeb6cf3f4c6598a35a5afda8543d33fc918dd2938c7a9ea1ffa987e  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_openxc7.bits
+```
+
+The focused PHASER_REF frame diff shows Vivado sets 82 bits in
+`0x0046009c/0x0046009d`, while the current open bitstream sets 99. There are 0
+Vivado-only bits and 17 open-only bits in those frames:
+
+```text
+bit_0046009c_033_12
+bit_0046009c_033_20
+bit_0046009c_053_16
+bit_0046009c_074_09
+bit_0046009c_074_12
+bit_0046009c_074_20
+bit_0046009c_074_24
+bit_0046009c_074_26
+bit_0046009c_074_27
+bit_0046009d_033_01
+bit_0046009d_049_28
+bit_0046009d_074_01
+bit_0046009d_074_08
+bit_0046009d_074_11
+bit_0046009d_074_15
+bit_0046009d_074_19
+bit_0046009d_074_25
+```
+
+The adjacent `0x0044009c/0x0044009d` CMT frame family still differs too:
+Vivado has 184 bits there, the open artifact has 163, with 29 Vivado-only and
+8 open-only bits. The extracted passing Vivado route for `phaser_freq_refclk`
+uses the lane-3 CMT path:
+
+```text
+CMT_TOP_R_UPPER_T_X8Y96/CMT_TOP_R_UPPER_T.CMT_TOP_R_UPPER_T_PLLE2_CLKOUT0->>PLLOUT_CLK_FREQ_BB_0
+CMT_TOP_R_UPPER_T_X8Y44/CMT_TOP_R_UPPER_T.PLL_CLK_FREQ_BB3_NS<<->>PLL_CLK_FREQ_BB_BUFOUT_NS3
+CMT_TOP_R_UPPER_B_X8Y83/CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFIN0->>PLLOUT_CLK_FREQ_BB_REBUFOUT3
+CMT_TOP_R_UPPER_B_X8Y83/CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFOUT3->>PLL_CLK_FREQBB_REBUFOUT3
+CMT_TOP_R_UPPER_B_X8Y31/CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT3->>CMT_FREQ_BB_PREF_IN3
+CMT_TOP_R_UPPER_B_X8Y31/CMT_TOP_R_UPPER_B.CMT_FREQ_BB_PREF_IN3->>CMT_FREQ_PHASER_REFMUX_0
+CMT_TOP_R_UPPER_B_X8Y31/CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0->>CMT_PHASER_REF_CLKIN
+CMT_TOP_R_LOWER_B_X8Y61/CMT_TOP_R_LOWER_B.MMCM_CLK_FREQ_BB_REBUF3_NS<<->>MMCM_CLK_FREQ_BB_NS3
+```
+
+The overlay generator now removes those 17 open-only PHASER_REF-frame bits and
+the rebuilt open bitstream matches Vivado exactly in `0x0046009c/0x0046009d`:
+
+```text
+ee32ee160c9adafa15d6f4245e1342042b1a7918588ff27e4feb544b9d99138b  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag_openxc7.bit
+debad9dddd83d858b3cbb660639a4f59e40ea28665d453c5173a3c60627f37a2  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.fasm
+66d6223fafed42b13340b8dd5792567f751b3a866162a8d9421ec36af46455e4  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.frames
+384c45401cbe6f9bc5998a65668f2250e5b829e6130a12aa5abe36ff371a1694  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_openxc7.narrow-phaser-ref.bits
+```
+
+Focused diff:
+
+```text
+0046009[cd] vivado=82 open=82 vivado-only=0 open-only=0
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T16-13-06+0200-phaser-ref-diag-narrow-phaser-ref-openxc7
+```
+
+The bitstream programs and JTAG readback remains valid, but hardware still
+reports `phaser_pll_locked=true` and `phaser_ref_locked=false`. That means the
+17 open-only PHASER_REF-frame bits were real over-programming, but they were
+not the only blocker.
+
+The remaining focused delta is now the adjacent `0x0044009c/0x0044009d` CMT
+frame family:
+
+```text
+0044009[cd] vivado=184 open=163 vivado-only=29 open-only=8
+```
+
+Adding the exact positive lower-B CMT route bits from the passing Vivado
+checkpoint removes the remaining Vivado-only CMT-frame gap and makes the
+open-built PHASER_REF diagnostic pass on hardware:
+
+```text
+16c90f106230d34bfaca11eed229eb28e403221bde12f28c41e885be73e60899  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag_openxc7.bit
+a7e677a873086410cad495bc2065ee152e19d5f97cb31ff91c1a1d3480054717  example_demo/ypcb_00338_1p1/ypcb_phaser_ref_diag.frames
+b99bd4d167b2eba16508d9323591d7cf9f97b3e2b7137f459239bbbf50d51d9a  artifacts/task6/phaser-feature-oracle/vivado-ypcb-phaser-ref-diag/ypcb_phaser_ref_diag_openxc7.exact-cmt-route-pos.bits
+```
+
+Focused diff after the CMT-route patch:
+
+```text
+0044009[cd] vivado=184 open=192 vivado-only=0 open-only=8
+0046009[cd] vivado=82 open=82 vivado-only=0 open-only=0
+```
+
+The remaining 8 open-only bits are not required for PHASER_REF lock in this
+diagnostic; forcing them clear caused conflicts with existing decoded
+clock/fabric features, so they are not part of the PHASER_REF acceptance
+criteria.
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T16-21-31+0200-phaser-ref-diag-exact-cmt-route-openxc7
+```
+
+JTAG readback reported `magic_ok=true`, `diagnostic=phaser_ref_only`,
+`rst_n=true`, `phaser_pll_locked=true`, and `phaser_ref_locked=true`. This is
+the first passing open-built `PHASER_REF_X0Y0` hardware diagnostic.
+
+The next PHASER blocker is therefore no longer PHASER_REF lock. Move to the
+one-byte-lane diagnostic, keeping this exact CMT-route overlay as the required
+baseline for PHASER_REF.
+
 ### PHASER Byte-Lane Skeleton Milestone
 
 `example_demo/ypcb_00338_1p1` now has a staged byte-lane diagnostic target:
@@ -796,16 +1106,158 @@ features. A seed-3, 25 MHz run produced:
 ```
 
 `PHASER_BYTE_LANE_DIAG_CLOCKED=1` or the `phaser-byte-lane-diag-clocked` target
-is the next support probe, not a passing target yet. It connects PHASER/FIFO
-clock, reset, data, and status pins to fabric so hardware can eventually report
-PHASER lock/status and FIFO activity. Current nextpnr routing support is not
-there yet: the first connected attempts exposed unroutable arcs from a BUFG
-clock into `PHASER_IN_PHY.FREQREFCLK`, and from `PHASER_OUT_PHY.RDENABLE` back
-to fabric. The corresponding Vivado oracle variants are
-`phaser_in_div4_clocked` and `phaser_out_div4_clocked` in
-`scripts/task6/ypcb_phaser_feature_oracle.tcl`; use those to extract the
-dedicated clock/status routing and any extra configuration bits before expanding
-the diagnostic to byte-lane read/write.
+is now the active support probe. It connects PHASER/FIFO clock, reset, data,
+and status pins to fabric so hardware can report PHASER lock/status and FIFO
+activity.
+
+The first connected open-flow attempts exposed an open-only PHASER_REF route
+delta: Vivado used CMT frequency-backbone rebuffer lanes 3 and 2 for
+`PLLE2_ADV_X0Y1` to `PHASER_REF_X0Y0`, while nextpnr originally selected lanes
+1 and 0. The normal open Makefile path now post-processes the clocked byte-lane
+diagnostic FASM with
+`scripts/task6/patch_ypcb_phaser_byte_lane_cmt_route.py`, replacing the route
+features with the exact Vivado CMT lanes and adding the required companion CMT
+route features before `fasm2frames`.
+
+The integrated open-flow artifact was built with:
+
+```text
+043ced6cb5f39824090c6236f1314230511399616adb2252acc1470b069c8a87  ypcb_phaser_byte_lane_diag_openxc7.bit
+8e4558da87a8340cf8f37aee21aa3677d5b5a1f45663a557881b6aa6bec4be6f  ypcb_phaser_byte_lane_diag.frames
+b602eb95a6dd4e15e4e4bc2db957f87c583043f0d39ca43f52e89693c74080d3  ypcb_phaser_byte_lane_diag.fasm
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T17-01-21+0200-phaser-byte-lane-clocked-openxc7-integrated-vivado-cmt-lanes
+```
+
+TDO7 JTAG readback reported `magic_ok=true`, `diagnostic=phaser_byte_lane`,
+`status_word=19`, `rst_n=true`, `phaser_pll_locked=true`, and
+`phaser_ref_locked=true`. This matches the Vivado-routed byte-lane oracle for
+the PHASER_REF gate. TDO0 returned invalid magic for this run; use TDO7 for
+the current byte-lane diagnostic readback.
+
+The next blocker is no longer PHASER_REF. Both the Vivado oracle and integrated
+open bitstream still report `in_phase_locked=false` and `phyctl_ready=false`,
+with no FIFO counter activity. Continue by comparing Vivado-defaulted
+`PHASER_IN_PHY`, `PHASER_OUT_PHY`, and `PHY_CONTROL` parameters and any
+byte-lane-local route/config deltas. Vivado warns that the current
+`REFCLK_PERIOD=5.000` values for `PHASER_IN_PHY` and `PHASER_OUT_PHY` are out
+of range and substitutes defaults, so the next oracle diff should include the
+post-synthesis/post-place primitive properties, not only the RTL generics.
+
+The Vivado-routed byte-lane oracle resolves the unconnected PHY_CONTROL command
+pins as no-net for `PHYCTLMSTREMPTY` and `PHYCTLWD[*]`, but ties
+`PHYCTLWRENABLE`, `READCALIBENABLE`, and `WRITECALIBENABLE` to GND through CMT
+IMUX routes. The open diagnostic now mirrors that shape by leaving the no-net
+pins open and driving only those three command-enable inputs low. Building this
+artifact exposed two over-broad provisional PHASER lower-T segbits, so the local
+overlay now excludes `25_162` from
+`PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE` and `25_62` from
+`PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE`.
+
+The explicit-GND PHY_CONTROL command-enable probe produced:
+
+```text
+6ed0a6473e6e6174d488ea04bad11197daa9c22eadf203a4fbd721befe4de182  ypcb_phaser_byte_lane_diag_openxc7.bit
+2a7c20c3f024927c02b70665373f132e0cfc8a41e142b3ad3820b2074709a77b  ypcb_phaser_byte_lane_diag.frames
+e9781aed378175bbdf7447960c179b9b952e499ede92a9282f37a6070f7e7343  ypcb_phaser_byte_lane_diag.fasm
+```
+
+Board run:
+
+```text
+artifacts/task6/runs/2026-05-18T17-23-55+0200-phaser-byte-lane-clocked-openxc7-phyctl-gnd-enables
+```
+
+TDO7 JTAG readback again reported `magic_ok=true`,
+`diagnostic=phaser_byte_lane`, `status_word=19`, `rst_n=true`,
+`phaser_pll_locked=true`, and `phaser_ref_locked=true`, but
+`in_phase_locked=false` and `phyctl_ready=false`. Therefore the explicit
+PHY_CONTROL command-enable GND ties are necessary for Vivado parity but are not
+the missing ready/lock condition. The next concrete blocker is now the
+byte-lane-local `CMT_TOP_R_LOWER_T` configuration/routing delta, especially the
+remaining `0x00460120..0x00460123` frame differences, plus any MIG reset/control
+sequencing assumption needed to make `PHY_CONTROL.READY` assert.
+
+The 2026-05-18 `PHYCTL_STIMULUS` experiment is now treated as historical
+evidence only. Both the open-built artifact and the Vivado-routed oracle
+reached the same result: valid magic, locked PLL and PHASER_REF, but
+`phyctl_ready=false` and `in_phase_locked=false`. That proved the blocker had
+moved from "open flow is missing one more PHASER feature bit" to "the byte-lane
+diagnostic is missing MIG/PHASER sequencing facts".
+
+The clocked byte-lane diagnostic is therefore now driven by a generated
+sequence ROM instead of a free-running stimulus. The checked-in default source
+is:
+
+```text
+example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observe_only.json
+```
+
+That default sequence is intentionally conservative. It preserves the
+post-reset open/Vivado parity state from 2026-05-18 while avoiding any new
+speculative `PHYCTLWD` traffic. `READ_VERSION=4` now exposes:
+
+- `sequence_step`
+- `sequence_advance_count`
+- `last_phyctl_wd`
+- effective sequencer control bits (`sync_enable`, resets, calib enables,
+  `PHYCTLWRENABLE`)
+- existing lock/ready and byte-lane-local status bits
+
+The generated Verilog step ROM lives at:
+
+```text
+example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence.vh
+```
+
+and is rebuilt from JSON with:
+
+```text
+python3 scripts/task6/generate_ypcb_phaser_sequence_header.py \
+  --spec example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observe_only.json \
+  --out example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence.vh
+```
+
+When a richer MIG byte-lane ILA capture is available, reduce it to the same
+JSON schema with:
+
+```text
+python3 scripts/task6/extract_ypcb_phaser_sequence.py \
+  --csv <ila_capture.csv> \
+  --map sync_enable=<probe_name> \
+  --map phyctl_reset=<probe_name> \
+  --map phyctlwrenable=<probe_name> \
+  --map phyctlwd=<probe_name> \
+  --control-alias sync_enable \
+  --control-alias phyctl_reset \
+  --control-alias phyctlwrenable \
+  --phyctlwd-alias phyctlwd \
+  --wait-alias pll_locked \
+  --wait-alias phaser_ref_locked \
+  --wait-alias in_phase_locked \
+  --wait-alias phyctl_ready \
+  --out example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observed.json
+```
+
+Vivado oracle builds can point directly at that JSON:
+
+```text
+vivado -mode batch -nojournal -nolog \
+  -source scripts/task6/build_vivado_ypcb_phaser_byte_lane_diag.tcl \
+  -tclargs <out_dir> example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observed.json
+```
+
+The current checked-in `artifacts/task6/vivado-oracle/ypcb-systest/` CSV is not
+yet sufficient for this reduction. It only records top-level calibration and
+MMCM/reset state, not the byte-lane control path listed in the plan
+(`RESET`, `PWRDWN`, `SYNCIN`, calib enables, `PHYCTLWD`, `PHYCTLREADY`,
+`PHASER_IN` lock/status, and direct MIG init gates). The next concrete Vivado
+task is therefore to capture those signals from the working larger MIG design
+and replace the observe-only placeholder with the captured byte-lane sequence.
 
 ## Upstream Patch Queue
 
@@ -816,6 +1268,9 @@ Keep local patches small and ready to split out:
 - prjxray-db / nextpnr-xilinx: broaden PHASER/FIFO/PHY_CONTROL feature
   discovery beyond the current smoke parameters and upstream the provisional
   direct nextpnr FASM emitter.
+- nextpnr-xilinx: upstream the narrowed CMT lower-B PHASER frequency-backbone
+  exception instead of the previous blanket `MMCM_CLK_FREQ_BB` blacklist for
+  Vivado's `PLLE2_ADV_X0Y1` to `PHASER_REF_X0Y0` route.
 - nextpnr-xilinx: upstream the prjxray site-pin fallback for hard macro BELs
   once it is narrowed to the site families needed by Kintex-7 DDR PHY.
 - openFPGALoader: add `xc7k480t` IDCODE support for this board.
