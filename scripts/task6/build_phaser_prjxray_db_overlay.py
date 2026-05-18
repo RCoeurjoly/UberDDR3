@@ -63,7 +63,7 @@ PROVISIONAL_BIT_EXCLUDES = {
     (
         "segbits_cmt_fifo_r.db",
         "CMT_FIFO_R.IN_FIFO_X0Y0.IN_USE",
-    ): {"1_29"},
+    ): {"1_29", "1_93"},
 }
 
 BIT_BLOCK = "CLB_IO_CLK"
