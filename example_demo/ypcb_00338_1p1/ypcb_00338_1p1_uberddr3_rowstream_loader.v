@@ -27,7 +27,7 @@ module ypcb_00338_1p1_uberddr3_rowstream_loader #(
         .COMMAND_WB_ENABLE(COMMAND_WB_ENABLE),
         .COMMAND_JTAG_ENABLE(COMMAND_JTAG_ENABLE),
         .DEBUG_LOADER_PAYLOAD_ENABLE(DEBUG_LOADER_PAYLOAD_ENABLE)
-    ) rowstream_top (
+    ) bist_top (
         .clk50(clk50),
         .SYS_RSTN(rst_n),
         .ddram_a(ddr3_addr),
