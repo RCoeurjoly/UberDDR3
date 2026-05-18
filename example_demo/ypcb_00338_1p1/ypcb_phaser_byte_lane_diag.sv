@@ -100,15 +100,15 @@ module ypcb_phaser_byte_lane_diag (
         .OUTBURSTPENDING(`YPCB_PHASER_DIAG_CONN(phyctl_out_burst_pending)),
         .MEMREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .PHYCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
-        .PHYCTLMSTREMPTY(`YPCB_PHASER_DIAG_CONN(inactive_high)),
-        .PHYCTLWRENABLE(`YPCB_PHASER_DIAG_CONN(inactive_low)),
+        .PHYCTLMSTREMPTY(),
+        .PHYCTLWRENABLE(),
         .PLLLOCK(`YPCB_PHASER_DIAG_CONN(phaser_pll_locked)),
-        .READCALIBENABLE(`YPCB_PHASER_DIAG_CONN(inactive_low)),
+        .READCALIBENABLE(),
         .REFDLLLOCK(`YPCB_PHASER_DIAG_CONN(phaser_ref_locked)),
         .RESET(`YPCB_PHASER_DIAG_CONN(rst)),
         .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
-        .WRITECALIBENABLE(`YPCB_PHASER_DIAG_CONN(inactive_low)),
-        .PHYCTLWD(`YPCB_PHASER_DIAG_CONN({6{heartbeat_q[5:0]}}))
+        .WRITECALIBENABLE(),
+        .PHYCTLWD()
     );
 
     wire dqs_found;
