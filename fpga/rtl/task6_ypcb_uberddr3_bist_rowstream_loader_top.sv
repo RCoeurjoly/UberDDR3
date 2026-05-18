@@ -64,25 +64,41 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   wire rst_n;
   logic [31:0] clk50_count_q;
 
+`ifdef YPCB_UBERDDR3_CLOCK_PROFILE_OPENXC7_333
+  localparam int YPCB_PLL_CLKFBOUT_MULT = 20;
+  localparam int YPCB_PLL_CLKOUT_DDR_DIVIDE = 3;
+  localparam int YPCB_PLL_CLKOUT_CONTROLLER_DIVIDE = 12;
+  localparam int YPCB_PLL_CLKOUT_REF_DIVIDE = 5;
+  localparam int YPCB_CONTROLLER_CLK_PERIOD = 12_000;
+  localparam int YPCB_DDR3_CLK_PERIOD = 3_000;
+`else
+  localparam int YPCB_PLL_CLKFBOUT_MULT = 16;
+  localparam int YPCB_PLL_CLKOUT_DDR_DIVIDE = 2;
+  localparam int YPCB_PLL_CLKOUT_CONTROLLER_DIVIDE = 8;
+  localparam int YPCB_PLL_CLKOUT_REF_DIVIDE = 4;
+  localparam int YPCB_CONTROLLER_CLK_PERIOD = 10_000;
+  localparam int YPCB_DDR3_CLK_PERIOD = 2_500;
+`endif
+
   always_ff @(posedge clk50) begin
     clk50_count_q <= clk50_count_q + 32'd1;
   end
 
   PLLE2_BASE #(
     .BANDWIDTH("OPTIMIZED"),
-    .CLKFBOUT_MULT(16),
+    .CLKFBOUT_MULT(YPCB_PLL_CLKFBOUT_MULT),
     .CLKFBOUT_PHASE(0.000),
     .CLKIN1_PERIOD(20.000),
-    .CLKOUT0_DIVIDE(2),
+    .CLKOUT0_DIVIDE(YPCB_PLL_CLKOUT_DDR_DIVIDE),
     .CLKOUT0_DUTY_CYCLE(0.500),
     .CLKOUT0_PHASE(0.000),
-    .CLKOUT1_DIVIDE(2),
+    .CLKOUT1_DIVIDE(YPCB_PLL_CLKOUT_DDR_DIVIDE),
     .CLKOUT1_DUTY_CYCLE(0.500),
     .CLKOUT1_PHASE(90.000),
-    .CLKOUT2_DIVIDE(8),
+    .CLKOUT2_DIVIDE(YPCB_PLL_CLKOUT_CONTROLLER_DIVIDE),
     .CLKOUT2_DUTY_CYCLE(0.500),
     .CLKOUT2_PHASE(0.000),
-    .CLKOUT3_DIVIDE(4),
+    .CLKOUT3_DIVIDE(YPCB_PLL_CLKOUT_REF_DIVIDE),
     .CLKOUT3_DUTY_CYCLE(0.500),
     .CLKOUT3_PHASE(0.000),
     .DIVCLK_DIVIDE(1),
@@ -907,8 +923,8 @@ module task6_ypcb_uberddr3_bist_rowstream_loader_top #(
   end
 
   ddr3_top #(
-    .CONTROLLER_CLK_PERIOD(10_000),
-    .DDR3_CLK_PERIOD(2_500),
+    .CONTROLLER_CLK_PERIOD(YPCB_CONTROLLER_CLK_PERIOD),
+    .DDR3_CLK_PERIOD(YPCB_DDR3_CLK_PERIOD),
     .ROW_BITS(ROW_BITS),
     .COL_BITS(COL_BITS),
     .BA_BITS(BA_BITS),

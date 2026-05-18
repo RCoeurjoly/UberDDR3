@@ -53,12 +53,30 @@ def main() -> int:
         default="ypcb_00338_1p1_uberddr3_bist",
         help="YPCB top module name used when remapping synthesized I/O buffer cells.",
     )
+    parser.add_argument(
+        "--cell-prefix-remap",
+        action="append",
+        default=[],
+        metavar="OLD=NEW",
+        help=(
+            "Rewrite lock cell names beginning with OLD to NEW. "
+            "Repeatable and applied after --ypcb-wrapper-remap."
+        ),
+    )
     args = parser.parse_args()
 
     lock_docs = [load_json(path) for path in args.locks_json]
     requested_scopes = set(args.scope)
     requested_types = set(args.type)
     skipped_cells = set(args.skip_cell)
+    prefix_remaps: list[tuple[str, str]] = []
+    for remap in args.cell_prefix_remap:
+        if "=" not in remap:
+            raise SystemExit(f"--cell-prefix-remap must be OLD=NEW, got {remap!r}")
+        old, new = remap.split("=", 1)
+        if not old:
+            raise SystemExit("--cell-prefix-remap OLD prefix must be non-empty")
+        prefix_remaps.append((old, new))
 
     def keep_lock(lock: dict[str, Any]) -> bool:
         if requested_scopes and str(lock.get("scope", "")) not in requested_scopes:
@@ -68,46 +86,54 @@ def main() -> int:
         return True
 
     def remap_cell_name(name: str) -> str:
+        remapped_name = name
         if not args.ypcb_wrapper_remap:
-            return name
-        if name.startswith("uberddr3."):
-            return "bist_top." + name
-        if name in {
+            pass
+        elif name.startswith("uberddr3."):
+            remapped_name = "bist_top." + name
+        elif name in {
             "clk100_90_bufg",
             "clk100_bufg",
             "clk200_bufg",
             "clk25_bufg",
             "clock_pll",
         }:
-            return "bist_top." + name
+            remapped_name = "bist_top." + name
+        elif args.ypcb_wrapper_remap:
 
-        def vector_port(port: str, index: str) -> str:
-            suffix = "" if index == "0" else "_" + index
-            return f"$iopadmap${args.ypcb_top}.{port}{suffix}"
+            def vector_port(port: str, index: str) -> str:
+                suffix = "" if index == "0" else "_" + index
+                return f"$iopadmap${args.ypcb_top}.{port}{suffix}"
 
-        vector_match = re.fullmatch(
-            r"ddram_(a|ba)\[(\d+)\]\$obuf\$\$intcell\$OBUF", name
-        )
-        if vector_match:
-            kind, index = vector_match.groups()
-            port = "ddr3_addr" if kind == "a" else "ddr3_ba"
-            return vector_port(port, index)
+            vector_match = re.fullmatch(
+                r"ddram_(a|ba)\[(\d+)\]\$obuf\$\$intcell\$OBUF", name
+            )
+            if vector_match:
+                kind, index = vector_match.groups()
+                port = "ddr3_addr" if kind == "a" else "ddr3_ba"
+                remapped_name = vector_port(port, index)
+            else:
+                scalar_match = re.fullmatch(
+                    r"ddram_([a-z0-9_]+)\$obuf\$\$intcell\$OBUF", name
+                )
+                if scalar_match:
+                    signal = scalar_match.group(1)
+                    signal_map = {
+                        "cas_n": "ddr3_cas_n",
+                        "cke": "ddr3_cke",
+                        "cs_n": "ddr3_cs_n",
+                        "odt": "ddr3_odt",
+                        "ras_n": "ddr3_ras_n",
+                        "reset_n": "ddr3_reset_n",
+                        "we_n": "ddr3_we_n",
+                    }
+                    if signal in signal_map:
+                        remapped_name = f"$iopadmap${args.ypcb_top}.{signal_map[signal]}"
 
-        scalar_match = re.fullmatch(r"ddram_([a-z0-9_]+)\$obuf\$\$intcell\$OBUF", name)
-        if scalar_match:
-            signal = scalar_match.group(1)
-            signal_map = {
-                "cas_n": "ddr3_cas_n",
-                "cke": "ddr3_cke",
-                "cs_n": "ddr3_cs_n",
-                "odt": "ddr3_odt",
-                "ras_n": "ddr3_ras_n",
-                "reset_n": "ddr3_reset_n",
-                "we_n": "ddr3_we_n",
-            }
-            if signal in signal_map:
-                return f"$iopadmap${args.ypcb_top}.{signal_map[signal]}"
-        return name
+        for old, new in prefix_remaps:
+            if remapped_name.startswith(old):
+                return new + remapped_name[len(old):]
+        return remapped_name
 
     locks = []
     for locks_doc in lock_docs:

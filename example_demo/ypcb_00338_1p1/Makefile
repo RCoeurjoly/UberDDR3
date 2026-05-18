@@ -6,6 +6,7 @@ CALIB_PROJECT = ypcb_00338_1p1_uberddr3_calib_only
 BSCAN_SMOKE_PROJECT = ypcb_bscan_smoke
 BSCAN_DDR_PINS_PROJECT = ypcb_bscan_ddr_pins
 PHASER_SMOKE_PROJECT = ypcb_phaser_smoke
+PHASER_BYTE_LANE_DIAG_PROJECT = ypcb_phaser_byte_lane_diag
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 DBPART = $(shell echo ${PART} | sed -e 's/-[0-9].*//g')
@@ -21,6 +22,8 @@ BSCAN_SMOKE_XDC = ${BSCAN_SMOKE_PROJECT}.xdc
 BSCAN_DDR_PINS_XDC = ${BSCAN_DDR_PINS_PROJECT}.xdc
 PHASER_SMOKE_XDC = ${PHASER_SMOKE_PROJECT}.xdc
 PHASER_SMOKE_PRE_PLACE = ${PHASER_SMOKE_PROJECT}_pre_place.py
+PHASER_BYTE_LANE_DIAG_XDC = ${PHASER_BYTE_LANE_DIAG_PROJECT}.xdc
+PHASER_BYTE_LANE_DIAG_PRE_PLACE = ${PHASER_BYTE_LANE_DIAG_PROJECT}_pre_place.py
 CHIPDB ?= .
 CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
 ifeq ($(suffix ${CHIPDB}),.bin)
@@ -47,6 +50,17 @@ ADDITIONAL_SOURCES = \
 
 PYPY3 ?= pypy3
 YOSYS_DEFINES ?=
+YPCB_UBERDDR3_CLOCK_PROFILE ?= default
+ifeq (${YPCB_UBERDDR3_CLOCK_PROFILE},openxc7-333)
+override YOSYS_DEFINES += -DYPCB_UBERDDR3_CLOCK_PROFILE_OPENXC7_333
+export YPCB_UBERDDR3_CLOCK_PROFILE
+export YPCB_UBERDDR3_CONTROLLER_CLK_MHZ := 83.333333
+export YPCB_UBERDDR3_DDR3_CLK_MHZ := 333.333333
+export YPCB_UBERDDR3_REF_CLK_MHZ := 200
+export YPCB_UBERDDR3_CLK100_RAW_MHZ := 83.333333
+export YPCB_UBERDDR3_CLK400_RAW_MHZ := 333.333333
+export YPCB_UBERDDR3_CLK400_90_RAW_MHZ := 333.333333
+endif
 YPCB_CALIB_COMMAND_WB_ENABLE ?= 0
 YPCB_CALIB_COMMAND_JTAG_ENABLE ?= 0
 YPCB_CALIB_DEBUG_LOADER_PAYLOAD_ENABLE ?= 0
@@ -55,6 +69,7 @@ YPCB_CALIB_COMMAND_READBACK_ENABLE ?= 1
 YPCB_CALIB_DEBUG_WB_DATA_ENABLE ?= 1
 YPCB_CALIB_DEBUG_WB_DATA_SNAPSHOT_ENABLE ?= 0
 YPCB_CALIB_ISOLATE_WB_UNTIL_CALIB_DONE ?= 0
+PHASER_BYTE_LANE_DIAG_CLOCKED ?= 0
 CALIB_YOSYS_DEFINES ?= \
 	-DYPCB_CALIB_COMMAND_WB_ENABLE=${YPCB_CALIB_COMMAND_WB_ENABLE} \
 	-DYPCB_CALIB_COMMAND_JTAG_ENABLE=${YPCB_CALIB_COMMAND_JTAG_ENABLE} \
@@ -64,6 +79,10 @@ CALIB_YOSYS_DEFINES ?= \
 	-DYPCB_CALIB_DEBUG_WB_DATA_ENABLE=${YPCB_CALIB_DEBUG_WB_DATA_ENABLE} \
 	-DYPCB_CALIB_DEBUG_WB_DATA_SNAPSHOT_ENABLE=${YPCB_CALIB_DEBUG_WB_DATA_SNAPSHOT_ENABLE} \
 	-DYPCB_CALIB_ISOLATE_WB_UNTIL_CALIB_DONE=${YPCB_CALIB_ISOLATE_WB_UNTIL_CALIB_DONE}
+PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES ?=
+ifeq (${PHASER_BYTE_LANE_DIAG_CLOCKED},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
+endif
 SYNTH_XILINX_FLAGS ?= -flatten -abc9 -arch xc7
 ROWSTREAM_SYNTH_PRELUDE ?=
 PNR_ARGS ?= --seed 16 --freq 25
@@ -156,6 +175,9 @@ BSCAN_DDR_PINS_SOURCES = \
 PHASER_SMOKE_SOURCES = \
 	${PHASER_SMOKE_PROJECT}.sv
 
+PHASER_BYTE_LANE_DIAG_SOURCES = \
+	${PHASER_BYTE_LANE_DIAG_PROJECT}.sv
+
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
@@ -240,6 +262,18 @@ phaser-smoke: APPEND_YPCB_VREF = 0
 phaser-smoke:
 	$(MAKE) ${PHASER_SMOKE_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
 
+.PHONY: phaser-byte-lane-diag
+phaser-byte-lane-diag: PNR_PRE_PACK =
+phaser-byte-lane-diag: PNR_PRE_PLACE = --pre-place ${PHASER_BYTE_LANE_DIAG_PRE_PLACE}
+phaser-byte-lane-diag: APPEND_YPCB_VREF = 0
+phaser-byte-lane-diag:
+	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
+	$(MAKE) ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PHASER_BYTE_LANE_DIAG_CLOCKED="${PHASER_BYTE_LANE_DIAG_CLOCKED}" PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: phaser-byte-lane-diag-clocked
+phaser-byte-lane-diag-clocked: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
+phaser-byte-lane-diag-clocked: phaser-byte-lane-diag
+
 .PHONY: rowstream-v40-json
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
 rowstream-v40-json:
@@ -251,6 +285,7 @@ rowstream-v40-json:
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
 	$(MAKE) rowstream-v40-locked \
 		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
 		SEED="${SEED}" \
 		FREQ="${FREQ}" \
 		ROWSTREAM_ROUTED_JSON="${ROWSTREAM_ROUTED_JSON_ABS}" \
@@ -275,6 +310,7 @@ rowstream-fullbeat-v40-json:
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${ROWSTREAM_FULLBEAT_ROUTED_JSON}" "${ROWSTREAM_FULLBEAT_BITSTREAM_OUT}"
 	$(MAKE) rowstream-fullbeat-v40-locked \
 		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
 		SEED="${SEED}" \
 		FREQ="${FREQ}" \
 		ROWSTREAM_FULLBEAT_ROUTED_JSON="${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS}" \
@@ -298,6 +334,7 @@ calib-v40-json:
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${PNR_ARGS}" "${CALIB_ROUTED_JSON}" "${CALIB_BITSTREAM_OUT}"
 	$(MAKE) calib-v40-locked \
 		SYNTH_XILINX_FLAGS="-flatten -arch xc7" \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
 		SEED="${SEED}" \
 		FREQ="${FREQ}" \
 		YPCB_CALIB_COMMAND_WB_ENABLE="${YPCB_CALIB_COMMAND_WB_ENABLE}" \
@@ -318,6 +355,30 @@ calib-v40-json:
 	fi
 	cp ${CALIB_PROJECT}_openxc7.bit ${CALIB_BITSTREAM_OUT_ABS}
 	@printf 'Generated calibration bitstream: %s\nGenerated routed json: %s\n' ${CALIB_BITSTREAM_OUT_ABS} ${CALIB_ROUTED_JSON_ABS}
+
+.PHONY: calib-openxc7-333-json
+calib-openxc7-333-json: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+calib-openxc7-333-json: FREQ = 0
+calib-openxc7-333-json: PNR_ARGS = --seed ${SEED}
+calib-openxc7-333-json: CALIB_ROUTED_JSON = ../../artifacts/manual-seed/calib-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+calib-openxc7-333-json: CALIB_BITSTREAM_OUT = ../../artifacts/manual-seed/calib-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_calib_only_openxc7_333_seed${SEED}_freq${FREQ}.bit
+calib-openxc7-333-json: calib-v40-json
+
+.PHONY: rowstream-openxc7-333-json
+rowstream-openxc7-333-json: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+rowstream-openxc7-333-json: FREQ = 0
+rowstream-openxc7-333-json: PNR_ARGS = --seed ${SEED}
+rowstream-openxc7-333-json: ROWSTREAM_ROUTED_JSON = ../../artifacts/manual-seed/rowstream-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+rowstream-openxc7-333-json: ROWSTREAM_BITSTREAM_OUT = ../../artifacts/manual-seed/rowstream-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7_333_seed${SEED}_freq${FREQ}.bit
+rowstream-openxc7-333-json: rowstream-v40-json
+
+.PHONY: rowstream-fullbeat-openxc7-333-json
+rowstream-fullbeat-openxc7-333-json: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+rowstream-fullbeat-openxc7-333-json: FREQ = 0
+rowstream-fullbeat-openxc7-333-json: PNR_ARGS = --seed ${SEED}
+rowstream-fullbeat-openxc7-333-json: ROWSTREAM_FULLBEAT_ROUTED_JSON = ../../artifacts/manual-seed/rowstream-fullbeat-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+rowstream-fullbeat-openxc7-333-json: ROWSTREAM_FULLBEAT_BITSTREAM_OUT = ../../artifacts/manual-seed/rowstream-fullbeat-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_fullbeat_openxc7_333_seed${SEED}_freq${FREQ}.bit
+rowstream-fullbeat-openxc7-333-json: rowstream-fullbeat-v40-json
 
 .PHONY: clean-rowstream-pnr
 clean-rowstream-pnr:
@@ -361,6 +422,7 @@ rowstream-v40-json-pnr-only:
 	@printf 'rowstream-v40-json-pnr-only: seed=%s freq=%s chipdb=%s synth_json=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${ROWSTREAM_SYNTH_JSON}" "${PNR_ARGS}" "${ROWSTREAM_ROUTED_JSON}" "${ROWSTREAM_BITSTREAM_OUT}"
 	$(MAKE) ${ROWSTREAM_PROJECT}_openxc7.bit \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
 		SEED="${SEED}" \
 		FREQ="${FREQ}" \
 		ROWSTREAM_ROUTED_JSON="${ROWSTREAM_ROUTED_JSON_ABS}" \
@@ -375,6 +437,60 @@ rowstream-v40-json-pnr-only:
 	fi
 	cp ${ROWSTREAM_PROJECT}_openxc7.bit ${ROWSTREAM_BITSTREAM_OUT_ABS}
 	@printf 'Generated rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_BITSTREAM_OUT_ABS} ${ROWSTREAM_ROUTED_JSON_ABS}
+
+.PHONY: rowstream-fullbeat-v40-json-pnr-only
+rowstream-fullbeat-v40-json-pnr-only: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
+rowstream-fullbeat-v40-json-pnr-only:
+	@if [ -z "${ROWSTREAM_FULLBEAT_SYNTH_JSON}" ]; then \
+		echo "ERROR: ROWSTREAM_FULLBEAT_SYNTH_JSON is required for rowstream-fullbeat-v40-json-pnr-only"; \
+		exit 1; \
+	fi
+	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS})
+	@mkdir -p $(dir ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS})
+	$(MAKE) clean-rowstream-fullbeat-pnr
+	cp ${ROWSTREAM_FULLBEAT_SYNTH_JSON} ${ROWSTREAM_FULLBEAT_PROJECT}.json
+	touch ${ROWSTREAM_FULLBEAT_PROJECT}.json
+	@printf 'rowstream-fullbeat-v40-json-pnr-only: seed=%s freq=%s chipdb=%s synth_json=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
+		"${SEED}" "${FREQ}" "${CHIPDB}" "${ROWSTREAM_FULLBEAT_SYNTH_JSON}" "${PNR_ARGS}" "${ROWSTREAM_FULLBEAT_ROUTED_JSON}" "${ROWSTREAM_FULLBEAT_BITSTREAM_OUT}"
+	$(MAKE) ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
+		SEED="${SEED}" \
+		FREQ="${FREQ}" \
+		ROWSTREAM_FULLBEAT_ROUTED_JSON="${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS}" \
+		ROWSTREAM_FULLBEAT_BITSTREAM_OUT="${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS}" \
+		PNR_PRE_PLACE="$(PNR_PRE_PLACE)" \
+		PNR_ARGS="$(PNR_ARGS)" \
+		PNR_DEBUG="--write ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS}"
+	@if [ ! -f ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS} ]; then \
+		echo "ERROR: expected routed json ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS} not created"; \
+		exit 1; \
+	fi
+	cp ${ROWSTREAM_FULLBEAT_PROJECT}_openxc7.bit ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS}
+	@printf 'Generated fullbeat rowstream bitstream: %s\nGenerated routed json: %s\n' ${ROWSTREAM_FULLBEAT_BITSTREAM_OUT_ABS} ${ROWSTREAM_FULLBEAT_ROUTED_JSON_ABS}
+
+.PHONY: calib-openxc7-333-json-pnr-only
+calib-openxc7-333-json-pnr-only: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+calib-openxc7-333-json-pnr-only: FREQ = 0
+calib-openxc7-333-json-pnr-only: PNR_ARGS = --seed ${SEED}
+calib-openxc7-333-json-pnr-only: CALIB_ROUTED_JSON = ../../artifacts/manual-seed/calib-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+calib-openxc7-333-json-pnr-only: CALIB_BITSTREAM_OUT = ../../artifacts/manual-seed/calib-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_calib_only_openxc7_333_seed${SEED}_freq${FREQ}.bit
+calib-openxc7-333-json-pnr-only: calib-v40-json-pnr-only
+
+.PHONY: rowstream-openxc7-333-json-pnr-only
+rowstream-openxc7-333-json-pnr-only: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+rowstream-openxc7-333-json-pnr-only: FREQ = 0
+rowstream-openxc7-333-json-pnr-only: PNR_ARGS = --seed ${SEED}
+rowstream-openxc7-333-json-pnr-only: ROWSTREAM_ROUTED_JSON = ../../artifacts/manual-seed/rowstream-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+rowstream-openxc7-333-json-pnr-only: ROWSTREAM_BITSTREAM_OUT = ../../artifacts/manual-seed/rowstream-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_loader_openxc7_333_seed${SEED}_freq${FREQ}.bit
+rowstream-openxc7-333-json-pnr-only: rowstream-v40-json-pnr-only
+
+.PHONY: rowstream-fullbeat-openxc7-333-json-pnr-only
+rowstream-fullbeat-openxc7-333-json-pnr-only: YPCB_UBERDDR3_CLOCK_PROFILE = openxc7-333
+rowstream-fullbeat-openxc7-333-json-pnr-only: FREQ = 0
+rowstream-fullbeat-openxc7-333-json-pnr-only: PNR_ARGS = --seed ${SEED}
+rowstream-fullbeat-openxc7-333-json-pnr-only: ROWSTREAM_FULLBEAT_ROUTED_JSON = ../../artifacts/manual-seed/rowstream-fullbeat-openxc7-333-seed${SEED}/nextpnr-routed.seed${SEED}.freq${FREQ}.json
+rowstream-fullbeat-openxc7-333-json-pnr-only: ROWSTREAM_FULLBEAT_BITSTREAM_OUT = ../../artifacts/manual-seed/rowstream-fullbeat-openxc7-333-seed${SEED}/ypcb_00338_1p1_uberddr3_rowstream_fullbeat_openxc7_333_seed${SEED}_freq${FREQ}.bit
+rowstream-fullbeat-openxc7-333-json-pnr-only: rowstream-fullbeat-v40-json-pnr-only
 
 .PHONY: calib-v40-json-pnr-only
 calib-v40-json-pnr-only: PNR_PRE_PLACE = --pre-place ${CALIB_PRE_PLACE_BEL_LOCKS}
@@ -391,6 +507,7 @@ calib-v40-json-pnr-only:
 	@printf 'calib-v40-json-pnr-only: seed=%s freq=%s chipdb=%s synth_json=%s pnr_args=%s routed_json=%s bit_out=%s\n' \
 		"${SEED}" "${FREQ}" "${CHIPDB}" "${CALIB_SYNTH_JSON}" "${PNR_ARGS}" "${CALIB_ROUTED_JSON}" "${CALIB_BITSTREAM_OUT}"
 	$(MAKE) ${CALIB_PROJECT}_openxc7.bit \
+		YPCB_UBERDDR3_CLOCK_PROFILE="${YPCB_UBERDDR3_CLOCK_PROFILE}" \
 		SEED="${SEED}" \
 		FREQ="${FREQ}" \
 		CALIB_ROUTED_JSON="${CALIB_ROUTED_JSON_ABS}" \
@@ -485,6 +602,9 @@ ${BSCAN_DDR_PINS_PROJECT}.json: ${BSCAN_DDR_PINS_SOURCES} Makefile
 ${PHASER_SMOKE_PROJECT}.json: ${PHASER_SMOKE_SOURCES} Makefile
 	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${PHASER_SMOKE_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${PHASER_SMOKE_SOURCES}
 
+${PHASER_BYTE_LANE_DIAG_PROJECT}.json: ${PHASER_BYTE_LANE_DIAG_SOURCES} Makefile
+	yosys ${YOSYS_DEFINES} ${PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} ${SYNTH_OPTS} -top ${PHASER_BYTE_LANE_DIAG_PROJECT}; delete t:\$$scopeinfo; write_json $@" ${PHASER_BYTE_LANE_DIAG_SOURCES}
+
 ${V40_PRE_PLACE_BEL_LOCKS}: ${V40_BEL_LOCKS} ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py
 	python3 ${REPO_ROOT}/scripts/task6/generate_nextpnr_pre_place_bel_locks.py \
 		--locks-json ${V40_BEL_LOCKS} \
@@ -544,6 +664,9 @@ ${BSCAN_DDR_PINS_PROJECT}.fasm: ${BSCAN_DDR_PINS_PROJECT}.json ${CHIPDB_BIN} ${B
 ${PHASER_SMOKE_PROJECT}.fasm: ${PHASER_SMOKE_PROJECT}.json ${CHIPDB_BIN} ${PHASER_SMOKE_XDC}
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_SMOKE_XDC} --json ${PHASER_SMOKE_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 
+${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm: ${PHASER_BYTE_LANE_DIAG_PROJECT}.json ${CHIPDB_BIN} ${PHASER_BYTE_LANE_DIAG_XDC}
+	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_BYTE_LANE_DIAG_XDC} --json ${PHASER_BYTE_LANE_DIAG_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
@@ -566,6 +689,9 @@ ${BSCAN_DDR_PINS_PROJECT}.frames: ${BSCAN_DDR_PINS_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PHASER_SMOKE_PROJECT}.frames: ${PHASER_SMOKE_PROJECT}.fasm
+	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
+
+${PHASER_BYTE_LANE_DIAG_PROJECT}.frames: ${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
@@ -592,6 +718,9 @@ ${BSCAN_DDR_PINS_PROJECT}_openxc7.bit: ${BSCAN_DDR_PINS_PROJECT}.frames
 ${PHASER_SMOKE_PROJECT}_openxc7.bit: ${PHASER_SMOKE_PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit: ${PHASER_BYTE_LANE_DIAG_PROJECT}.frames
+	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
 .PHONY: clean
 clean:
 	rm -f ${PROJECT}_openxc7.bit ${PROJECT}.frames ${PROJECT}.fasm ${PROJECT}.json \
@@ -602,4 +731,5 @@ clean:
 		${BSCAN_SMOKE_PROJECT}_openxc7.bit ${BSCAN_SMOKE_PROJECT}.frames ${BSCAN_SMOKE_PROJECT}.fasm ${BSCAN_SMOKE_PROJECT}.json \
 		${BSCAN_DDR_PINS_PROJECT}_openxc7.bit ${BSCAN_DDR_PINS_PROJECT}.frames ${BSCAN_DDR_PINS_PROJECT}.fasm ${BSCAN_DDR_PINS_PROJECT}.json \
 		${PHASER_SMOKE_PROJECT}_openxc7.bit ${PHASER_SMOKE_PROJECT}.frames ${PHASER_SMOKE_PROJECT}.fasm ${PHASER_SMOKE_PROJECT}.json \
+		${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit ${PHASER_BYTE_LANE_DIAG_PROJECT}.frames ${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm ${PHASER_BYTE_LANE_DIAG_PROJECT}.json \
 		${BIST_XDC} ${ROWSTREAM_XDC} ${ROWSTREAM_FULLBEAT_XDC} ${CALIB_XDC} ${DBPART}.bin ${DBPART}.bba ${V40_PRE_PLACE_BEL_LOCKS} ${GENERATED_CALIB_PRE_PLACE_BEL_LOCKS}

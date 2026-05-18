@@ -1,11 +1,19 @@
 """Clock constraints for YPCB UberDDR3 nextpnr builds.
 
-These match the AMD/Xilinx Kintex-7 external-memory-interface guidance used by
-the active YPCB shell:
+By default these match the AMD/Xilinx Kintex-7 external-memory-interface
+guidance used by the active YPCB shell:
 
 - ddr3_clk = 400 MHz
 - ddr3_clk_90 = 400 MHz
 - controller_clk = 100 MHz
+- ref_clk = 200 MHz
+
+Set YPCB_UBERDDR3_CLOCK_PROFILE=openxc7-333 for the experimental no-PHASER
+OpenXC7 profile:
+
+- ddr3_clk = 333.333333 MHz
+- ddr3_clk_90 = 333.333333 MHz
+- controller_clk = 83.333333 MHz
 - ref_clk = 200 MHz
 """
 
@@ -16,9 +24,22 @@ def env_mhz(name, default):
     return float(os.environ.get(name, str(default)))
 
 
-controller_clk_mhz = env_mhz("YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", 100.0)
-ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", 400.0)
-ref_clk_mhz = env_mhz("YPCB_UBERDDR3_REF_CLK_MHZ", 200.0)
+profile = os.environ.get("YPCB_UBERDDR3_CLOCK_PROFILE", "default")
+
+if profile == "openxc7-333":
+    default_controller_clk_mhz = 83.333333
+    default_ddr3_clk_mhz = 333.333333
+    default_ref_clk_mhz = 200.0
+else:
+    default_controller_clk_mhz = 100.0
+    default_ddr3_clk_mhz = 400.0
+    default_ref_clk_mhz = 200.0
+
+controller_clk_mhz = env_mhz(
+    "YPCB_UBERDDR3_CONTROLLER_CLK_MHZ", default_controller_clk_mhz
+)
+ddr3_clk_mhz = env_mhz("YPCB_UBERDDR3_DDR3_CLK_MHZ", default_ddr3_clk_mhz)
+ref_clk_mhz = env_mhz("YPCB_UBERDDR3_REF_CLK_MHZ", default_ref_clk_mhz)
 clk100_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK100_RAW_MHZ", controller_clk_mhz)
 clk400_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK400_RAW_MHZ", ddr3_clk_mhz)
 clk400_90_raw_mhz = env_mhz("YPCB_UBERDDR3_CLK400_90_RAW_MHZ", ddr3_clk_mhz)

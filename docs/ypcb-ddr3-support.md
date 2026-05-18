@@ -62,6 +62,24 @@ The same errata also notes that `STARTUP_WAIT` is unsupported for MMCM/PLL
 blocks and must be false. These are oracle facts to account for when comparing
 Vivado/MIG behavior against the OpenXC7/UberDDR3 flow.
 
+#### UberDDR3 OpenXC7 333 MHz Experiment
+
+The EN179 303-399 MHz warning is specific to the Kintex-7 DDR3/DDR2 PHASER
+divide-by-two path used by MIG. The active OpenXC7 UberDDR3 YPCB path does not
+instantiate PHASER blocks; it uses the UberDDR3 no-PHASER PHY with fabric
+clocking, IDELAY/ISERDES/OSERDES primitives, and `ODELAY_SUPPORTED=0` for the
+YPCB HR-bank pinout. That means the PHASER divide-by-two erratum is not a
+direct ban on testing UberDDR3 at 333.333 MHz, although any result still has to
+be proven on hardware.
+
+Angelo's Kintex-7 OpenXC7 demos provide the current positive evidence for this
+class of no-PHASER UberDDR3 build: 333.333 MHz DDR3, 83.333333 MHz controller,
+200 MHz reference clock, `CONTROLLER_CLK_PERIOD=12_000`,
+`DDR3_CLK_PERIOD=3_000`, `DLL_OFF=0`, and `ODELAY_SUPPORTED=0`. The first YPCB
+experiment now mirrors that profile as `openxc7-333`, because it stays below
+the previously brittle 400 MHz YPCB path while preserving DLL-on high-speed
+calibration.
+
 Debug in this order:
 
 1. Clocking: verify the generated clock path, CK forwarding, phase assumptions,
@@ -620,14 +638,184 @@ toolchain support regression test: hard macro instances survive Yosys, appear in
 the chipdb, can be BEL-locked to Vivado-oracle sites, and do not crash nextpnr
 PNR or bitstream generation.
 
+### PHASER Feature-Delta Oracle
+
+The first minimal Vivado bitstream oracle is now in place:
+
+- `scripts/task6/ypcb_phaser_feature_oracle.tcl` generates tiny Vivado designs
+  for PHASER/FIFO/PHY_CONTROL feature discovery.
+- `scripts/task6/run_ypcb_phaser_feature_oracle.sh <variant>` runs the oracle
+  under Vivado 2025.2.1.
+- `scripts/task6/summarize_bitstream_feature_delta.py` summarizes `bitread`
+  `.bits` files, decoded FASM unknowns, and pairwise frame deltas.
+
+Two initial variants were built:
+
+```sh
+scripts/task6/run_ypcb_phaser_feature_oracle.sh none
+scripts/task6/run_ypcb_phaser_feature_oracle.sh phaser_ref
+```
+
+Artifacts:
+
+- `artifacts/task6/phaser-feature-oracle/vivado-mini/none/top_none.bit`
+- `artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_ref/top_phaser_ref.bit`
+- `artifacts/task6/phaser-feature-oracle/vivado-mini/none-vs-phaser_ref.delta.json`
+- `artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_ref/top_phaser_ref.verbose.fasm`
+
+The `phaser_ref` run preserved one `PHASER_REF` instance and Vivado placed it at
+`PHASER_REF_X0Y0`. The bitstream delta versus the `none` baseline is small and
+clean: 69 added bits, 0 removed bits. All added bits are in frames `0046009c`
+and `0046009d`; verbose FASM leaves them undecoded under segment `0x00460080`.
+That is the first concrete PHASER database target: add or verify the segbits for
+the `PHASER_REF_X0Y0` configuration region before moving on to
+`PHASER_IN_PHY`, `PHASER_OUT_PHY`, `PHY_CONTROL`, `IN_FIFO`, and `OUT_FIFO`.
+
+The full Vivado MIG bitstream was also decoded for comparison:
+
+```sh
+bit2fasm --db-root "$PRJXRAY_DB_DIR/kintex7" \
+  --part xc7k480tffg1156-2 \
+  --bits-file artifacts/task6/phaser-feature-oracle/ypcb-mig/top_wrapper.bits \
+  --verbose artifacts/task6/vivado-oracle/ypcb-systest/top_wrapper.bit \
+  > artifacts/task6/phaser-feature-oracle/ypcb-mig/top_wrapper.verbose.fasm
+```
+
+The decoded MIG FASM contains no `PHASER`, `PHY_CONTROL`, `IN_FIFO`, or
+`OUT_FIFO` feature names. Its verbose decode reports 3,923 unknown bits across
+106 frames, including the same `0x00460080` PHASER_REF segment family exposed by
+the minimal oracle.
+
+The remaining disconnected hard-macro variants also build in Vivado and produce
+small positive deltas when compared against the `phaser_ref` baseline:
+
+| Variant | Added bits | Removed bits | Provisional row |
+| --- | ---: | ---: | --- |
+| `phy_control` | 38 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/phy_control/provisional-segbits-phy_control.db` |
+| `phaser_in_div4` | 48 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_in_div4/provisional-segbits-phaser_in_div4.db` |
+| `phaser_in_div2` | 47 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_in_div2/provisional-segbits-phaser_in_div2.db` |
+| `phaser_out_div4` | 46 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_out_div4/provisional-segbits-phaser_out_div4.db` |
+| `in_fifo` | 17 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/in_fifo/provisional-segbits-in_fifo.db` |
+| `out_fifo` | 17 | 0 | `artifacts/task6/phaser-feature-oracle/vivado-mini/out_fifo/provisional-segbits-out_fifo.db` |
+
+The PHASER_REF provisional row is:
+
+```text
+artifacts/task6/phaser-feature-oracle/vivado-mini/phaser_ref/provisional-segbits-phaser-ref.db
+```
+
+All provisional rows use segment base `0x00460080` and are intentionally marked
+with `origin:task6-phaser-feature-oracle`. Treat the feature names as labels for
+review, not final prjxray naming. The site-to-tile mapping from `tilegrid.json`
+is:
+
+| Site | Site type | Tile | Tile type |
+| --- | --- | --- | --- |
+| `PHASER_REF_X0Y0` | `PHASER_REF` | `CMT_TOP_R_UPPER_B_X8Y31` | `CMT_TOP_R_UPPER_B` |
+| `PHY_CONTROL_X0Y0` | `PHY_CONTROL` | `CMT_TOP_R_UPPER_B_X8Y31` | `CMT_TOP_R_UPPER_B` |
+| `PHASER_IN_PHY_X0Y0` | `PHASER_IN_PHY` | `CMT_TOP_R_LOWER_T_X8Y18` | `CMT_TOP_R_LOWER_T` |
+| `PHASER_OUT_PHY_X0Y0` | `PHASER_OUT_PHY` | `CMT_TOP_R_LOWER_T_X8Y18` | `CMT_TOP_R_LOWER_T` |
+| `IN_FIFO_X0Y0` | `IN_FIFO` | `CMT_FIFO_R_X7Y8` | `CMT_FIFO_R` |
+| `OUT_FIFO_X0Y0` | `OUT_FIFO` | `CMT_FIFO_R_X7Y8` | `CMT_FIFO_R` |
+
+The `PHASER_IN_PHY` `CLKOUT_DIV` parameter is not just a positive `IN_USE`
+delta. Comparing `phaser_in_div4` to `phaser_in_div2` adds one bit
+(`bit_0046009d_039_24`) and removes two bits (`bit_0046009c_038_25`,
+`bit_0046009c_039_25`). Keep that as a parameter-specific diff rather than
+folding it into the provisional `IN_USE` rows.
+
+### PHASER DB Overlay Milestone
+
+`scripts/task6/build_phaser_prjxray_db_overlay.py` builds a local, provisional
+prjxray-db overlay at:
+
+```text
+artifacts/task6/phaser-feature-oracle/db-overlay/kintex7
+```
+
+The first simple overlay, which only added missing `segbits` files for
+`CMT_TOP_R_UPPER_B`, `CMT_TOP_R_LOWER_T`, and `CMT_FIFO_R`, did not decode
+`PHASER_REF`: `bit2fasm` still reported the same 69 unknown bits. The reason is
+that the xc7k480t `tilegrid.json` has empty `bits` maps for the PHASER/FIFO site
+tiles. The working overlay therefore also adds provisional `CLB_IO_CLK`
+ownership windows:
+
+| Tile | Offset | Words |
+| --- | ---: | ---: |
+| `CMT_TOP_R_UPPER_B_X8Y31` | 53 | 22 |
+| `CMT_TOP_R_LOWER_T_X8Y18` | 34 | 7 |
+| `CMT_FIFO_R_X7Y8` | 14 | 4 |
+
+With those windows, the provisional segment-relative rows are rebased to
+tile-local segbits and all mini-oracle bitstreams decode without `unknown_bit`
+lines through `bit2fasm --db-root artifacts/task6/phaser-feature-oracle/db-overlay/kintex7`.
+`fasm2frames` also accepts the decoded feature lines for `PHASER_REF`,
+`PHY_CONTROL`, `PHASER_IN_PHY`, `PHASER_OUT_PHY`, `IN_FIFO`, and `OUT_FIFO`.
+
+A local `nextpnr-xilinx` patch adds direct FASM emission for the smoke primitive
+set in `xilinx/fasm.cc`: `PHASER_REF`, `PHY_CONTROL`, `PHASER_IN_PHY`,
+`PHASER_OUT_PHY`, `IN_FIFO`, and `OUT_FIFO`. Built with the patched PHASER
+chipdb, the patched nextpnr binary, and the DB overlay, the YPCB `phaser-smoke`
+target emits these six PHASER/FIFO/PHY_CONTROL features without any post-FASM
+append step:
+
+```text
+CMT_FIFO_R_X7Y8.IN_FIFO_X0Y0.IN_USE
+CMT_FIFO_R_X7Y8.OUT_FIFO_X0Y0.IN_USE
+CMT_TOP_R_LOWER_T_X8Y18.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE
+CMT_TOP_R_LOWER_T_X8Y18.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE
+CMT_TOP_R_UPPER_B_X8Y31.PHASER_REF_X0Y0.IN_USE
+CMT_TOP_R_UPPER_B_X8Y31.PHY_CONTROL_X0Y0.IN_USE
+```
+
+That smoke bitstream round-trips through `bit2fasm` back to the same six
+features with no PHASER `unknown_bit` lines. This proves provisional prjxray
+decode/encode plus direct nextpnr FASM emission for the current smoke primitive
+set. The remaining gap is coverage, not the basic emission path: the feature DB
+still needs a broader Vivado oracle matrix for non-default PHASER/FIFO/PHY
+parameters before this can be called full MIG-class PHASER support.
+
+### PHASER Byte-Lane Skeleton Milestone
+
+`example_demo/ypcb_00338_1p1` now has a staged byte-lane diagnostic target:
+
+```text
+make -C example_demo/ypcb_00338_1p1 phaser-byte-lane-diag
+```
+
+The default mode is intentionally a hard-macro presence/configuration skeleton.
+It instantiates and pre-places one `PHASER_REF`, one `PHY_CONTROL`, one
+`PHASER_IN_PHY`, one `PHASER_OUT_PHY`, one `IN_FIFO`, and one `OUT_FIFO`, while
+leaving their hard-macro data/status/clock pins disconnected. With the patched
+PHASER chipdb, patched nextpnr FASM emitter, and provisional prjxray-db overlay,
+the target routes and emits a bitstream containing the same six known PHASER
+features. A seed-3, 25 MHz run produced:
+
+```text
+8971bf065d49e30eb3803cc0ac588412994c94ffc000950c33d717cba078075a  ypcb_phaser_byte_lane_diag_openxc7.bit
+```
+
+`PHASER_BYTE_LANE_DIAG_CLOCKED=1` or the `phaser-byte-lane-diag-clocked` target
+is the next support probe, not a passing target yet. It connects PHASER/FIFO
+clock, reset, data, and status pins to fabric so hardware can eventually report
+PHASER lock/status and FIFO activity. Current nextpnr routing support is not
+there yet: the first connected attempts exposed unroutable arcs from a BUFG
+clock into `PHASER_IN_PHY.FREQREFCLK`, and from `PHASER_OUT_PHY.RDENABLE` back
+to fabric. The corresponding Vivado oracle variants are
+`phaser_in_div4_clocked` and `phaser_out_div4_clocked` in
+`scripts/task6/ypcb_phaser_feature_oracle.tcl`; use those to extract the
+dedicated clock/status routing and any extra configuration bits before expanding
+the diagnostic to byte-lane read/write.
+
 ## Upstream Patch Queue
 
 Keep local patches small and ready to split out:
 
 - prjxray-db: missing Kintex-7 `LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1`
   feature and origin metadata.
-- prjxray-db / nextpnr-xilinx: PHASER/FIFO/PHY_CONTROL feature discovery and
-  FASM emission from Vivado frame-delta oracles.
+- prjxray-db / nextpnr-xilinx: broaden PHASER/FIFO/PHY_CONTROL feature
+  discovery beyond the current smoke parameters and upstream the provisional
+  direct nextpnr FASM emitter.
 - nextpnr-xilinx: upstream the prjxray site-pin fallback for hard macro BELs
   once it is narrowed to the site families needed by Kintex-7 DDR PHY.
 - openFPGALoader: add `xc7k480t` IDCODE support for this board.
