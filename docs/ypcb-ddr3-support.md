@@ -10,6 +10,11 @@ The active strategy is PHASER-first and open-flow-first; see
 current evidence, commands, and tactical debug notes for both the PHASER path
 and the bounded UberDDR3 no-PHASER path.
 
+## Tooling Notes
+
+- Vivado oracle path used for YPCB PHASER sequencing capture runs:
+  `/home/roland/Vivado/2025.2.1` (binary: `/home/roland/Vivado/2025.2.1/Vivado/bin/vivado`).
+
 ## Execution Plan
 
 The goal is a repeatable OpenXC7 hardware-in-the-loop flow that proves
