@@ -1259,6 +1259,21 @@ MMCM/reset state, not the byte-lane control path listed in the plan
 task is therefore to capture those signals from the working larger MIG design
 and replace the observe-only placeholder with the captured byte-lane sequence.
 
+The blocker-unblock flow to close that gap is:
+
+```text
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh build \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh program \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh read \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+```
+
+If your Vivado net names differ, edit
+`scripts/task6/ypcb_phaser_byte_lane_oracle_probes.tcl` and keep the resolved
+alias mapping in `calibration-ila-probes.txt`.
+
 ### PHASER Shell Contract
 
 The host-side PHASER contract is now a defined command-and-status protocol,

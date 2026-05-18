@@ -154,6 +154,28 @@ with `scripts/task6/extract_ypcb_phaser_sequence.py`, regenerate the step ROM,
 then rebuild both open and Vivado byte-lane diagnostics against the same
 captured sequence.
 
+Concrete capture flow for that action:
+
+```text
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh build \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+```
+
+That write step builds a dedicated byte-lane ILA on `top_wrapper_debug.bit` and
+emits `calibration-ila-probes.txt` plus `top_wrapper_debug.ltx`. Use the same
+artifacts directory for:
+
+```text
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh program \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh read \
+  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
+```
+
+If probe aliases cannot be resolved in your working image, start by editing
+`scripts/task6/ypcb_phaser_byte_lane_oracle_probes.tcl` and keep the resulting
+alias-to-net mapping in `calibration-ila-probes.txt` as the source of truth.
+
 In parallel, the host-side PHASER command surface is no longer undefined. The
 shared Python protocol and the `ypcb_phaser_shell_smoke` RTL target now give a
 buildable command/status contract for low-byte and full-beat PHASER-shell
