@@ -71,15 +71,27 @@ PROVISIONAL_BIT_EXCLUDES = {
     (
         "segbits_cmt_top_r_lower_t.db",
         "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
-    ): {"25_156", "25_164"},
+    ): {"25_156", "25_164", "25_174"},
     (
         "segbits_cmt_top_r_lower_t.db",
         "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
-    ): {"24_73", "25_74", "25_78"},
+    ): {"24_73", "25_58", "25_74", "25_78"},
     (
         "segbits_cmt_top_r_upper_b.db",
         "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
     ): {"1_597"},
+}
+
+PPIP_EXTRA_ROWS = {
+    "ppips_cmt_top_r_upper_b.db": (
+        "CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFOUT0.PLLOUT_CLK_FREQ_BB_REBUFIN0 always",
+        "CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFOUT1.PLLOUT_CLK_FREQ_BB_REBUFIN1 always",
+        "CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT0.PLLOUT_CLK_FREQ_BB_REBUFOUT0 always",
+        "CMT_TOP_R_UPPER_B.PLL_CLK_FREQBB_REBUFOUT1.PLLOUT_CLK_FREQ_BB_REBUFOUT1 always",
+        "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN0 always",
+        "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN0 always",
+        "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_2.CMT_FREQ_BB_PREF_IN1 always",
+    ),
 }
 
 BIT_BLOCK = "CLB_IO_CLK"
@@ -149,6 +161,25 @@ def write_overlay_file(
             row = clean_row(line, word_offset)
             if row is not None:
                 rows.append(filter_provisional_bits(filename, row))
+
+    target = overlay_db / filename
+    if target.is_symlink():
+        target.unlink()
+    target.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    return len(rows)
+
+
+def write_ppip_overlay_file(source_db: Path, overlay_db: Path, filename: str) -> int:
+    rows: list[str] = []
+    source_file = source_db / filename
+    if source_file.exists():
+        rows.extend(source_file.read_text(encoding="utf-8").splitlines())
+
+    existing = set(rows)
+    for row in PPIP_EXTRA_ROWS[filename]:
+        if row not in existing:
+            rows.append(row)
+            existing.add(row)
 
     target = overlay_db / filename
     if target.is_symlink():
@@ -270,6 +301,10 @@ def main() -> int:
             word_offset=word_offset,
             row_paths=row_paths,
         )
+        print(f"{out_db / filename}: {row_count} rows")
+
+    for filename in PPIP_EXTRA_ROWS:
+        row_count = write_ppip_overlay_file(source_db, out_db, filename)
         print(f"{out_db / filename}: {row_count} rows")
 
     print(out_db)
