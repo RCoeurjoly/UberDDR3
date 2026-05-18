@@ -33,13 +33,13 @@ module ypcb_phaser_byte_lane_diag (
     wire phaser_sync_refclk;
     wire phaser_pll_locked;
 
-    (* keep, dont_touch *)
+    (* keep, dont_touch, PHASER_FREQ_BACKBONE_ACTIVE = 1 *)
     PLLE2_ADV #(
         .BANDWIDTH("OPTIMIZED"),
         .COMPENSATION("INTERNAL"),
         .STARTUP_WAIT("FALSE"),
         .DIVCLK_DIVIDE(1),
-        .CLKFBOUT_MULT(8),
+        .CLKFBOUT_MULT(16),
         .CLKFBOUT_PHASE(0.000),
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
