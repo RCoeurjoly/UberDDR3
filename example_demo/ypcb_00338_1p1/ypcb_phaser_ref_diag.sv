@@ -44,7 +44,7 @@ module ypcb_phaser_ref_diag (
         .RST(rst)
     );
 
-    (* keep, dont_touch *)
+    (* keep, dont_touch, PHASER_CLOCKED_ORACLE_ROUTE = 1 *)
     PHASER_REF phaser_ref_i (
         .LOCKED(phaser_ref_locked),
         .CLKIN(phaser_freq_refclk),

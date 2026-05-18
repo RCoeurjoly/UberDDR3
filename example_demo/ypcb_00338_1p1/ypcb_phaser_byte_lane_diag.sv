@@ -62,7 +62,7 @@ module ypcb_phaser_byte_lane_diag (
 `endif
 
     wire phaser_ref_locked;
-    (* keep, dont_touch *)
+    (* keep, dont_touch, PHASER_CLOCKED_ORACLE_ROUTE = 1 *)
     PHASER_REF phaser_ref_i (
         .LOCKED(`YPCB_PHASER_DIAG_CONN(phaser_ref_locked)),
         .CLKIN(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),

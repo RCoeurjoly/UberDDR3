@@ -94,6 +94,17 @@ PROVISIONAL_ROW_ALIASES = {
     ),
 }
 
+EXTRA_SEGBIT_ROWS = {
+    "segbits_cmt_top_r_upper_b.db": (
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE "
+        "28_1058 28_1068 28_1069 28_1076 28_1077 28_1596 "
+        "28_2370 28_2373 28_2377 28_2380 28_2381 28_2388 "
+        "28_2389 28_2392 28_2393 28_2394 28_2395 29_1057 "
+        "29_1596 29_2369 29_2372 29_2373 29_2376 29_2379 "
+        "29_2380 29_2383 29_2384 29_2387 29_2388 29_2393",
+    ),
+}
+
 PPIP_EXTRA_ROWS = {
     "ppips_cmt_top_r_upper_b.db": (
         "CMT_TOP_R_UPPER_B.PLLOUT_CLK_FREQ_BB_REBUFOUT0.PLLOUT_CLK_FREQ_BB_REBUFIN0 always",
@@ -201,6 +212,12 @@ def write_overlay_file(
                 row = filter_provisional_bits(filename, row)
                 rows.append(row)
                 rows.extend(provisional_alias_rows(filename, row))
+
+    existing = set(rows)
+    for row in EXTRA_SEGBIT_ROWS.get(filename, ()):
+        if row not in existing:
+            rows.append(row)
+            existing.add(row)
 
     target = overlay_db / filename
     if target.is_symlink():
