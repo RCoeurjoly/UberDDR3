@@ -27,6 +27,7 @@ module ypcb_phaser_byte_lane_diag (
 `ifdef YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
     wire phaser_pll_fb;
     wire phaser_freq_refclk;
+    wire phaser_sync_refclk;
     wire phaser_pll_locked;
 
     (* keep, dont_touch *)
@@ -40,10 +41,14 @@ module ypcb_phaser_byte_lane_diag (
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
         .CLKOUT0_DUTY_CYCLE(0.500),
+        .CLKOUT1_DIVIDE(2),
+        .CLKOUT1_PHASE(0.000),
+        .CLKOUT1_DUTY_CYCLE(0.500),
         .CLKIN1_PERIOD(20.000)
     ) phaser_pll_i (
         .CLKFBOUT(phaser_pll_fb),
         .CLKOUT0(phaser_freq_refclk),
+        .CLKOUT1(phaser_sync_refclk),
         .CLKFBIN(phaser_pll_fb),
         .CLKIN1(clk50),
         .CLKINSEL(1'b1),
@@ -101,7 +106,7 @@ module ypcb_phaser_byte_lane_diag (
         .READCALIBENABLE(`YPCB_PHASER_DIAG_CONN(inactive_low)),
         .REFDLLLOCK(`YPCB_PHASER_DIAG_CONN(phaser_ref_locked)),
         .RESET(`YPCB_PHASER_DIAG_CONN(rst)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(inactive_low)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
         .WRITECALIBENABLE(`YPCB_PHASER_DIAG_CONN(inactive_low)),
         .PHYCTLWD(`YPCB_PHASER_DIAG_CONN({6{heartbeat_q[5:0]}}))
     );
@@ -145,7 +150,7 @@ module ypcb_phaser_byte_lane_diag (
         .PHASEREFCLK(),
         .RST(`YPCB_PHASER_DIAG_CONN(rst)),
         .RSTDQSFIND(`YPCB_PHASER_DIAG_CONN(rst)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(inactive_low)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
         .SYSCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
         .ENCALIBPHY(`YPCB_PHASER_DIAG_CONN(phyctl_pc_enable_calib)),
         .RANKSELPHY(`YPCB_PHASER_DIAG_CONN(phyctl_in_rank_a)),
@@ -195,7 +200,7 @@ module ypcb_phaser_byte_lane_diag (
         .PHASEREFCLK(),
         .RST(`YPCB_PHASER_DIAG_CONN(rst)),
         .SELFINEOCLKDELAY(`YPCB_PHASER_DIAG_CONN(inactive_low)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(inactive_low)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
         .SYSCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
         .ENCALIBPHY(`YPCB_PHASER_DIAG_CONN(phyctl_pc_enable_calib)),
         .COUNTERLOADVAL(`YPCB_PHASER_DIAG_CONN(heartbeat_q[8:0]))

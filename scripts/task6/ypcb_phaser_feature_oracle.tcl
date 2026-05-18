@@ -20,6 +20,7 @@ proc variant_body {variant} {
     set phaser_ref_clocked {
     wire phaser_pll_fb;
     wire phaser_freq_refclk;
+    wire phaser_sync_refclk;
     wire phaser_pll_locked;
     wire phaser_ref_locked;
 
@@ -34,10 +35,14 @@ proc variant_body {variant} {
         .CLKOUT0_DIVIDE(2),
         .CLKOUT0_PHASE(0.000),
         .CLKOUT0_DUTY_CYCLE(0.500),
+        .CLKOUT1_DIVIDE(2),
+        .CLKOUT1_PHASE(0.000),
+        .CLKOUT1_DUTY_CYCLE(0.500),
         .CLKIN1_PERIOD(20.000)
     ) phaser_pll_i (
         .CLKFBOUT(phaser_pll_fb),
         .CLKOUT0(phaser_freq_refclk),
+        .CLKOUT1(phaser_sync_refclk),
         .CLKFBIN(phaser_pll_fb),
         .CLKIN1(clk50),
         .CLKINSEL(1'b1),
@@ -122,7 +127,7 @@ proc variant_body {variant} {
         .PHASEREFCLK(),
         .RST(rst),
         .RSTDQSFIND(rst),
-        .SYNCIN(1'b0),
+        .SYNCIN(phaser_sync_refclk),
         .SYSCLK(clk50),
         .ENCALIBPHY(2'b00),
         .RANKSELPHY(2'b00),
@@ -198,7 +203,7 @@ proc variant_body {variant} {
         .PHASEREFCLK(),
         .RST(rst),
         .SELFINEOCLKDELAY(1'b0),
-        .SYNCIN(1'b0),
+        .SYNCIN(phaser_sync_refclk),
         .SYSCLK(clk50),
         .ENCALIBPHY(2'b00),
         .COUNTERLOADVAL(blink_counter\[8:0\])
