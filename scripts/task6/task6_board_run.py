@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 from datetime import datetime
 import fcntl
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -59,7 +60,7 @@ def yaml_scalar(value: Any) -> str:
     if isinstance(value, (int, float)):
         return str(value)
     text = str(value)
-    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    escaped = text.replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
     return f'"{escaped}"'
 
 
@@ -79,22 +80,66 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
 
 
+def run_capture(argv: list[str]) -> tuple[int, str]:
+    proc = subprocess.run(
+        argv,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        check=False,
+    )
+    return proc.returncode, proc.stdout.strip()
+
+
+def git_head() -> str | None:
+    returncode, output = run_capture(["git", "rev-parse", "HEAD"])
+    return output if returncode == 0 and output else None
+
+
+def git_dirty_status() -> str | None:
+    returncode, output = run_capture(["git", "status", "--short"])
+    if returncode != 0:
+        return None
+    return output
+
+
+def sha256_file(path: Path) -> str | None:
+    if not path.exists() or not path.is_file():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def cmd_init(args: argparse.Namespace) -> int:
     run_dir = allocate_run_dir(args.label)
     for name in ("logs", "bitstreams", "readback", "references"):
         (run_dir / name).mkdir()
 
     created_at = datetime.now().astimezone().isoformat()
+    bitstream_path = args.bitstream.resolve() if args.bitstream else None
+    git_status = git_dirty_status()
     meta = {
         "schema": "task6-board-run-v1",
         "created_at": created_at,
         "label": args.label,
         "experiment": args.experiment,
+        "source_commit": git_head(),
+        "source_dirty": bool(git_status),
+        "source_status_short": git_status,
         "board": args.board,
         "fpga": args.fpga,
         "jtag_cable": args.jtag_cable,
         "ftdi_serial": args.ftdi_serial,
-        "bitstream": str(args.bitstream) if args.bitstream else None,
+        "bitstream": str(bitstream_path) if bitstream_path else None,
+        "bitstream_sha256": sha256_file(bitstream_path) if bitstream_path else None,
+        "build_command": args.build_command,
+        "program_command": args.program_command,
+        "readback_command": args.readback_command,
+        "expected_debug_signature": args.expected_debug_signature,
         "reference_artifacts": args.reference_artifact,
         "notes": args.notes,
     }
@@ -195,6 +240,10 @@ def parse_args() -> argparse.Namespace:
     init.add_argument("--jtag-cable", default="digilent_hs3")
     init.add_argument("--ftdi-serial", default="210299BF3824")
     init.add_argument("--bitstream", type=Path)
+    init.add_argument("--build-command")
+    init.add_argument("--program-command")
+    init.add_argument("--readback-command")
+    init.add_argument("--expected-debug-signature")
     init.add_argument("--reference-artifact", action="append", default=[])
     init.add_argument("--notes")
     init.set_defaults(func=cmd_init)

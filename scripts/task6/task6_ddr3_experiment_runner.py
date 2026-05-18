@@ -8,6 +8,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import sys
 import time
@@ -122,6 +123,72 @@ def build_bitstream(args: argparse.Namespace) -> str:
     return str((ROOT / args.make_dir / args.make_bitstream).resolve())
 
 
+def planned_build_command(args: argparse.Namespace) -> str:
+    if args.bitstream:
+        return "prebuilt bitstream supplied"
+    if args.build_attr:
+        return shlex.join(["nix", "build", f".#{args.build_attr}", "--print-out-paths", "-L"])
+    return shlex.join(["make", "-C", args.make_dir, args.make_target])
+
+
+def planned_readback_command(args: argparse.Namespace) -> str:
+    return shlex.join(
+        [
+            sys.executable,
+            str(READ_JTAG),
+            "--serial",
+            args.ftdi_serial,
+            "--tdo-bit",
+            str(args.tdo_bit),
+            "--bits",
+            str(args.bits),
+            "--json-only",
+        ]
+    )
+
+
+def expected_debug_signature(args: argparse.Namespace) -> str:
+    if args.command_protocol == "rowstream192":
+        return (
+            "rowstream192: magic/version decode, calib_seen=true, "
+            "calib_complete=true, state=23/DONE_CALIBRATE, loader_ready=true, "
+            f"ack_delta>={args.rowstream_min_ack_delta}, err_count=0"
+        )
+    return (
+        "bist16: magic/version decode, idelay_ready=true, calib_seen=true, "
+        "calib_complete=true, state=23/DONE_CALIBRATE, ack_count>0, err_count=0"
+    )
+
+
+def build_program_command(args: argparse.Namespace, bitstream: str) -> list[str]:
+    if args.programmer == "openocd":
+        return [
+            "openocd",
+            "-f",
+            args.openocd_interface,
+            "-c",
+            f"adapter serial {args.ftdi_serial}",
+            "-f",
+            args.openocd_target,
+            "-c",
+            f"adapter speed {args.openocd_speed}",
+            "-c",
+            "init",
+            "-c",
+            f"pld load 0 {bitstream}",
+            "-c",
+            "exit",
+        ]
+    return [
+        "openFPGALoader",
+        "-c",
+        args.jtag_cable,
+        "--ftdi-serial",
+        args.ftdi_serial,
+        bitstream,
+    ]
+
+
 def init_run(args: argparse.Namespace, bitstream: str) -> Path:
     proc = run_command(
         [
@@ -134,6 +201,14 @@ def init_run(args: argparse.Namespace, bitstream: str) -> Path:
             args.experiment,
             "--bitstream",
             bitstream,
+            "--build-command",
+            args.planned_build_command,
+            "--program-command",
+            shlex.join(args.program_argv),
+            "--readback-command",
+            planned_readback_command(args),
+            "--expected-debug-signature",
+            expected_debug_signature(args),
             "--notes",
             args.notes,
         ]
@@ -680,38 +755,12 @@ def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
 
 
 def run_experiment(args: argparse.Namespace) -> Path:
+    args.planned_build_command = planned_build_command(args)
     bitstream = args.bitstream or build_bitstream(args)
     args.bitstream = bitstream
+    args.program_argv = build_program_command(args, bitstream)
     run_dir = init_run(args, bitstream)
-
-    if args.programmer == "openocd":
-        program_argv = [
-            "openocd",
-            "-f",
-            args.openocd_interface,
-            "-c",
-            f"adapter serial {args.ftdi_serial}",
-            "-f",
-            args.openocd_target,
-            "-c",
-            f"adapter speed {args.openocd_speed}",
-            "-c",
-            "init",
-            "-c",
-            f"pld load 0 {bitstream}",
-            "-c",
-            "exit",
-        ]
-    else:
-        program_argv = [
-            "openFPGALoader",
-            "-c",
-            args.jtag_cable,
-            "--ftdi-serial",
-            args.ftdi_serial,
-            bitstream,
-        ]
-    with_lock(run_dir, "program.log", program_argv)
+    with_lock(run_dir, "program.log", args.program_argv)
     if args.command_protocol == "rowstream192":
         wait_for_rowstream_calibration(
             run_dir,
