@@ -12,7 +12,11 @@ module ypcb_phaser_byte_lane_diag (
     output wire [2:0] led
 );
     localparam [31:0] READ_MAGIC = 32'h50485344; // "PHSD"
+`ifdef YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
+    localparam [7:0] READ_VERSION = 8'd4;
+`else
     localparam [7:0] READ_VERSION = 8'd1;
+`endif
 
     wire rst = ~rst_n;
 
@@ -66,8 +70,8 @@ module ypcb_phaser_byte_lane_diag (
     PHASER_REF phaser_ref_i (
         .LOCKED(`YPCB_PHASER_DIAG_CONN(phaser_ref_locked)),
         .CLKIN(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
-        .PWRDWN(`YPCB_PHASER_DIAG_CONN(inactive_low)),
-        .RST(`YPCB_PHASER_DIAG_CONN(rst))
+        .PWRDWN(`YPCB_PHASER_DIAG_CONN(phaser_ref_pwrdwn)),
+        .RST(`YPCB_PHASER_DIAG_CONN(phaser_ref_reset))
     );
 
     wire phyctl_almost_full;
@@ -82,6 +86,96 @@ module ypcb_phaser_byte_lane_diag (
     wire [3:0] phyctl_aux_output;
     wire [3:0] phyctl_in_burst_pending;
     wire [3:0] phyctl_out_burst_pending;
+    wire in_phase_locked;
+
+`ifdef YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
+`include "ypcb_phaser_byte_lane_diag_sequence.vh"
+
+    localparam integer SEQ_FLAG_PHASER_REF_PWRDWN = 0;
+    localparam integer SEQ_FLAG_PHASER_REF_RST = 1;
+    localparam integer SEQ_FLAG_PHYCTL_RESET = 2;
+    localparam integer SEQ_FLAG_READCALIBENABLE = 3;
+    localparam integer SEQ_FLAG_WRITECALIBENABLE = 4;
+    localparam integer SEQ_FLAG_PHYCTLWRENABLE = 5;
+    localparam integer SEQ_FLAG_LANE_RESET = 6;
+    localparam integer SEQ_FLAG_RSTDQSFIND = 7;
+    localparam integer SEQ_FLAG_SYNC_ENABLE = 8;
+
+    reg [7:0] sequence_step_q = 8'd0;
+    reg [15:0] sequence_elapsed_q = 16'd0;
+    reg [15:0] sequence_advance_count_q = 16'd0;
+    reg [31:0] sequence_last_phyctlwd_q = 32'd0;
+    reg sequence_done_q = 1'b0;
+
+    wire [8:0] sequence_flags = phaser_sequence_flags(sequence_step_q);
+    wire [3:0] sequence_wait_flags = phaser_sequence_wait_flags(sequence_step_q);
+    wire [15:0] sequence_hold_cycles = phaser_sequence_hold_cycles(sequence_step_q);
+    wire [31:0] sequence_phyctlwd = phaser_sequence_phyctlwd(sequence_step_q);
+    wire sequence_wait_satisfied =
+        (~sequence_wait_flags[0] | phaser_pll_locked) &
+        (~sequence_wait_flags[1] | phaser_ref_locked) &
+        (~sequence_wait_flags[2] | in_phase_locked) &
+        (~sequence_wait_flags[3] | phyctl_ready);
+    wire sequence_dwell_satisfied = (sequence_elapsed_q + 16'd1) >= sequence_hold_cycles;
+    wire sequence_is_final_step = (sequence_step_q + 8'd1) >= PHASER_SEQUENCE_STEP_COUNT;
+    wire sequence_can_advance = ~sequence_done_q & sequence_wait_satisfied & sequence_dwell_satisfied;
+
+    wire sequence_phaser_ref_pwrdwn = sequence_flags[SEQ_FLAG_PHASER_REF_PWRDWN];
+    wire sequence_phaser_ref_rst = sequence_flags[SEQ_FLAG_PHASER_REF_RST];
+    wire sequence_phyctl_reset = sequence_flags[SEQ_FLAG_PHYCTL_RESET];
+    wire sequence_readcalibenable = sequence_flags[SEQ_FLAG_READCALIBENABLE];
+    wire sequence_writecalibenable = sequence_flags[SEQ_FLAG_WRITECALIBENABLE];
+    wire sequence_phyctlwrenable = sequence_flags[SEQ_FLAG_PHYCTLWRENABLE];
+    wire sequence_lane_reset = sequence_flags[SEQ_FLAG_LANE_RESET];
+    wire sequence_rstdqsfind = sequence_flags[SEQ_FLAG_RSTDQSFIND];
+    wire sequence_sync_enable = sequence_flags[SEQ_FLAG_SYNC_ENABLE];
+
+    wire [31:0] phyctl_wd_q = sequence_phyctlwd;
+    wire phyctl_wr_enable_q = sequence_phyctlwrenable;
+    wire phyctl_readcalibenable = sequence_readcalibenable;
+    wire phyctl_writecalibenable = sequence_writecalibenable;
+    wire phaser_ref_pwrdwn = sequence_phaser_ref_pwrdwn;
+    wire phaser_ref_reset = rst | sequence_phaser_ref_rst;
+    wire phyctl_reset = rst | sequence_phyctl_reset;
+    wire lane_reset = rst | sequence_lane_reset;
+    wire rstdqsfind = rst | sequence_rstdqsfind;
+    wire phaser_syncin = sequence_sync_enable ? phaser_sync_refclk : 1'b0;
+
+    always @(posedge clk50 or posedge rst) begin
+        if (rst) begin
+            sequence_step_q <= 8'd0;
+            sequence_elapsed_q <= 16'd0;
+            sequence_advance_count_q <= 16'd0;
+            sequence_last_phyctlwd_q <= 32'd0;
+            sequence_done_q <= 1'b0;
+        end else begin
+            if (sequence_elapsed_q != 16'hffff)
+                sequence_elapsed_q <= sequence_elapsed_q + 1'b1;
+
+            if (sequence_phyctlwrenable && sequence_elapsed_q == 16'd0)
+                sequence_last_phyctlwd_q <= sequence_phyctlwd;
+
+            if (sequence_can_advance) begin
+                sequence_advance_count_q <= sequence_advance_count_q + 1'b1;
+                sequence_elapsed_q <= 16'd0;
+                if (sequence_is_final_step)
+                    sequence_done_q <= PHASER_SEQUENCE_FINAL_HOLD;
+                else
+                    sequence_step_q <= sequence_step_q + 1'b1;
+            end
+        end
+    end
+`else
+    wire [31:0] phyctl_wd_q = 32'd0;
+    wire phyctl_wr_enable_q = 1'b0;
+    wire phyctl_readcalibenable = 1'b0;
+    wire phyctl_writecalibenable = 1'b0;
+    wire phaser_ref_pwrdwn = inactive_low;
+    wire phaser_ref_reset = rst;
+    wire phyctl_reset = rst;
+    wire lane_reset = rst;
+    wire rstdqsfind = rst;
+`endif
 
     (* keep, dont_touch *)
     PHY_CONTROL #(
@@ -104,14 +198,14 @@ module ypcb_phaser_byte_lane_diag (
         .MEMREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .PHYCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
         .PHYCTLMSTREMPTY(),
-        .PHYCTLWRENABLE(),
+        .PHYCTLWRENABLE(`YPCB_PHASER_DIAG_CONN(phyctl_wr_enable_q)),
         .PLLLOCK(`YPCB_PHASER_DIAG_CONN(phaser_pll_locked)),
-        .READCALIBENABLE(),
+        .READCALIBENABLE(`YPCB_PHASER_DIAG_CONN(phyctl_readcalibenable)),
         .REFDLLLOCK(`YPCB_PHASER_DIAG_CONN(phaser_ref_locked)),
-        .RESET(`YPCB_PHASER_DIAG_CONN(rst)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
-        .WRITECALIBENABLE(),
-        .PHYCTLWD()
+        .RESET(`YPCB_PHASER_DIAG_CONN(phyctl_reset)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_syncin)),
+        .WRITECALIBENABLE(`YPCB_PHASER_DIAG_CONN(phyctl_writecalibenable)),
+        .PHYCTLWD(`YPCB_PHASER_DIAG_CONN(phyctl_wd_q))
     );
 
     wire dqs_found;
@@ -120,7 +214,6 @@ module ypcb_phaser_byte_lane_diag (
     wire in_iclk;
     wire in_iclkdiv;
     wire in_iserdes_rst;
-    wire in_phase_locked;
     wire in_rclk;
     wire in_wrenable;
     wire [5:0] in_counter_read;
@@ -129,7 +222,7 @@ module ypcb_phaser_byte_lane_diag (
     PHASER_IN_PHY #(
         .CLKOUT_DIV(4),
         .OUTPUT_CLK_SRC("PHASE_REF"),
-        .REFCLK_PERIOD(5.000),
+        .REFCLK_PERIOD(0.000),
         .MEMREFCLK_PERIOD(5.000),
         .PHASEREFCLK_PERIOD(5.000)
     ) phaser_in_i (
@@ -151,9 +244,9 @@ module ypcb_phaser_byte_lane_diag (
         .FREQREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .MEMREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .PHASEREFCLK(),
-        .RST(`YPCB_PHASER_DIAG_CONN(rst)),
-        .RSTDQSFIND(`YPCB_PHASER_DIAG_CONN(rst)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
+        .RST(`YPCB_PHASER_DIAG_CONN(lane_reset)),
+        .RSTDQSFIND(`YPCB_PHASER_DIAG_CONN(rstdqsfind)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_syncin)),
         .SYSCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
         .ENCALIBPHY(`YPCB_PHASER_DIAG_CONN(phyctl_pc_enable_calib)),
         .RANKSELPHY(`YPCB_PHASER_DIAG_CONN(phyctl_in_rank_a)),
@@ -176,7 +269,7 @@ module ypcb_phaser_byte_lane_diag (
     PHASER_OUT_PHY #(
         .CLKOUT_DIV(4),
         .OUTPUT_CLK_SRC("PHASE_REF"),
-        .REFCLK_PERIOD(5.000),
+        .REFCLK_PERIOD(0.000),
         .MEMREFCLK_PERIOD(5.000),
         .PHASEREFCLK_PERIOD(5.000)
     ) phaser_out_i (
@@ -201,9 +294,9 @@ module ypcb_phaser_byte_lane_diag (
         .FREQREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .MEMREFCLK(`YPCB_PHASER_DIAG_CONN(phaser_freq_refclk)),
         .PHASEREFCLK(),
-        .RST(`YPCB_PHASER_DIAG_CONN(rst)),
+        .RST(`YPCB_PHASER_DIAG_CONN(lane_reset)),
         .SELFINEOCLKDELAY(`YPCB_PHASER_DIAG_CONN(inactive_low)),
-        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_sync_refclk)),
+        .SYNCIN(`YPCB_PHASER_DIAG_CONN(phaser_syncin)),
         .SYSCLK(`YPCB_PHASER_DIAG_CONN(clk50)),
         .ENCALIBPHY(`YPCB_PHASER_DIAG_CONN(phyctl_pc_enable_calib)),
         .COUNTERLOADVAL(`YPCB_PHASER_DIAG_CONN(heartbeat_q[8:0]))
@@ -314,7 +407,28 @@ module ypcb_phaser_byte_lane_diag (
     wire fifo_activity = 1'b0;
 `endif
     wire [31:0] status_word = {
-        23'd0,
+        4'd0,
+        in_wrenable,
+        out_rd_enable,
+        dqs_out_of_range,
+        dqs_found,
+        out_fine_overflow,
+        out_coarse_overflow,
+        rstdqsfind,
+        lane_reset,
+        phaser_ref_pwrdwn,
+        phaser_ref_reset,
+        phyctl_reset,
+        phyctl_writecalibenable,
+        phyctl_readcalibenable,
+        phyctl_wr_enable_q,
+        sequence_sync_enable,
+        sequence_wait_satisfied,
+        sequence_done_q,
+        1'b1,
+        phyctl_empty,
+        phyctl_full,
+        phyctl_almost_full,
         fifo_activity,
         heartbeat_q[25],
         rst_n,
@@ -324,15 +438,17 @@ module ypcb_phaser_byte_lane_diag (
         phaser_pll_locked
     };
     wire [127:0] read_payload = {
-        56'd0,
+        sequence_last_phyctlwd_q,
+        sequence_step_q,
+        sequence_advance_count_q,
         status_word,
         READ_VERSION,
         READ_MAGIC
     };
 
     assign led[0] = phaser_ref_locked;
-    assign led[1] = in_phase_locked ^ phyctl_ready;
-    assign led[2] = heartbeat_q[25] ^ fifo_activity;
+    assign led[1] = in_phase_locked ^ sequence_done_q;
+    assign led[2] = phyctl_ready ^ heartbeat_q[25];
 `else
     wire [127:0] read_payload = {
         30'd0,

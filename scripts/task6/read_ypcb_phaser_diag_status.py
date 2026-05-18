@@ -37,22 +37,63 @@ def decode_status(payload: int) -> dict:
             "heartbeat_bit": bool(status & (1 << 4)),
         })
     else:
-        fields.update({
-            "diagnostic": "phaser_byte_lane",
-            "in_phase_locked": bool(status & (1 << 2)),
-            "phyctl_ready": bool(status & (1 << 3)),
-            "rst_n": bool(status & (1 << 4)),
-            "heartbeat_bit": bool(status & (1 << 5)),
-            "fifo_activity": bool(status & (1 << 6)),
-            "phyctl_almost_full": bool(status & (1 << 7)),
-            "phyctl_full": bool(status & (1 << 8)),
-            "phyctl_empty": bool(status & (1 << 9)),
-            "phyctl_in_burst_pending": unsigned_field(payload, 72, 4),
-            "phyctl_out_burst_pending": unsigned_field(payload, 76, 4),
-            "phyctl_pc_enable_calib": unsigned_field(payload, 80, 2),
-            "in_counter_read": unsigned_field(payload, 82, 6),
-            "out_counter_read": unsigned_field(payload, 88, 9),
-        })
+        if version == 4:
+            fields.update({
+                "diagnostic": "phaser_byte_lane_sequence",
+                "in_phase_locked": bool(status & (1 << 2)),
+                "phyctl_ready": bool(status & (1 << 3)),
+                "rst_n": bool(status & (1 << 4)),
+                "heartbeat_bit": bool(status & (1 << 5)),
+                "fifo_activity": bool(status & (1 << 6)),
+                "phyctl_almost_full": bool(status & (1 << 7)),
+                "phyctl_full": bool(status & (1 << 8)),
+                "phyctl_empty": bool(status & (1 << 9)),
+                "sequence_active": bool(status & (1 << 10)),
+                "sequence_done": bool(status & (1 << 11)),
+                "sequence_wait_satisfied": bool(status & (1 << 12)),
+                "sync_enable": bool(status & (1 << 13)),
+                "phyctl_wr_enable": bool(status & (1 << 14)),
+                "readcalibenable": bool(status & (1 << 15)),
+                "writecalibenable": bool(status & (1 << 16)),
+                "phyctl_reset": bool(status & (1 << 17)),
+                "phaser_ref_reset": bool(status & (1 << 18)),
+                "phaser_ref_pwrdwn": bool(status & (1 << 19)),
+                "lane_reset": bool(status & (1 << 20)),
+                "rstdqsfind": bool(status & (1 << 21)),
+                "out_coarse_overflow": bool(status & (1 << 22)),
+                "out_fine_overflow": bool(status & (1 << 23)),
+                "dqs_found": bool(status & (1 << 24)),
+                "dqs_out_of_range": bool(status & (1 << 25)),
+                "out_rd_enable": bool(status & (1 << 26)),
+                "in_wrenable": bool(status & (1 << 27)),
+                "sequence_advance_count": unsigned_field(payload, 72, 16),
+                "sequence_step": unsigned_field(payload, 88, 8),
+                "last_phyctl_wd": f"0x{unsigned_field(payload, 96, 32):08x}",
+            })
+        else:
+            fields.update({
+                "diagnostic": "phaser_byte_lane",
+                "in_phase_locked": bool(status & (1 << 2)),
+                "phyctl_ready": bool(status & (1 << 3)),
+                "rst_n": bool(status & (1 << 4)),
+                "heartbeat_bit": bool(status & (1 << 5)),
+                "fifo_activity": bool(status & (1 << 6)),
+                "phyctl_almost_full": bool(status & (1 << 7)),
+                "phyctl_full": bool(status & (1 << 8)),
+                "phyctl_empty": bool(status & (1 << 9)),
+            })
+            if version == 3:
+                fields.update({
+                    "phyctl_stimulus_count": unsigned_field(payload, 72, 16),
+                })
+            else:
+                fields.update({
+                    "phyctl_in_burst_pending": unsigned_field(payload, 72, 4),
+                    "phyctl_out_burst_pending": unsigned_field(payload, 76, 4),
+                    "phyctl_pc_enable_calib": unsigned_field(payload, 80, 2),
+                    "in_counter_read": unsigned_field(payload, 82, 6),
+                    "out_counter_read": unsigned_field(payload, 88, 9),
+                })
     return {
         "raw_hex": f"0x{payload:032x}",
         "magic_ok": fields["magic"] == MAGIC,
