@@ -111,7 +111,7 @@
             .i_wb_cyc(1), //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
             .i_wb_stb(0), //request a transfer
             .i_wb_we(0), //write-enable (1 = write, 0 = read)
-            .i_wb_addr(24'b0), //burst-addressable {row,bank,col}
+            .i_wb_addr(25'b0), //burst-addressable {row,bank,col}
             .i_wb_data(512'b0), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
             .i_wb_sel({64{1'b1}}), //byte strobe for write (1 = write the byte)
             .i_aux(4'b0), //for AXI-interface compatibility (given upon strobe)
