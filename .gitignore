@@ -25,3 +25,6 @@ testbench/icarus_sim/uberddr3_sim
 
 # But do not ignore testbench/xsim/test_*.log
 !testbench/xsim/test_*.log
+
+# nix related
+result
