@@ -2,16 +2,7 @@ PROJECT = ypcb_00338_1p1_ddr3
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 CHIPDB  = ${KINTEX7_CHIPDB}
-ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v  ../../rtl/ddr3_phy.v  ../../rtl/ddr3_top.v clk_wiz.v
-
-YPCB_UBERDDR3_CLOCK_PROFILE ?= openxc7-333
-YOSYS_DEFINES ?=
-ifeq (${YPCB_UBERDDR3_CLOCK_PROFILE},openxc7-333)
-override YOSYS_DEFINES += -DYPCB_UBERDDR3_CLOCK_PROFILE_OPENXC7_333
-export YPCB_UBERDDR3_CONTROLLER_CLK_MHZ := 83.333333
-export YPCB_UBERDDR3_DDR3_CLK_MHZ := 333.333333
-export YPCB_UBERDDR3_REF_CLK_MHZ := 200
-endif
+ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v  ../../rtl/ddr3_phy.v  ../../rtl/ddr3_top.v  uart_rx.v  uart_tx.v clk_wiz.v
 
 #############################################################################################
 NEXTPNR_XILINX_DIR ?= /snap/openxc7/current/opt/nextpnr-xilinx
@@ -32,9 +23,7 @@ TOP ?= ${PROJECT}
 TOP_MODULE ?= ${TOP}
 TOP_VERILOG ?= ${TOP}.v
 
-PNR_ARGS ?= --seed 3
 PNR_DEBUG ?= # --verbose --debug
-PNR_PRE_PACK ?= --pre-pack nextpnr_clock_constraints.py
 
 JTAG_LINK ?= -c digilent_hs2
 
@@ -48,7 +37,7 @@ program: ${PROJECT}_openxc7.bit
 	openFPGALoader ${JTAG_LINK} --bitstream $<
 
 ${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
-	yosys ${YOSYS_DEFINES} -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
+	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
 
 # The chip database only needs to be generated once
 # that is why we don't clean it with make clean
@@ -58,13 +47,58 @@ ${CHIPDB}/${DBPART}.bin:
 	rm -f ${DBPART}.bba
 
 ${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_ARGS} ${PNR_DEBUG}
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_ARGS} ${PNR_DEBUG}
 
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
+
+#############################################################################################
+# SPDX-License-Identifier: MIT
+# Generated from https://github.com/FPGAOL-CE/caas-wizard
+#
+BUILDDIR := ${CURDIR}/build
+
+LOGFILE := ${BUILDDIR}/top.log
+
+# Build design
+.PHONY: vivado
+vivado: ${BUILDDIR}/${PROJECT}_vivado.bit
+
+${BUILDDIR}:
+	mkdir -m 777 -p ${BUILDDIR} && chown -R nobody ${BUILDDIR} | true
+
+.ONESHELL:
+${BUILDDIR}/vivado.tcl: ${BUILDDIR}
+	cat << EOF > $@
+	# vivado.tcl generated for FPGAOL-CE/caas-wizard
+	# can be launched from any directory
+	cd ${BUILDDIR}
+	create_project -part ${PART} -force v_proj
+	set_property target_language Verilog [current_project]
+	cd ..
+	read_verilog [glob ${PROJECT}.v ${ADDITIONAL_SOURCES}]
+	read_xdc [glob  $(wildcard ${PROJECT}.xdc) ]
+	cd build
+	synth_design -top ${PROJECT}
+	opt_design
+	place_design
+	phys_opt_design
+	route_design
+	write_bitstream -verbose -force ${PROJECT}_vivado.bit
+	# report_utilization -file util.rpt
+	# report_timing_summary -file timing.rpt
+	EOF
+
+${BUILDDIR}/${PROJECT}_vivado.bit: ${BUILDDIR}/vivado.tcl
+	cd ${BUILDDIR} && vivado -mode batch -source $< > ${LOGFILE} 2>&1
+
+.PHONY: program_vivado
+program_vivado:
+	openFPGALoader ${JTAG_LINK} --bitstream ${BUILDDIR}/${PROJECT}_vivado.bit
 
 
 #############################################################################################
@@ -77,3 +111,4 @@ clean:
 	rm -f *.json
 	rm -f *.bin
 	rm -f *.bba
+	rm -rf ${BUILDDIR}

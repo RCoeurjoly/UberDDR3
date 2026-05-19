@@ -21,21 +21,21 @@ module clk_wiz (
         .COMPENSATION("INTERNAL"),
         .STARTUP_WAIT("FALSE"),
         .DIVCLK_DIVIDE(1),
-        .CLKFBOUT_MULT(20),
+        .CLKFBOUT_MULT(20),        // 50 MHz * 20 = 1000 MHz
         .CLKFBOUT_PHASE(0.000),
-        .CLKOUT0_DIVIDE(8),
+        .CLKOUT0_DIVIDE(12),      // 1000 MHz / 12 = 83.333 MHz
         .CLKOUT0_PHASE(0.000),
         .CLKOUT0_DUTY_CYCLE(0.500),
-        .CLKOUT1_DIVIDE(2),
+        .CLKOUT1_DIVIDE(3),       // 1000 MHz / 3 = 333.333 MHz, 0 phase
         .CLKOUT1_PHASE(0.000),
         .CLKOUT1_DUTY_CYCLE(0.500),
-        .CLKOUT2_DIVIDE(5),
+        .CLKOUT2_DIVIDE(5),       // 1000 MHz / 5 = 200 MHz
         .CLKOUT2_PHASE(0.000),
         .CLKOUT2_DUTY_CYCLE(0.500),
-        .CLKOUT3_DIVIDE(2),
+        .CLKOUT3_DIVIDE(3),       // 1000 MHz / 3 = 333.333 MHz, 90 phase
         .CLKOUT3_PHASE(90.000),
         .CLKOUT3_DUTY_CYCLE(0.500),
-        .CLKIN1_PERIOD(20.000)
+        .CLKIN1_PERIOD(20.000)  // 50 MHz input
     ) pll (
         .CLKFBOUT(clkfbout),
         .CLKOUT0(clk0),
