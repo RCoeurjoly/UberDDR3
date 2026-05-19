@@ -13,13 +13,13 @@ import generate_ypcb_phaser_sequence_header as generator  # noqa: E402
 
 
 class PhaserSequenceTest(unittest.TestCase):
-    def test_checked_in_observe_only_header_matches_generator(self):
-        spec_path = ROOT / "example_demo" / "ypcb_00338_1p1" / "ypcb_phaser_byte_lane_diag_sequence_observe_only.json"
+    def test_checked_in_observed_header_matches_generator(self):
+        spec_path = ROOT / "example_demo" / "ypcb_00338_1p1" / "ypcb_phaser_byte_lane_diag_sequence_observed.json"
         header_path = ROOT / "example_demo" / "ypcb_00338_1p1" / "ypcb_phaser_byte_lane_diag_sequence.vh"
         spec = generator.load_spec(spec_path)
         rendered = generator.render_header(
             spec,
-            source="example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observe_only.json",
+            source="ypcb_phaser_byte_lane_diag_sequence_observed.json",
         )
         self.assertEqual(header_path.read_text(encoding="utf-8"), rendered)
 

@@ -32,8 +32,22 @@
         openXC7Prjxray = openXC7Packages.prjxray;
         patchedPrjxrayPython = "${openXC7Prjxray}/usr/share/python3";
 
-        patchedPrjxrayDb = pkgs.runCommand "prjxray-db-kintex7-lioi3-tbytesrc-oclkm" { } ''
-          cp -R --no-preserve=mode,ownership ${prjxrayDb} $out
+        patchedPrjxrayDb = pkgs.runCommand "prjxray-db-kintex7-lioi3-tbytesrc-oclkm-phaser-overlay" { } ''
+          mkdir -p $out
+          ${pkgs.python3}/bin/python3 ${./scripts/task6/build_phaser_prjxray_db_overlay.py} \
+            --source-db ${prjxrayDb}/kintex7 \
+            --out-db $out/kintex7 \
+            --clean
+
+          for db_file in \
+            $out/kintex7/segbits_lioi3_tbytesrc.db \
+            $out/kintex7/segbits_lioi3_tbytesrc.origin_info.db
+          do
+            if [ -L "$db_file" ]; then
+              cp --remove-destination "$(readlink -f "$db_file")" "$db_file"
+            fi
+            chmod u+w "$db_file"
+          done
 
           cat >> $out/kintex7/segbits_lioi3_tbytesrc.db <<'EOF'
 LIOI3_TBYTESRC.IOI_OCLKM_0.IOI_IMUX31_1 30_94 31_83 31_93

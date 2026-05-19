@@ -1,0 +1,17 @@
+{
+  "clock_domain": "clk50",
+  "final_step_hold": true,
+  "name": "observe-only-open-parity",
+  "schema": "ypcb-phaser-byte-lane-sequence-v1",
+  "steps": [
+    {
+      "controls": {
+        "sync_enable": true
+      },
+      "dwell_cycles": 1,
+      "name": "observe_only",
+      "phyctlwd": "0x00000000",
+      "wait_for": []
+    }
+  ]
+}

@@ -22,6 +22,8 @@ example_demo/build_logs*
 *.frames
 *.bin
 *.json
+!example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observe_only.json
+!example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observed.json
 *.bba
 __pycache__/
 artifacts/task6/
