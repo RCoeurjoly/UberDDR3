@@ -7,7 +7,7 @@
     yosys.url = "git+https://github.com/YosysHQ/yosys?submodules=1";
     openXC7.url = "github:openXC7/toolchain-nix";
     nextpnrXilinxPhaser = {
-      url = "github:RCoeurjoly/nextpnr-xilinx/stable-backports?submodules=1";
+      url = "git+https://github.com/RCoeurjoly/nextpnr-xilinx?ref=stable-backports&submodules=1";
       flake = false;
     };
     prjxrayDb = {

@@ -57,18 +57,20 @@
     "nextpnrXilinxPhaser": {
       "flake": false,
       "locked": {
-        "lastModified": 1779104661,
-        "narHash": "sha256-iPDP8h/WmuDcUHLkwdA/XC/nV2ICl7i7blYu4YuiPoM=",
-        "owner": "RCoeurjoly",
-        "repo": "nextpnr-xilinx",
-        "rev": "1803f5eb083efd6f48aba5575e5cec606552d1b4",
-        "type": "github"
+        "lastModified": 1779179082,
+        "narHash": "sha256-yG9aqYvdDL51knVcDEzzjVDbjqrZIShBIaJ2GT2G0/g=",
+        "ref": "stable-backports",
+        "rev": "cb82295715ace50451ff3621d177a90ef9fe75fa",
+        "revCount": 3136,
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/RCoeurjoly/nextpnr-xilinx"
       },
       "original": {
-        "owner": "RCoeurjoly",
         "ref": "stable-backports",
-        "repo": "nextpnr-xilinx",
-        "type": "github"
+        "submodules": true,
+        "type": "git",
+        "url": "https://github.com/RCoeurjoly/nextpnr-xilinx"
       }
     },
     "nixpkgs": {
