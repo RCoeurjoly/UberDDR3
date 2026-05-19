@@ -37,8 +37,8 @@ openxc7: ${PROJECT}_openxc7.bit
 program: ${PROJECT}_openxc7.bit
 	openFPGALoader ${JTAG_LINK} --bitstream $<
 
-${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES}
-	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
+${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
+	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
 
 # The chip database only needs to be generated once
 # that is why we don't clean it with make clean
@@ -49,7 +49,7 @@ ${CHIPDB}/${DBPART}.bin:
 
 ${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
 	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_ARGS} ${PNR_DEBUG}
-	
+
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 

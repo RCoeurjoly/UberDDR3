@@ -38,7 +38,7 @@ program: ${PROJECT}_openxc7.bit
 	openFPGALoader ${JTAG_LINK} --bitstream $<
 
 ${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES}
-	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
+	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
 
 # The chip database only needs to be generated once
 # that is why we don't clean it with make clean
