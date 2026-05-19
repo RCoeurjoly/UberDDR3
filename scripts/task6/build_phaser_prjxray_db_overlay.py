@@ -302,6 +302,43 @@ PPIP_EXTRA_ROWS = {
     ),
 }
 
+
+ROW_BIT_ADDITIONS = {
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
+    ): {
+        "2_482", "2_494", "2_511", "4_503", "5_501", "5_510",
+        "7_483", "7_495", "7_510", "8_507", "9_490", "11_482",
+        "13_482", "13_490", "13_511", "14_507", "20_485", "20_489",
+        "20_491", "20_497", "20_501", "20_505", "20_509", "21_482",
+        "21_484", "24_485", "24_489", "24_491", "24_497", "24_501",
+        "24_505", "24_509", "25_482", "25_484",
+    },
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y4.IN_USE",
+    ): {
+        "2_482", "2_494", "2_511", "4_503", "5_501", "5_510",
+        "7_483", "7_495", "7_510", "8_507", "9_490", "11_482",
+        "13_482", "13_490", "13_511", "14_507", "20_485", "20_489",
+        "20_491", "20_497", "20_501", "20_505", "20_509", "21_482",
+        "21_484", "24_485", "24_489", "24_491", "24_497", "24_501",
+        "24_505", "24_509", "25_482", "25_484",
+    },
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y7.IN_USE",
+    ): {
+        "2_482", "2_494", "2_511", "4_503", "5_501", "5_510",
+        "7_483", "7_495", "7_510", "8_507", "9_490", "11_482",
+        "13_482", "13_490", "13_511", "14_507", "20_485", "20_489",
+        "20_491", "20_497", "20_501", "20_505", "20_509", "21_482",
+        "21_484", "24_485", "24_489", "24_491", "24_497", "24_501",
+        "24_505", "24_509", "25_482", "25_484",
+    },
+}
+
 BIT_BLOCK = "CLB_IO_CLK"
 SEGMENT_FRAMES = 30
 
@@ -338,6 +375,19 @@ def filter_provisional_bits(filename: str, row: str) -> str:
         return row
     return " ".join(field for field in fields if field not in excluded)
 
+
+
+
+def add_row_bits(filename: str, row: str) -> str:
+    fields = row.split()
+    if not fields:
+        return row
+    additions = ROW_BIT_ADDITIONS.get((filename, fields[0]))
+    if not additions:
+        return row
+    existing = set(fields[1:])
+    fields.extend(bit for bit in sorted(additions) if bit not in existing)
+    return " ".join(fields)
 
 def provisional_alias_rows(filename: str, row: str) -> list[str]:
     fields = row.split()
@@ -387,6 +437,8 @@ def write_overlay_file(
             rows.append(row)
             existing.add(row)
 
+    rows = [add_row_bits(filename, row) for row in rows]
+
     target = overlay_db / filename
     if target.is_symlink():
         target.unlink()
@@ -405,6 +457,8 @@ def write_ppip_overlay_file(source_db: Path, overlay_db: Path, filename: str) ->
         if row not in existing:
             rows.append(row)
             existing.add(row)
+
+    rows = [add_row_bits(filename, row) for row in rows]
 
     target = overlay_db / filename
     if target.is_symlink():

@@ -491,7 +491,17 @@ Positive-only word 68 test: `artifacts/task6/runs/2026-05-19T19-27-14+0200-phase
 
 Combining upper-B word 68 with lower-T active-tile deltas keeps `phaser_pll_locked=true`, `phaser_ref_locked=true`, and `phyctl_ready=true`, but still has `in_phase_locked=false`, `dqs_found=false`, and full lower-T sets `dqs_out_of_range=true`. Lower-T single-word sweep on top of word 68 showed words `34..39` avoid `dqs_out_of_range` but still do not produce PHASER_IN lock or DQS found; word `40` is the DQS-out-of-range source.
 
-Current blocker: the open flow can now be forced to `phyctl_ready=true` with an oracle-backed upper-B word-68 frame delta, but this is not yet a clean DB patch and it does not solve PHASER_IN/DQS. Next steps are to identify which FASM/DB rows produce the four word-68 open-only bits, add exclusions if oracle-backed, then continue PHASER_IN/DQS isolation outside lower-T word 40.
+The ready-critical word-68 clears map through `tilegrid.json` to overlapping `INT_R_X1Y33` route bits. With the 34 oracle set bits present, clearing either CMT local segbit `6_500` or `7_501` is sufficient to assert `phyctl_ready=true`; both are owned by `INT_R_X1Y33.NE6BEG3.LOGIC_OUTS17` as `INT_R` segbits `6_52` and `7_53`. The local open-flow fix therefore adds the 34 upper-B word-68 bits to the `CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE` overlay row and excludes `INT_R_X1Y33.NE6BEG3.LOGIC_OUTS17` in the PHASER byte-lane FASM patcher.
+
+Source-built validation after that promotion:
+
+- Build: `nix develop -c make -B -C example_demo/ypcb_00338_1p1 phaser-byte-lane-diag-clocked`
+- Run: `artifacts/task6/runs/2026-05-19T19-37-06+0200-phaser-word68-overlay-source-build`
+- Three consecutive program/read cycles: `magic_ok=true`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, `phyctl_ready=true`, `sequence_done=true`, `sequence_advance_count=4096`, `last_phyctl_wd=0x0000040f`.
+- All three cycles still report `in_phase_locked=false`, `dqs_found=false`, and `dqs_out_of_range=false`.
+- Raw payload for all three cycles: `0x0000040fff100000005c1b0450485344`.
+
+Current blocker: the normal OpenXC7 source build now reaches the stable `phyctl_ready=true` milestone. Remaining downstream work is PHASER_IN/DQS: `in_phase_locked=false` and `dqs_found=false` despite PLL, PHASER_REF, PHY_CONTROL ready, and sequencer completion. Continue isolation outside lower-T word 40, which is known to cause `dqs_out_of_range`.
 
 Upstreamability note: the narrow DB row fix for
 `CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE` and the stale CMT route-lane

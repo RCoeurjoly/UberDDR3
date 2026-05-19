@@ -38,6 +38,14 @@ def parse_bits(path: Path) -> set[tuple[int, int, int]]:
     return bits
 
 
+def segbit_id(bit: tuple[int, int, int], tile: str) -> str:
+    frame, word, bit_index = bit
+    info = ACTIVE_TILES[tile]
+    minor = frame - int(info["base_frame"])
+    word_offset = int(info["word_offset"])
+    return f"{minor}_{(word - word_offset) * 32 + bit_index}"
+
+
 def selected(
     bit: tuple[int, int, int],
     selected_tiles: set[str],
@@ -99,6 +107,12 @@ def main() -> int:
         action="store_true",
         help="Only set oracle-only bits; leave open-only bits unchanged.",
     )
+    parser.add_argument(
+        "--clear-segbit",
+        action="append",
+        default=None,
+        help="Limit open-only clears to local tile segbits like 3_480.",
+    )
     args = parser.parse_args()
 
     selected_tiles = set(args.tile) if args.tile else set(ACTIVE_TILES)
@@ -110,7 +124,14 @@ def main() -> int:
         bit for bit in parse_bits(args.oracle_bits) if selected(bit, selected_tiles, selected_words)
     }
     bits_to_set = oracle_bits - open_bits
+    clear_segbits = set(args.clear_segbit) if args.clear_segbit else None
     bits_to_clear = set() if args.no_clear else open_bits - oracle_bits
+    if clear_segbits is not None:
+        bits_to_clear = {
+            bit
+            for bit in bits_to_clear
+            if any(segbit_id(bit, tile) in clear_segbits for tile in selected_tiles)
+        }
 
     frames = parse_frames(args.open_frames)
     changed_words: set[tuple[int, int]] = set()
@@ -138,6 +159,7 @@ def main() -> int:
             "selected_tiles": sorted(selected_tiles),
             "selected_words": sorted(selected_words) if selected_words is not None else None,
             "no_clear": args.no_clear,
+            "clear_segbits": sorted(clear_segbits) if clear_segbits is not None else None,
         },
         "bits_set": len(bits_to_set),
         "bits_cleared": len(bits_to_clear),
