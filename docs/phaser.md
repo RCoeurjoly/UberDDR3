@@ -29,13 +29,22 @@ The no-PHASER rowstream/BIST path remains useful only as a regression oracle for
 
 ### Current open-flow v4 diagnostic behavior
 
-Recent candidate:
+Recent promoted-Nix-flow candidate, built from commit `636c83c`:
 
-- Bitstream SHA256: `f129997d533729abc91f1b8d4c6731b10112519755b3b811629c739a23baae67`
+- Bitstream SHA256: `2f2b959153d2f16bca7910cb01c122317dbacc058be0323577bb77a763fb0b75`
+- Build path: `nix develop -c make -B -C example_demo/ypcb_00338_1p1 phaser-byte-lane-diag-clocked`
+- Hardware program path: OpenOCD HS3 serial `210299BF3824`, adapter speed 6000 kHz.
+- TDO7 readback raw payload: `0x0000040fff100000005c110450485344`
 - JTAG magic valid.
 - `phaser_pll_locked=true`
+- `rst_n=true`
 - `sequence_done=true`
+- `sequence_active=true`
+- `sequence_wait_satisfied=true`
 - `sequence_step=4095`
+- `sequence_advance_count=4096`
+- `last_phyctl_wd=0x0000040f`
+- `phyctl_wr_enable=true`
 - `phaser_ref_locked=false`
 - `in_phase_locked=false`
 - `phyctl_ready=false`
