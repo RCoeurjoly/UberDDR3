@@ -36,41 +36,7 @@
         "type": "github"
       }
     },
-    "flake-utils_3": {
-      "inputs": {
-        "systems": "systems_3"
-      },
-      "locked": {
-        "lastModified": 1705309234,
-        "narHash": "sha256-uNRRNRKmJyCRC/8y1RqBkqWBLM034y4qN7EprSdmgyA=",
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "rev": "1ef2e671c3b0c19053962c07dbda38332dcebf26",
-        "type": "github"
-      },
-      "original": {
-        "owner": "numtide",
-        "repo": "flake-utils",
-        "type": "github"
-      }
-    },
     "nixpkgs": {
-      "locked": {
-        "lastModified": 1735563628,
-        "narHash": "sha256-OnSAY7XDSx7CtDoqNh8jwVwh4xNL/2HaJxGjryLWzX8=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "b134951a4c9f3c995fd7be05f3243f8ecd65d798",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-24.05",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "nixpkgs_2": {
       "locked": {
         "lastModified": 1725634671,
         "narHash": "sha256-v3rIhsJBOMLR8e/RNWxr828tB+WywYIoajrZKFM+0Gg=",
@@ -85,64 +51,10 @@
         "type": "indirect"
       }
     },
-    "nixpkgs_3": {
-      "locked": {
-        "lastModified": 1708807242,
-        "narHash": "sha256-sRTRkhMD4delO/hPxxi+XwLqPn8BuUq6nnj4JqLwOu0=",
-        "owner": "NixOS",
-        "repo": "nixpkgs",
-        "rev": "73de017ef2d18a04ac4bfd0c02650007ccb31c2a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "NixOS",
-        "ref": "nixos-unstable",
-        "repo": "nixpkgs",
-        "type": "github"
-      }
-    },
-    "openXC7": {
-      "inputs": {
-        "flake-utils": "flake-utils_2",
-        "nixpkgs": "nixpkgs_2"
-      },
-      "locked": {
-        "lastModified": 1772489597,
-        "narHash": "sha256-DQGLWsE2F4QUzO8m0pBQnt5JzKs1k8qrXXVyAARirp0=",
-        "owner": "openXC7",
-        "repo": "toolchain-nix",
-        "rev": "f004e752924def8d5031941dfd9d5bfbac1ce242",
-        "type": "github"
-      },
-      "original": {
-        "owner": "openXC7",
-        "repo": "toolchain-nix",
-        "type": "github"
-      }
-    },
-    "prjxrayDb": {
-      "flake": false,
-      "locked": {
-        "lastModified": 1777007939,
-        "narHash": "sha256-EgbOrX649uJdi3eiFNkXu9pb+B1Sc042e1pqbpII/94=",
-        "owner": "openXC7",
-        "repo": "prjxray-db",
-        "rev": "5093561e01589eb58502fe9669d6b495b07f799a",
-        "type": "github"
-      },
-      "original": {
-        "owner": "openXC7",
-        "repo": "prjxray-db",
-        "type": "github"
-      }
-    },
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
-        "nixpkgs": "nixpkgs",
-        "openXC7": "openXC7",
-        "prjxrayDb": "prjxrayDb",
-        "yosys": "yosys"
+        "toolchain-nix": "toolchain-nix"
       }
     },
     "systems": {
@@ -175,40 +87,23 @@
         "type": "github"
       }
     },
-    "systems_3": {
-      "locked": {
-        "lastModified": 1681028828,
-        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
-        "owner": "nix-systems",
-        "repo": "default",
-        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
-        "type": "github"
-      },
-      "original": {
-        "owner": "nix-systems",
-        "repo": "default",
-        "type": "github"
-      }
-    },
-    "yosys": {
+    "toolchain-nix": {
       "inputs": {
-        "flake-utils": "flake-utils_3",
-        "nixpkgs": "nixpkgs_3"
+        "flake-utils": "flake-utils_2",
+        "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1778570664,
-        "narHash": "sha256-5pVK4HGSAtK6Eocffl2Mb7CtOjAYXlYvCfduotkiPQU=",
-        "ref": "refs/heads/main",
-        "rev": "3c619da2593f27cc54685f6e628ffeefeb45acd5",
-        "revCount": 17126,
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/YosysHQ/yosys"
+        "lastModified": 1772489597,
+        "narHash": "sha256-DQGLWsE2F4QUzO8m0pBQnt5JzKs1k8qrXXVyAARirp0=",
+        "owner": "openXC7",
+        "repo": "toolchain-nix",
+        "rev": "f004e752924def8d5031941dfd9d5bfbac1ce242",
+        "type": "github"
       },
       "original": {
-        "submodules": true,
-        "type": "git",
-        "url": "https://github.com/YosysHQ/yosys"
+        "owner": "openXC7",
+        "repo": "toolchain-nix",
+        "type": "github"
       }
     }
   },
