@@ -82,7 +82,7 @@ Not acceptable as final deliverables:
 Build and analyze both tracks offline. Only one hardware candidate may own the
 board at a time. Use `scripts/task6/task6_board_run.py with-lock` or the
 existing experiment runners so board-facing commands take the shared
-`artifacts/task6/board.lock`.
+`/tmp/ypcb-hs3-210299BF3824.lock`.
 
 Every board run must record:
 

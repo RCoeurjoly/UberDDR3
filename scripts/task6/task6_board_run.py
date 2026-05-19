@@ -18,7 +18,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNS_ROOT = ROOT / "artifacts" / "task6" / "runs"
-LOCK_PATH = ROOT / "artifacts" / "task6" / "board.lock"
+LOCK_PATH = Path("/tmp/ypcb-hs3-210299BF3824.lock")
 
 
 def iso_timestamp() -> str:

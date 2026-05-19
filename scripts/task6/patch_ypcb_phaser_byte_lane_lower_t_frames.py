@@ -113,7 +113,8 @@ def main() -> int:
         "--frame",
         action="append",
         type=parse_frame_id,
-        default=[0x00460120, 0x00460121, 0x00460122, 0x00460123],
+        default=None,
+        help="Frame ID to patch. Defaults to the original lower-T diagnostic frame set when omitted.",
     )
     parser.add_argument("--first-word", type=int, default=34)
     parser.add_argument("--last-word", type=int, default=57)
@@ -123,7 +124,7 @@ def main() -> int:
         input_frames=args.input_frames,
         reference_bits=args.reference_bits,
         output_frames=args.output_frames,
-        frame_ids=set(args.frame),
+        frame_ids=set(args.frame or [0x00460120, 0x00460121, 0x00460122, 0x00460123]),
         first_word=args.first_word,
         last_word=args.last_word,
     )
