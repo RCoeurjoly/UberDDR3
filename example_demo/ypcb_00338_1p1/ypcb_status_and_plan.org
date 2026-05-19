@@ -24,11 +24,43 @@ Expected good final state:
 011
 	       
 * Plan
-** TODO Keep the reproducer minimal
-*** TODO_NEXT Minimize ypcb files [4/5]
+** TODO_NEXT Build bitstream
+- State "TODO_NEXT"  from              [2026-05-19 Tue 22:55]
+** TODO Try to pass timing
+
+- Build the YPCB target with the OpenXC7 clock profile.
+- Inspect timing failures and determine whether they are real design issues,
+  placement/routing artifacts, or tool/database limitations.
+- If timing passes, program the board and run BIST.
+- Record whether passing timing is sufficient for BIST to pass.
+** TODO Sweep seeds
+
+- Run multiple =nextpnr-xilinx= seeds for the YPCB target.
+- Record timing result, worst slack, and any notable placement/routing behavior
+  for each seed.
+- If any seed passes timing, generate its bitstream, program the board, and run
+  BIST.
+
+** TODO Compare similar boards
+
+- Generate bitstreams for similar Kintex-7 DDR3 demo boards.
+- Check whether those targets pass timing.
+- Compare placements against the YPCB target, especially for DDR3, clocking, and
+  delay-related resources.
+- Look for placements or constraints that explain why one board succeeds or
+  fails relative to another.
+
+** DONE Keep the reproducer minimal
+CLOSED: [2026-05-19 Tue 22:55]
+- State "DONE"       from "TODO"       [2026-05-19 Tue 22:55]
+*** DONE Minimize ypcb files [5/5]
+CLOSED: [2026-05-19 Tue 22:55]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:55]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
   alinx_ax7325b is the most similar board
-**** TODO_NEXT ypcb_00338_1p1_ddr3.xdc
+**** DONE ypcb_00338_1p1_ddr3.xdc
+CLOSED: [2026-05-19 Tue 22:55]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:55]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
 **** DONE ypcb_00338_1p1_ddr3.v
 CLOSED: [2026-05-19 Tue 22:26]
@@ -47,31 +79,6 @@ CLOSED: [2026-05-19 Tue 22:14]
 CLOSED: [2026-05-19 Tue 22:05]
 - State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:05]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
-** TODO Try to pass timing
-
-- Build the YPCB target with the OpenXC7 clock profile.
-- Inspect timing failures and determine whether they are real design issues,
-  placement/routing artifacts, or tool/database limitations.
-- If timing passes, program the board and run BIST.
-- Record whether passing timing is sufficient for BIST to pass.
-
-** TODO Sweep seeds
-
-- Run multiple =nextpnr-xilinx= seeds for the YPCB target.
-- Record timing result, worst slack, and any notable placement/routing behavior
-  for each seed.
-- If any seed passes timing, generate its bitstream, program the board, and run
-  BIST.
-
-** TODO Compare similar boards
-
-- Generate bitstreams for similar Kintex-7 DDR3 demo boards.
-- Check whether those targets pass timing.
-- Compare placements against the YPCB target, especially for DDR3, clocking, and
-  delay-related resources.
-- Look for placements or constraints that explain why one board succeeds or
-  fails relative to another.
-
 * Targets
 
 | Board             | Part              | Notes                                     |
