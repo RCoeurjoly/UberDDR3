@@ -25,16 +25,21 @@ Expected good final state:
 	       
 * Plan
 ** TODO Keep the reproducer minimal
-*** TODO_NEXT Minimize ypcb files [1/5]
+*** TODO_NEXT Minimize ypcb files [3/5]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
   alinx_ax7325b is the most similar board
 **** TODO_NEXT ypcb_00338_1p1_ddr3.xdc
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
 **** TODO_NEXT ypcb_00338_1p1_ddr3.v
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
-**** TODO_NEXT nextpnr_clock_constraints.py
+**** DONE nextpnr_clock_constraints.py
+CLOSED: [2026-05-19 Tue 22:14]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:14]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
-**** TODO_NEXT clk_wiz.v
+  deleted
+**** DONE clk_wiz.v
+CLOSED: [2026-05-19 Tue 22:14]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:14]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
 **** DONE Makefile
 CLOSED: [2026-05-19 Tue 22:05]

@@ -10,46 +10,65 @@
 //          - led[1] lights up while BIST is not done
 //
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2023-2025  Angelo Jacobo
+//
+//     This program is free software: you can redistribute it and/or modify
+//     it under the terms of the GNU General Public License as published by
+//     the Free Software Foundation, either version 3 of the License, or
+//     (at your option) any later version.
+//
+//     This program is distributed in the hope that it will be useful,
+//     but WITHOUT ANY WARRANTY; without even the implied warranty of
+//     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//     GNU General Public License for more details.
+//
+//     You should have received a copy of the GNU General Public License
+//     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+////////////////////////////////////////////////////////////////////////////////
 
 `timescale 1ns / 1ps
 
-module ypcb_00338_1p1_ddr3
-    (
-    input wire clk50,
-    input wire rst_n,
-    // DDR3 I/O Interface
-    output wire[0:0] ddr3_ck_p, ddr3_ck_n,
-    output wire ddr3_reset_n,
-    output wire[0:0] ddr3_cke,
-    output wire[0:0] ddr3_cs_n,
-    output wire ddr3_ras_n,
-    output wire ddr3_cas_n,
-    output wire ddr3_we_n,
-    output wire[15-1:0] ddr3_addr,
-    output wire[3-1:0] ddr3_ba,
-    inout wire[64-1:0] ddr3_dq,
-    inout wire[8-1:0] ddr3_dqs_p, ddr3_dqs_n,
-    output wire[0:0] ddr3_odt,
-    // Debug LEDs
-    output wire[2:0] led
+   module ypcb_00338_1p1_ddr3
+	(
+        input wire clk50,
+        input wire rst_n,
+        // DDR3 I/O Interface
+        output wire[0:0] ddr3_ck_p, ddr3_ck_n,
+        output wire ddr3_reset_n,
+        output wire[0:0] ddr3_cke,
+        output wire[0:0] ddr3_cs_n,
+        output wire ddr3_ras_n,
+        output wire ddr3_cas_n,
+        output wire ddr3_we_n,
+        output wire[15-1:0] ddr3_addr,
+        output wire[3-1:0] ddr3_ba,
+        inout wire[64-1:0] ddr3_dq,
+        inout wire[8-1:0] ddr3_dqs_p, ddr3_dqs_n,
+        output wire[0:0] ddr3_odt,
+        //Debug LEDs
+        output wire[2:0] led
     );
-
      wire i_controller_clk, i_ddr3_clk, i_ref_clk, i_ddr3_clk_90;
      wire clk_locked;
      wire calib_complete;
+     wire bist_done;
      wire[31:0] o_debug1;
      wire[8-1:0] ddr3_dm;
-     wire bist_done;
-
+     // o_debug1 taps on value of state_calibrate (can be traced inside ddr3_controller module)
      assign bist_done = calib_complete && (o_debug1[4:0] == 23);
      assign led[0] = bist_done;
      assign led[1] = !bist_done;
      assign led[2] = clk_locked;
 
+    wire sys_clk; // 50MHz
+    assign sys_clk = clk50;
+
     clk_wiz clk_wiz_inst
     (
     // Clock out ports
-    .clk_out1(i_controller_clk), //83.333 MHz
+    .clk_out1(i_controller_clk), //83.333 Mhz
     .clk_out2(i_ddr3_clk), // 333.333 MHz
     .clk_out3(i_ref_clk), // 200 MHz
     .clk_out4(i_ddr3_clk_90), // 333.333 MHz with 90 degree shift
@@ -57,7 +76,7 @@ module ypcb_00338_1p1_ddr3
     .reset(!rst_n),
     .locked(clk_locked),
     // Clock in ports
-    .clk_in1(clk50)
+    .clk_in1(sys_clk)
     );
 
     // DDR3 Controller
@@ -92,7 +111,7 @@ module ypcb_00338_1p1_ddr3
             .i_wb_cyc(1), //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
             .i_wb_stb(0), //request a transfer
             .i_wb_we(0), //write-enable (1 = write, 0 = read)
-            .i_wb_addr(25'b0), //burst-addressable {row,bank,col}
+            .i_wb_addr(24'b0), //burst-addressable {row,bank,col}
             .i_wb_data(512'b0), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
             .i_wb_sel({64{1'b1}}), //byte strobe for write (1 = write the byte)
             .i_aux(4'b0), //for AXI-interface compatibility (given upon strobe)
