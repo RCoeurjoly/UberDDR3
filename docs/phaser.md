@@ -276,6 +276,111 @@ alias was also a real bug, but the PHASER_REF lock blocker is resolved by the
 DB row patch above. The next blocker is no longer `phaser_ref_locked=false`; it
 is downstream byte-lane/PHY_CONTROL progress after `phaser_ref_locked=true`.
 
+### 2026-05-19 compact route classification after PHASER_REF lock
+
+Generated a reusable route comparison from the compact Vivado route dump to
+the normal OpenXC7 diagnostic FASM:
+
+```sh
+python3 scripts/task6/compare_phaser_route_oracle.py \
+  --vivado-routes artifacts/task6/vivado-oracle/ypcb-phaser-byte-lane-diag-compact-2026-05-19/phaser-routes-compact-x0y0.txt \
+  --open-fasm example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag.fasm \
+  --json-out artifacts/task6/phaser-frame-diff/compact-vivado-vs-openxc7-route-comparison.json \
+  --md-out artifacts/task6/phaser-frame-diff/compact-vivado-vs-openxc7-route-comparison.md
+```
+
+Artifacts:
+
+- `scripts/task6/compare_phaser_route_oracle.py` SHA256
+  `b92a20d2733cad8bebb6a64040d0c65d2f66eb390b98f71bfa8a01f56c5d0cd6`
+- `artifacts/task6/vivado-oracle/ypcb-phaser-byte-lane-diag-compact-2026-05-19/phaser-routes-compact-x0y0.txt`
+  SHA256 `0e9f45dedb443de71d847191b1eed027473d48372fc077a1d04b94f6ccdb7834`
+- `artifacts/task6/phaser-frame-diff/compact-vivado-vs-openxc7-route-comparison.json`
+  SHA256 `c327ec24c88af813ac08bf281260f9535c4582a74b3f792f9f9c39dfdd30c1d0`
+- `artifacts/task6/phaser-frame-diff/compact-vivado-vs-openxc7-route-comparison.md`
+  SHA256 `ce50bf03d07ac553e051fdbcba9f050a69cccab9c8f73123c65457489f3782de`
+
+Comparison summary:
+
+- 1154 Vivado route occurrences collapsed to 113 unique active CMT/PHASER
+  route features.
+- 104 of 113 unique features are already present in the OpenXC7 diagnostic
+  FASM.
+- All compact Vivado fabric-observation routes for `DQSFOUND`,
+  `PHASELOCKED`, `PHYCTLREADY`, and `LOCKED` are present in the OpenXC7 FASM.
+- All compact Vivado `phy-control-ppip` routes classified by the script are
+  present in the OpenXC7 FASM.
+- The nine missing route features are:
+  - Compact-only `PREF_IN3` clock lane features:
+    `CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN3`,
+    `CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN3`, and
+    `CMT_FREQ_BB_PREF_IN3.PLL_CLK_FREQBB_REBUFOUT3`.
+  - Six lower-T control routes:
+    `CMT_PHASER_OUT_CA_DIVIDERST.CMT_TOP_IMUX0_1`,
+    `CMT_PHASER_IN_CA_DIVIDERST.CMT_TOP_IMUX19_2`,
+    `CMT_PHASER_IN_CA_RANKSEL0.CMT_TOP_IMUX27_4`,
+    `CMT_PHASER_OUT_CA_EDGEADV.CMT_TOP_IMUX2_2`,
+    `CMT_PHASER_IN_CA_EDGEADV.CMT_TOP_IMUX34_4`, and
+    `CMT_PHASER_IN_CA_RANKSEL1.CMT_TOP_IMUX43_4`.
+
+Interpretation: the compact Vivado oracle itself reports
+`in_phase_locked=false`, `phyctl_ready=false`, and `dqs_found=false`, even
+while `phaser_ref_locked=true`. Therefore these nine compact route differences
+are not sufficient evidence for a downstream DB patch. The missing `PREF_IN3`
+routes are expected oracle-topology deltas versus the full SYSTEST-derived
+`PREF_IN0/1/2` route mapping now used by the OpenXC7 diagnostic. The six
+lower-T control routes should remain candidates for investigation only after a
+reduced oracle that actually reaches `in_phase_locked=true` is available.
+
+Ran the same active-tile route classifier against the hardware-proven SYSTEST
+lane-A route dump, which is the oracle that actually reaches downstream lock:
+
+```sh
+python3 scripts/task6/compare_phaser_route_oracle.py \
+  --vivado-routes artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane-2026-05-19-regenerated/phaser-routes-group0-laneA.txt \
+  --open-fasm example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag.fasm \
+  --json-out artifacts/task6/phaser-frame-diff/systest-laneA-vs-openxc7-route-comparison.json \
+  --md-out artifacts/task6/phaser-frame-diff/systest-laneA-vs-openxc7-route-comparison.md
+```
+
+SYSTEST active-tile comparison artifacts:
+
+- `artifacts/task6/phaser-frame-diff/systest-laneA-vs-openxc7-route-comparison.json`
+  SHA256 `2fd9ce350de933fdcd1ca126ae4c2bcc09eab7165594a88988bce2f70b3516a3`
+- `artifacts/task6/phaser-frame-diff/systest-laneA-vs-openxc7-route-comparison.md`
+  SHA256 `667c8b5c1a05b03c70698c635efa8eebd5f778c9ac89dc7a609f51d809fd59c8`
+- `artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane-2026-05-19-regenerated/phaser-routes-group0-laneA.txt`
+  SHA256 `5d1b9be71ba7dfb9ef7c4ab29d51ef53e9c065805ab1694608682f247e8df07a`
+
+SYSTEST comparison summary for active tiles `CMT_TOP_R_LOWER_T_X8Y18` and
+`CMT_TOP_R_UPPER_B_X8Y31`:
+
+- 5579 Vivado route occurrences collapsed to 140 unique route features.
+- 59 of 140 unique features are already present in the OpenXC7 diagnostic
+  FASM; 81 are missing.
+- Missing features include DB-lane dedicated clock routes for `FREQREFCLK`,
+  `MEMREFCLK`, and `SYNCIN`, upper-B PHASER CA/DB clock routes, DB-lane
+  `SYSCLK` routes, and a wider set of CA/DB counter/rank/edge/divider control
+  routes.
+
+Current downstream fix direction: derive a reduced single-lane oracle from the
+hardware-proven SYSTEST path, preserving enough real byte-lane/DQS/PHY_CONTROL
+context to make `in_phase_locked`, `phyctl_ready`, and `dqs_found` true. The
+SYSTEST active-tile comparison gives the first concrete missing-route shortlist,
+but it is still too broad for blind DB patches because SYSTEST includes DB-lane
+and multi-lane context not present in the compact diagnostic. Next classify the
+81 missing SYSTEST active-tile features into required single-lane CA features,
+DB/multilane context, expected topology differences, and candidate bad overlay
+aliases before changing any rows.
+
+Upstreamability note: the narrow DB row fix for
+`CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE` and the stale CMT route-lane
+correction are plausible upstream candidates once converted from local overlay
+and FASM surgery into proper prjxray/OpenXC7 data or router behavior with
+oracle evidence. The ignored INT-route exclusions and provisional PHASER row
+aliases are not ready to upstream; they need minimized reproducer evidence and
+real ownership in the database or nextpnr topology model first.
+
 ### Prior open-flow v4 diagnostic behavior before PHASER_REF DB row patch
 
 Recent promoted-Nix-flow candidate, rebuilt after the observe-only collision exclusions:
