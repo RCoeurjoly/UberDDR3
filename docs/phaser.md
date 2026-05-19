@@ -363,15 +363,48 @@ SYSTEST comparison summary for active tiles `CMT_TOP_R_LOWER_T_X8Y18` and
   `SYSCLK` routes, and a wider set of CA/DB counter/rank/edge/divider control
   routes.
 
+Classified the 81 missing SYSTEST active-tile routes with:
+
+```sh
+python3 scripts/task6/classify_phaser_missing_routes.py \
+  --comparison-json artifacts/task6/phaser-frame-diff/systest-laneA-vs-openxc7-route-comparison.json \
+  --json-out artifacts/task6/phaser-frame-diff/systest-laneA-missing-route-classification.json \
+  --md-out artifacts/task6/phaser-frame-diff/systest-laneA-missing-route-classification.md
+```
+
+Classification artifacts:
+
+- `scripts/task6/classify_phaser_missing_routes.py` SHA256
+  `24d0ba53323af102d6d6abb655f98f5fa2571dfd7d6740e182be7e1d8f7835fd`
+- `artifacts/task6/phaser-frame-diff/systest-laneA-missing-route-classification.json`
+  SHA256 `4bc2d85f1c2bd464dc7d383cfda7f6761c4ecd58d7a7d9f6d08443b35692b0ca`
+- `artifacts/task6/phaser-frame-diff/systest-laneA-missing-route-classification.md`
+  SHA256 `46a4731c376ba86946bd97ef267a2632a09d212b6c67a0809ff02d52d2dc8aae`
+
+Classification summary:
+
+- `candidate_required_ca_clock`: 6 routes. These are the highest-priority
+  reduced-oracle candidates: upper-B CA `FREQREFCLK`, `MEMREFCLK`, and
+  `SYNCIN` fanout into `PHASER_IN` and `PHASER_OUT`.
+- `candidate_ca_control_needs_reduction`: 22 routes. These are CA control
+  routes, but they must not be patched until a reduced downstream-locking
+  oracle proves they are required outside full SYSTEST context.
+- `db_or_multilane_context`: 48 routes. Keep as context for now; do not patch
+  them into the single-lane diagnostic unless a reduced oracle proves DB-lane
+  context is required for CA downstream lock.
+- `clock_source_topology_delta`: 1 route. Compare against the accepted
+  `PREF_IN0/1/2` OpenXC7 route topology before any row change.
+- `phy_control_topology_context`: 2 routes. Needs separate topology proof.
+- `unclassified_active_tile_delta`: 2 CA `SYSCLK` routes; inspect manually.
+
 Current downstream fix direction: derive a reduced single-lane oracle from the
 hardware-proven SYSTEST path, preserving enough real byte-lane/DQS/PHY_CONTROL
 context to make `in_phase_locked`, `phyctl_ready`, and `dqs_found` true. The
-SYSTEST active-tile comparison gives the first concrete missing-route shortlist,
-but it is still too broad for blind DB patches because SYSTEST includes DB-lane
-and multi-lane context not present in the compact diagnostic. Next classify the
-81 missing SYSTEST active-tile features into required single-lane CA features,
-DB/multilane context, expected topology differences, and candidate bad overlay
-aliases before changing any rows.
+SYSTEST active-tile classification gives the first concrete missing-route
+shortlist, but it is still too broad for blind DB patches because SYSTEST
+includes DB-lane and multi-lane context not present in the compact diagnostic.
+Next prove or reject the six `candidate_required_ca_clock` routes first, then
+only move to CA control routes if the clock fanout is insufficient.
 
 Upstreamability note: the narrow DB row fix for
 `CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE` and the stale CMT route-lane
