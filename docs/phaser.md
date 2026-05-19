@@ -406,6 +406,50 @@ includes DB-lane and multi-lane context not present in the compact diagnostic.
 Next prove or reject the six `candidate_required_ca_clock` routes first, then
 only move to CA control routes if the clock fanout is insufficient.
 
+Executed an experimental assembly and hardware gate for the six
+`candidate_required_ca_clock` routes by appending these features to the current
+OpenXC7 FASM:
+
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_IN_CA_FREQREFCLK.CMT_FREQ_PHASER_REFMUX_0`
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_OUT_CA_FREQREFCLK.CMT_FREQ_PHASER_REFMUX_0`
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_IN_CA_MEMREFCLK.CMT_FREQ_PHASER_REFMUX_1`
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_OUT_CA_MEMREFCLK.CMT_FREQ_PHASER_REFMUX_1`
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_IN_CA_SYNCIN.CMT_FREQ_PHASER_REFMUX_2`
+- `CMT_TOP_R_UPPER_B_X8Y31.CMT_PHASER_OUT_CA_SYNCIN.CMT_FREQ_PHASER_REFMUX_2`
+
+Temporary candidate artifacts:
+
+- `/tmp/ypcb_phaser_byte_lane_diag_ca_clock_candidate.fasm` SHA256
+  `374e975ca1e7c470c5a0df5412eee4ab8dece4e775b506a0bd55ba742438e43a`
+- `/tmp/ypcb_phaser_byte_lane_diag_ca_clock_candidate.frames` SHA256
+  `013fb7cd3c3ea53a00e697e8c2b422fa5d9afc940755e14642d92806483d9ae4`
+- `/tmp/ypcb_phaser_byte_lane_diag_ca_clock_candidate.bit` SHA256
+  `f33304e7194e8ce04cc38b76af5221542b58ad52bad309fdab3b4c35a2e51213`
+
+The candidate assembled, but its frames SHA256 is identical to the accepted
+OpenXC7 frames hash `013fb7cd3c3ea53a00e697e8c2b422fa5d9afc940755e14642d92806483d9ae4`.
+Therefore these six named route features currently do not add frame bits through
+the active database path; treating them as direct FASM additions is a no-op for
+configuration.
+
+Hardware run under `/tmp/ypcb-hs3-210299BF3824.lock`:
+
+- `artifacts/task6/runs/2026-05-19T18-52-48+0200-phaser-ca-clock-candidate`
+- Three consecutive program/read cycles all returned `magic_ok=true`,
+  `phaser_pll_locked=true`, `phaser_ref_locked=true`,
+  `sequence_done=true`, `sequence_advance_count=4096`.
+- All three cycles still reported `in_phase_locked=false`,
+  `phyctl_ready=false`, and `dqs_found=false`.
+- Raw payloads: cycle 1 and 2
+  `0x0000040fff100000005c130450485344`; cycle 3
+  `0x0000040fff100000005c330450485344`.
+
+Conclusion: the six upper-B CA clock route names are useful oracle evidence,
+but simply adding the FASM features is not a valid fix because the current DB
+emits no new frame bits for them. The next candidate must come from real frame
+deltas or database rows, likely in the CA control bucket or in missing clock
+rows that are not represented by the present route names alone.
+
 Upstreamability note: the narrow DB row fix for
 `CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE` and the stale CMT route-lane
 correction are plausible upstream candidates once converted from local overlay
