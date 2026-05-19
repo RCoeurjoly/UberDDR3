@@ -29,12 +29,12 @@ The no-PHASER rowstream/BIST path remains useful only as a regression oracle for
 
 ### Current open-flow v4 diagnostic behavior
 
-Recent promoted-Nix-flow candidate, built from commit `636c83c`:
+Recent promoted-Nix-flow candidate, rebuilt after the observe-only collision exclusions:
 
-- Bitstream SHA256: `2f2b959153d2f16bca7910cb01c122317dbacc058be0323577bb77a763fb0b75`
+- Bitstream SHA256: `7acbd0740c660bfda833e6271c8aaa723fae3ba0b51070534ebd6ac3bfc6ee4d`
 - Build path: `nix develop -c make -B -C example_demo/ypcb_00338_1p1 phaser-byte-lane-diag-clocked`
 - Hardware program path: OpenOCD HS3 serial `210299BF3824`, adapter speed 6000 kHz.
-- TDO7 readback raw payload: `0x0000040fff100000005c110450485344`
+- TDO7 readback raw payload: `0x0000040fff100000005c310450485344`
 - JTAG magic valid.
 - `phaser_pll_locked=true`
 - `rst_n=true`
@@ -51,6 +51,27 @@ Recent promoted-Nix-flow candidate, built from commit `636c83c`:
 
 Longer polling confirms `phaser_ref_locked=false` is stable, not a delayed-lock issue.
 
+### Current observe-only diagnostic behavior
+
+The one-step observe-only diagnostic also builds and programs through the promoted Nix/open flow after excluding the extra route-collision features in `scripts/task6/patch_ypcb_phaser_byte_lane_cmt_route.py`:
+
+- Bitstream SHA256: `fd20dc7ecc2bf0b61d6957e3d91cfa726b7d7ffe8b432623891224886b16ded7`
+- Build path: `nix develop -c make -B -C example_demo/ypcb_00338_1p1 phaser-byte-lane-diag-clocked PHASER_BYTE_LANE_DIAG_SEQUENCE_SPEC=ypcb_phaser_byte_lane_diag_sequence_observe_only.json`
+- Hardware program path: OpenOCD HS3 serial `210299BF3824`, adapter speed 6000 kHz.
+- TDO7 readback raw payload: `0x0000000000000100003c310450485344`
+- JTAG magic valid.
+- `phaser_pll_locked=true`
+- `rst_n=true`
+- `sync_enable=true`
+- `sequence_done=true`
+- `sequence_step=0`
+- `sequence_advance_count=1`
+- `last_phyctl_wd=0x00000000`
+- `phyctl_wr_enable=false`
+- `phaser_ref_locked=false`
+- `in_phase_locked=false`
+- `phyctl_ready=false`
+
 ### Ruled out
 
 The current `phaser_ref_locked=false` blocker is not explained by:
@@ -59,6 +80,7 @@ The current `phaser_ref_locked=false` blocker is not explained by:
 - Host decode: RTL status bit layout and Python decoder agree.
 - PHASER_REF reset/powerdown sequencing: holding PHASER_REF reset/powerdown under simple reset did not fix it.
 - PHY_CONTROL command fanout: tying sequencer-driven PHY_CONTROL inputs inactive did not restore PHASER_REF lock.
+- The captured 4096-step PHY_CONTROL write sequence itself: the observe-only sequence still leaves PHASER_REF unlocked.
 - The obvious CMT `PREF_IN2` versus `PREF_IN3` mismatch alone.
 - Forcing `HCLK_CMT_X8Y182.HCLK_CMT_MUX_CLK_5.HCLK_CMT_CCIO3`; that broke PLL lock and is not a valid fix.
 
@@ -82,12 +104,15 @@ Needed for routes feeding:
 
 Current local support still depends on overlay rows and scripted FASM patching.
 
-Known collision now handled repeatably in the local patch script:
+Known collisions now handled repeatably in the local patch script:
 
 - Keep: `CMT_TOP_R_LOWER_T_X8Y18.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE`
+- Keep: `CMT_TOP_R_LOWER_T_X8Y18.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE`
 - Exclude: `INT_R_X1Y19.IMUX11.BYP_BOUNCE_N3_7`
+- Exclude: `INT_R_X1Y19.IMUX29.BYP_BOUNCE1`
+- Exclude: `INT_R_X1Y17.IMUX46.SW2END3`
 
-This is a local workaround until the database row or conflicting INT segbit is corrected properly.
+These are local workarounds until the database rows or conflicting INT segbits are corrected properly.
 
 ### 2. nextpnr/OpenXC7 topology knowledge
 
