@@ -1,0 +1,72 @@
+* Goal
+Make UberDDR3 work for YPCB-00338-1P1
+
+* Current status
+nix develop
+cd examples_demo/ypcb_00338_1p1
+make
+
+Info: Max frequency for clock 'controller_clk': 95.58 MHz (PASS at 83.33 MHz)
+
+Expected good final state:
+
+  LED2 = on
+  LED1 = off
+  LED0 = on
+
+  Bad/stuck likely states:
+
+  LED2 = off   => clock wizard did not lock, reset/clocking problem
+  LED2 = on, LED1 = on, LED0 = off
+               => clocks locked, but DDR3 calibration/BIST did not reach done
+
+011
+	       
+* Plan
+** TODO Keep the reproducer minimal
+*** TODO_NEXT Minimize ypcb files [0/5]
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+  alinx_ax7325b is the most similar board
+**** TODO_NEXT ypcb_00338_1p1_ddr3.xdc
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+**** TODO_NEXT ypcb_00338_1p1_ddr3.v
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+**** TODO_NEXT Makefile
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+**** TODO_NEXT nextpnr_clock_constraints.py
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+**** TODO_NEXT clk_wiz.v
+- State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+** TODO Try to pass timing
+
+- Build the YPCB target with the OpenXC7 clock profile.
+- Inspect timing failures and determine whether they are real design issues,
+  placement/routing artifacts, or tool/database limitations.
+- If timing passes, program the board and run BIST.
+- Record whether passing timing is sufficient for BIST to pass.
+
+** TODO Sweep seeds
+
+- Run multiple =nextpnr-xilinx= seeds for the YPCB target.
+- Record timing result, worst slack, and any notable placement/routing behavior
+  for each seed.
+- If any seed passes timing, generate its bitstream, program the board, and run
+  BIST.
+
+** TODO Compare similar boards
+
+- Generate bitstreams for similar Kintex-7 DDR3 demo boards.
+- Check whether those targets pass timing.
+- Compare placements against the YPCB target, especially for DDR3, clocking, and
+  delay-related resources.
+- Look for placements or constraints that explain why one board succeeds or
+  fails relative to another.
+
+* Targets
+
+| Board             | Part              | Notes                                     |
+|-------------------+-------------------+-------------------------------------------|
+| ypcb_00338_1p1    | xc7k480tffg1156-2 | Main timing/BIST target                   |
+| alinx_ax7325b     | xc7k325tffg900-2  | Similar Kintex-7 DDR3 demo                |
+| enclustra_kx2_st1 | xc7k160tffg676-2  | Previously worked with a different chipdb |
+| qmtech_kintex_7   | xc7k325tffg676-1  | Similar Kintex-7 DDR3 demo                |

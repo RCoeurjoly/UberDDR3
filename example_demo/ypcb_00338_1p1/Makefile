@@ -1,14 +1,9 @@
 PROJECT = ypcb_00338_1p1_ddr3
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
-DBPART = $(shell echo ${PART} | sed -e 's/-[0-9].*//g')
-CHIPDB ?= .
-CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
-ifeq ($(suffix ${CHIPDB}),.bin)
-CHIPDB_BIN := ${CHIPDB}
-endif
+CHIPDB  = ${KINTEX7_CHIPDB}
+ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v  ../../rtl/ddr3_phy.v  ../../rtl/ddr3_top.v clk_wiz.v
 
-REPO_ROOT := ../..
 YPCB_UBERDDR3_CLOCK_PROFILE ?= openxc7-333
 YOSYS_DEFINES ?=
 ifeq (${YPCB_UBERDDR3_CLOCK_PROFILE},openxc7-333)
@@ -18,33 +13,52 @@ export YPCB_UBERDDR3_DDR3_CLK_MHZ := 333.333333
 export YPCB_UBERDDR3_REF_CLK_MHZ := 200
 endif
 
-SOURCES = \
-	${PROJECT}.v \
-	../../rtl/ddr3_controller.v \
-	../../rtl/ddr3_phy.v \
-	../../rtl/ddr3_top.v \
-	../../rtl/ecc/ecc_dec.sv \
-	../../rtl/ecc/ecc_enc.sv \
-	clk_wiz.v
+#############################################################################################
+NEXTPNR_XILINX_DIR ?= /snap/openxc7/current/opt/nextpnr-xilinx
+NEXTPNR_XILINX_PYTHON_DIR ?= ${NEXTPNR_XILINX_DIR}/python
+PRJXRAY_DB_DIR ?= ${NEXTPNR_XILINX_DIR}/external/prjxray-db
 
-SYNTH_XILINX_FLAGS ?= -flatten -abc9 -arch xc7
+DBPART = $(shell echo ${PART} | sed -e 's/-[0-9]//g')
+SPEEDGRADE = $(shell echo ${PART} | sed -e 's/.*\-\([0-9]\)/\1/g')
+
+CHIPDB ?= ./
+ifeq ($(CHIPDB),)
+CHIPDB = ./
+endif
+
+PYPY3 ?= pypy3
+
+TOP ?= ${PROJECT}
+TOP_MODULE ?= ${TOP}
+TOP_VERILOG ?= ${TOP}.v
+
 PNR_ARGS ?= --seed 3
-PNR_DEBUG ?=
+PNR_DEBUG ?= # --verbose --debug
 PNR_PRE_PACK ?= --pre-pack nextpnr_clock_constraints.py
 
-.PHONY: openxc7 clean
+JTAG_LINK ?= -c digilent_hs2
+
+XDC ?= ${PROJECT}.xdc
+
+.PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
-${PROJECT}.json: ${SOURCES} Makefile
-	yosys ${YOSYS_DEFINES} -p "synth_xilinx ${SYNTH_XILINX_FLAGS} -top ${PROJECT}; delete t:\$$scopeinfo; write_json $@" ${SOURCES}
+.PHONY: program
+program: ${PROJECT}_openxc7.bit
+	openFPGALoader ${JTAG_LINK} --bitstream $<
 
-${CHIPDB_BIN}:
-	pypy3 ${NEXTPNR_XILINX_PYTHON_DIR}/bbaexport.py --device ${PART} --bba ${DBPART}.bba
-	bbasm -l ${DBPART}.bba $@
+${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
+	yosys ${YOSYS_DEFINES} -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
+
+# The chip database only needs to be generated once
+# that is why we don't clean it with make clean
+${CHIPDB}/${DBPART}.bin:
+	${PYPY3} ${NEXTPNR_XILINX_PYTHON_DIR}/bbaexport.py --device ${PART} --bba ${DBPART}.bba
+	bbasm -l ${DBPART}.bba ${CHIPDB}/${DBPART}.bin
 	rm -f ${DBPART}.bba
 
-${PROJECT}.fasm: ${PROJECT}.json ${PROJECT}.xdc ${CHIPDB_BIN}
-	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PROJECT}.xdc --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_ARGS} ${PNR_DEBUG}
+${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_ARGS} ${PNR_DEBUG}
 
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
@@ -52,5 +66,14 @@ ${PROJECT}.frames: ${PROJECT}.fasm
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+
+#############################################################################################
+
+.PHONY: clean
 clean:
-	rm -f ${PROJECT}_openxc7.bit ${PROJECT}.frames ${PROJECT}.fasm ${PROJECT}.json ${DBPART}.bin ${DBPART}.bba nextpnr-routed.json
+	rm -f *.bit
+	rm -f *.frames
+	rm -f *.fasm
+	rm -f *.json
+	rm -f *.bin
+	rm -f *.bba
