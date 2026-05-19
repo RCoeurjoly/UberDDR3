@@ -450,6 +450,49 @@ emits no new frame bits for them. The next candidate must come from real frame
 deltas or database rows, likely in the CA control bucket or in missing clock
 rows that are not represented by the present route names alone.
 
+
+### 2026-05-19 active-tile frame patch split
+
+Added two analysis helpers:
+
+- `scripts/task6/compare_phaser_active_tile_bits.py` compares raw `bitread` bits inside the active PHASER/CMT tile windows.
+- `scripts/task6/patch_phaser_active_tile_frames.py` applies selected Vivado-oracle active-tile bit deltas to an OpenXC7 `.frames` file for hardware triage. It supports tile, word, and positive-only selection.
+
+Active-tile SYSTEST-versus-OpenXC7 bit comparison artifacts:
+
+- `artifacts/task6/phaser-frame-diff/systest-vs-open-active-tile-bit-delta.json`
+- `artifacts/task6/phaser-frame-diff/systest-vs-open-active-tile-bit-delta.md`
+
+Summary: SYSTEST has 1971 active-tile bits, OpenXC7 has 472, with 1716 oracle-only bits and 217 open-only bits across `CMT_TOP_R_LOWER_T_X8Y18` and `CMT_TOP_R_UPPER_B_X8Y31`.
+
+Hardware triage under `/tmp/ypcb-hs3-210299BF3824.lock`:
+
+- Broad active-tile patch: `phaser_ref_locked=true` and `phyctl_ready=true`, but `phaser_pll_locked=false`; reject as conflicting.
+- Upper-B-only patch: reproduces the same useful/harmful behavior, localizing both `phyctl_ready` and the PLL conflict to `CMT_TOP_R_UPPER_B_X8Y31`.
+- Lower-T-only patch: keeps `phaser_pll_locked=true`, `phaser_ref_locked=true`, and sequence completion, but does not assert `phyctl_ready` and sets `dqs_out_of_range=true`.
+- Upper-B words `53..63`: keeps PLL/ref lock but stalls at step 0 and does not assert `phyctl_ready`.
+- Upper-B words `64..74`: asserts `phyctl_ready=true` but kills `phaser_pll_locked`.
+- Upper-B words `64..68`: asserts `phyctl_ready=true` but kills `phaser_pll_locked`.
+- Upper-B words `69..74`: kills PLL/ref and does not assert `phyctl_ready`.
+
+Single upper-B word sweep result:
+
+| Word | PLL | REF | PHYCTL ready | Sequence | Notes |
+| ---: | --- | --- | --- | --- | --- |
+| 64 | false | true | false | not done | conflicting |
+| 65 | true | true | false | done | no improvement |
+| 66 | true | true | false | done | no improvement |
+| 67 | true | true | false | done | no improvement |
+| 68 | true | true | true | step 4095, not done | first real PHY_CONTROL-ready improvement |
+
+The word-68 patch changes 38 raw bits in word 68: 34 oracle-only set bits and 4 open-only clear bits. Hardware run `artifacts/task6/runs/2026-05-19T19-17-38+0200-phaser-upper-b-word68-frame-patch` returned valid magic, `phaser_pll_locked=true`, `phaser_ref_locked=true`, `phyctl_ready=true`, `last_phyctl_wd=0x0000040f`, `in_phase_locked=false`, `dqs_found=false`.
+
+Positive-only word 68 test: `artifacts/task6/runs/2026-05-19T19-27-14+0200-phaser-upper-b-word68-setonly-frame-patch` kept PLL/ref lock but reported `phyctl_ready=false`. Therefore word 68 cannot be promoted as a simple additive segbits row; the four open-only clears are required, so the clean fix needs either identified row exclusions or a narrowly documented post-frame experimental patch.
+
+Combining upper-B word 68 with lower-T active-tile deltas keeps `phaser_pll_locked=true`, `phaser_ref_locked=true`, and `phyctl_ready=true`, but still has `in_phase_locked=false`, `dqs_found=false`, and full lower-T sets `dqs_out_of_range=true`. Lower-T single-word sweep on top of word 68 showed words `34..39` avoid `dqs_out_of_range` but still do not produce PHASER_IN lock or DQS found; word `40` is the DQS-out-of-range source.
+
+Current blocker: the open flow can now be forced to `phyctl_ready=true` with an oracle-backed upper-B word-68 frame delta, but this is not yet a clean DB patch and it does not solve PHASER_IN/DQS. Next steps are to identify which FASM/DB rows produce the four word-68 open-only bits, add exclusions if oracle-backed, then continue PHASER_IN/DQS isolation outside lower-T word 40.
+
 Upstreamability note: the narrow DB row fix for
 `CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE` and the stale CMT route-lane
 correction are plausible upstream candidates once converted from local overlay
