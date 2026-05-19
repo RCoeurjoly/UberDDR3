@@ -2,6 +2,7 @@
 Make UberDDR3 work for YPCB-00338-1P1
 
 * Current status
+work happens in branch ypcb.
 nix develop
 cd examples_demo/ypcb_00338_1p1
 make
