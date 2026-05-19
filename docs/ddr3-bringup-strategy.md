@@ -22,13 +22,16 @@ Work in this order:
 1. Close PHASER oracle coverage for `PHASER_REF`, `PHASER_IN_PHY`,
    `PHASER_OUT_PHY`, `PHY_CONTROL`, `IN_FIFO`, and `OUT_FIFO`.
 2. Compare frame/FASM deltas against the provisional PHASER overlay.
-3. Patch missing segbits, tile ownership, chipdb visibility, nextpnr routing,
-   or FASM emission in small reviewable changes.
+3. Patch missing segbits, tile ownership, chipdb visibility, nextpnr routing, or
+   FASM emission in small reviewable changes.
 4. Build diagnostics before controllers: `phaser-ref-diag`, then one byte lane
    with only known-supported PHASER/FIFO/PHY_CONTROL features.
 5. Expand toward byte-lane DDR3 read/write primitives only after reset,
    clocking, PHASER lock/status, and FIFO activity are visible from an
    open-built bitstream.
+
+Detailed execution is now in
+[docs/ypcb-phaser-bringup-to-open-source-x8-driver.md](docs/ypcb-phaser-bringup-to-open-source-x8-driver.md).
 
 Acceptance for the current PHASER stage:
 
@@ -122,63 +125,13 @@ high-value calibration candidate.
 
 - PHASER status and commands: `docs/ypcb-ddr3-support.md`
 - no-PHASER seed-stability limits: `docs/seed-stability-plan.md`
+- PHASER execution playbook and acceptance gates:
+  `docs/ypcb-phaser-bringup-to-open-source-x8-driver.md`
 - YPCB PHASER diagnostics: `example_demo/ypcb_00338_1p1/Makefile`
 - board-run artifact helper: `scripts/task6/task6_board_run.py`
 
 ## Current Execution Status
 
-As of 2026-05-18, the PHASER track remains the active priority, but the primary
-blocker has shifted from PHASER_REF route support to byte-lane sequencing:
-
-- `phaser-ref-diag` is no longer the blocker. Open-built and Vivado-routed
-  byte-lane diagnostics both reach `phaser_pll_locked=true` and
-  `phaser_ref_locked=true`.
-- The byte-lane `PHYCTL_STIMULUS` probe failed identically in open flow and
-  Vivado. That ruled out "one more missing open-only feature bit" as the next
-  critical-path hypothesis.
-- The clocked byte-lane diagnostic is now sequence-driven from
-  `example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence.vh`,
-  generated from JSON. The checked-in default sequence is an observe-only
-  placeholder that preserves the proven post-reset parity state without adding
-  new speculative `PHYCTLWD` traffic.
-- The checked-in Vivado ILA CSV under
-  `artifacts/task6/vivado-oracle/ypcb-systest/` records only top-level
-  calibration and MMCM/reset signals, so it is insufficient to derive the
-  byte-lane sequence required for `PHY_CONTROL.READY` / `PHASER_IN_PHY.LOCKED`.
-
-Next action: re-run the larger working Vivado/MIG oracle with byte-lane probes
-on `RESET`, `PWRDWN`, `SYNCIN`, `READCALIBENABLE`, `WRITECALIBENABLE`,
-`PHYCTLWRENABLE`, `PHYCTLWD`, `PHYCTLREADY`, `PHASER_IN` lock/status, and the
-direct MIG init gates that feed them. Reduce that capture into a sequence JSON
-with `scripts/task6/extract_ypcb_phaser_sequence.py`, regenerate the step ROM,
-then rebuild both open and Vivado byte-lane diagnostics against the same
-captured sequence.
-
-Concrete capture flow for that action:
-
-```text
-scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh build \
-  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
-```
-
-That write step builds a dedicated byte-lane ILA on `top_wrapper_debug.bit` and
-emits `calibration-ila-probes.txt` plus `top_wrapper_debug.ltx`. Use the same
-artifacts directory for:
-
-```text
-scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh program \
-  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
-scripts/task6/run_ypcb_vivado_phaser_byte_lane_oracle.sh read \
-  artifacts/task6/vivado-oracle/ypcb-systest-phaser-byte-lane
-```
-
-If probe aliases cannot be resolved in your working image, start by editing
-`scripts/task6/ypcb_phaser_byte_lane_oracle_probes.tcl` and keep the resulting
-alias-to-net mapping in `calibration-ila-probes.txt` as the source of truth.
-
-In parallel, the host-side PHASER command surface is no longer undefined. The
-shared Python protocol and the `ypcb_phaser_shell_smoke` RTL target now give a
-buildable command/status contract for low-byte and full-beat PHASER-shell
-transactions, but that smoke shell is not a substitute for the real PHASER
-byte-lane/x8 DDR3 shell. The critical-path blocker remains the missing Vivado
-sequence capture.
+As of 2026-05-18, this strategy is governed by
+[docs/ypcb-phaser-bringup-to-open-source-x8-driver.md](docs/ypcb-phaser-bringup-to-open-source-x8-driver.md),
+with no-PHASER remaining only as fallback/oracle.

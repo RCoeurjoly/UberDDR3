@@ -300,7 +300,14 @@ proc read_calibration_ila {out_dir serial} {
 
     set probes [get_hw_probes -of_objects $ila]
     foreach probe $probes {
-        set_property TRIGGER_COMPARE_VALUE eq1'bX $probe
+        set width 1
+        foreach prop {PROBE_WIDTH PORT_WIDTH WIDTH} {
+            if {![catch {get_property $prop $probe} candidate] && [regexp {^[0-9]+$} $candidate]} {
+                set width $candidate
+                break
+            }
+        }
+        set_property TRIGGER_COMPARE_VALUE "eq${width}'b[string repeat X $width]" $probe
     }
     run_hw_ila $ila
     wait_on_hw_ila $ila

@@ -8,7 +8,9 @@ from pathlib import Path
 
 
 REPLACEMENTS = {
+    "CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN0": "CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN3",
     "CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN1": "CMT_FREQ_PHASER_REFMUX_1.CMT_FREQ_BB_PREF_IN3",
+    "CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN0": "CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN3",
     "CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN1": "CMT_FREQ_PHASER_REFMUX_0.CMT_FREQ_BB_PREF_IN3",
     "CMT_FREQ_BB_PREF_IN1.PLL_CLK_FREQBB_REBUFOUT1": "CMT_FREQ_BB_PREF_IN3.PLL_CLK_FREQBB_REBUFOUT3",
     "MMCM_CLK_FREQ_BB_REBUF1_NS.MMCM_CLK_FREQ_BB_NS1": "MMCM_CLK_FREQ_BB_REBUF3_NS.MMCM_CLK_FREQ_BB_NS3",
@@ -29,6 +31,16 @@ COMPANION_FEATURES = (
     "CMT_TOP_R_UPPER_B_X8Y31.PHASER_REF_X0Y4.CLOCKED_ORACLE_ROUTE",
 )
 
+# Proven collision from the PLLE2_ADV_X0Y1 / PHASER lane-0 candidate:
+# fasm2frames reports that this INT route clears the same frame bit required by
+# CMT_TOP_R_LOWER_T_X8Y18.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE.
+# Keep this exclusion local until the underlying segbit row is corrected in the
+# database. Do not add the HCLK_CMT_X8Y182 MUX_CLK_5 force here; that broke PLL
+# lock in hardware.
+EXCLUDED_FEATURES = {
+    "INT_R_X1Y19.IMUX11.BYP_BOUNCE_N3_7",
+}
+
 
 def patch_fasm(path: Path) -> bool:
     text = path.read_text(encoding="utf-8")
@@ -36,10 +48,11 @@ def patch_fasm(path: Path) -> bool:
     for old, new in REPLACEMENTS.items():
         text = text.replace(old, new)
 
-    missing = [feature for feature in COMPANION_FEATURES if feature not in text]
-    if missing:
-        text = text.rstrip() + "\n\n# Vivado byte-lane PHASER_REF companion route features\n"
-        text += "\n".join(missing) + "\n"
+    lines = [line for line in text.splitlines() if line.strip() not in EXCLUDED_FEATURES]
+    for feature in COMPANION_FEATURES:
+        if feature not in lines:
+            lines.append(feature)
+    text = "\n".join(lines) + "\n"
 
     if text == original:
         return False

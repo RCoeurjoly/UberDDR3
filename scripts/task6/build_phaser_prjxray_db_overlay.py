@@ -91,10 +91,42 @@ PROVISIONAL_BIT_EXCLUDES = {
 
 PROVISIONAL_ROW_ALIASES = {
     (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
+    ): (
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y17.CLKOUT_DIV_4_IN_USE",
+    ),
+    (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
+    ): (
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y16.CLKOUT_DIV_4_IN_USE",
+    ),
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
+    ): (
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y4.IN_USE",
+    ),
+    (
         "segbits_cmt_top_r_upper_b.db",
         "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.IN_USE",
     ): (
         "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y4.IN_USE",
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y7.IN_USE",
+    ),
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y0.CLOCKED_ORACLE_ROUTE",
+    ): (
+        "CMT_TOP_R_UPPER_B.PHASER_REF_X0Y7.CLOCKED_ORACLE_ROUTE",
+    ),
+    (
+        "segbits_cmt_top_r_upper_b.db",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y0.IN_USE",
+    ): (
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y4.IN_USE",
+        "CMT_TOP_R_UPPER_B.PHY_CONTROL_X0Y7.IN_USE",
     ),
 }
 

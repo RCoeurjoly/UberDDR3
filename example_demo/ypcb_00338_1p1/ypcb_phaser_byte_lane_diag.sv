@@ -74,9 +74,6 @@ module ypcb_phaser_byte_lane_diag (
         .RST(`YPCB_PHASER_DIAG_CONN(phaser_ref_reset))
     );
 
-    wire phyctl_almost_full;
-    wire phyctl_empty;
-    wire phyctl_full;
     wire phyctl_ready;
     wire [1:0] phyctl_in_rank_a;
     wire [1:0] phyctl_in_rank_b;
@@ -101,7 +98,7 @@ module ypcb_phaser_byte_lane_diag (
     localparam integer SEQ_FLAG_RSTDQSFIND = 7;
     localparam integer SEQ_FLAG_SYNC_ENABLE = 8;
 
-    reg [7:0] sequence_step_q = 8'd0;
+    reg [PHASER_SEQUENCE_STEP_BITS - 1:0] sequence_step_q = {PHASER_SEQUENCE_STEP_BITS{1'b0}};
     reg [15:0] sequence_elapsed_q = 16'd0;
     reg [15:0] sequence_advance_count_q = 16'd0;
     reg [31:0] sequence_last_phyctlwd_q = 32'd0;
@@ -117,7 +114,7 @@ module ypcb_phaser_byte_lane_diag (
         (~sequence_wait_flags[2] | in_phase_locked) &
         (~sequence_wait_flags[3] | phyctl_ready);
     wire sequence_dwell_satisfied = (sequence_elapsed_q + 16'd1) >= sequence_hold_cycles;
-    wire sequence_is_final_step = (sequence_step_q + 8'd1) >= PHASER_SEQUENCE_STEP_COUNT;
+    wire sequence_is_final_step = sequence_step_q >= (PHASER_SEQUENCE_STEP_COUNT - 1);
     wire sequence_can_advance = ~sequence_done_q & sequence_wait_satisfied & sequence_dwell_satisfied;
 
     wire sequence_phaser_ref_pwrdwn = sequence_flags[SEQ_FLAG_PHASER_REF_PWRDWN];
@@ -134,16 +131,16 @@ module ypcb_phaser_byte_lane_diag (
     wire phyctl_wr_enable_q = sequence_phyctlwrenable;
     wire phyctl_readcalibenable = sequence_readcalibenable;
     wire phyctl_writecalibenable = sequence_writecalibenable;
-    wire phaser_ref_pwrdwn = sequence_phaser_ref_pwrdwn;
-    wire phaser_ref_reset = rst | sequence_phaser_ref_rst;
+    wire phaser_ref_pwrdwn = 1'b0;
+    wire phaser_ref_reset = rst;
     wire phyctl_reset = rst | sequence_phyctl_reset;
     wire lane_reset = rst | sequence_lane_reset;
     wire rstdqsfind = rst | sequence_rstdqsfind;
-    wire phaser_syncin = sequence_sync_enable ? phaser_sync_refclk : 1'b0;
+    wire phaser_syncin = phaser_sync_refclk;
 
     always @(posedge clk50 or posedge rst) begin
         if (rst) begin
-            sequence_step_q <= 8'd0;
+            sequence_step_q <= {PHASER_SEQUENCE_STEP_BITS{1'b0}};
             sequence_elapsed_q <= 16'd0;
             sequence_advance_count_q <= 16'd0;
             sequence_last_phyctlwd_q <= 32'd0;
@@ -183,9 +180,9 @@ module ypcb_phaser_byte_lane_diag (
         .CLK_RATIO(4),
         .SYNC_MODE("FALSE")
     ) phy_control_i (
-        .PHYCTLALMOSTFULL(`YPCB_PHASER_DIAG_CONN(phyctl_almost_full)),
-        .PHYCTLEMPTY(`YPCB_PHASER_DIAG_CONN(phyctl_empty)),
-        .PHYCTLFULL(`YPCB_PHASER_DIAG_CONN(phyctl_full)),
+        .PHYCTLALMOSTFULL(),
+        .PHYCTLEMPTY(),
+        .PHYCTLFULL(),
         .PHYCTLREADY(`YPCB_PHASER_DIAG_CONN(phyctl_ready)),
         .INRANKA(`YPCB_PHASER_DIAG_CONN(phyctl_in_rank_a)),
         .INRANKB(`YPCB_PHASER_DIAG_CONN(phyctl_in_rank_b)),
@@ -234,7 +231,7 @@ module ypcb_phaser_byte_lane_diag (
         .ISERDESRST(`YPCB_PHASER_DIAG_CONN(in_iserdes_rst)),
         .PHASELOCKED(`YPCB_PHASER_DIAG_CONN(in_phase_locked)),
         .RCLK(`YPCB_PHASER_DIAG_CONN(in_rclk)),
-        .WRENABLE(`YPCB_PHASER_DIAG_CONN(in_wrenable)),
+        .WRENABLE(),
         .COUNTERREADVAL(`YPCB_PHASER_DIAG_CONN(in_counter_read)),
         .BURSTPENDINGPHY(`YPCB_PHASER_DIAG_CONN(phyctl_in_burst_pending[0])),
         .COUNTERLOADEN(`YPCB_PHASER_DIAG_CONN(inactive_low)),
@@ -279,7 +276,7 @@ module ypcb_phaser_byte_lane_diag (
         .OCLKDELAYED(`YPCB_PHASER_DIAG_CONN(out_oclk_delayed)),
         .OCLKDIV(`YPCB_PHASER_DIAG_CONN(out_oclkdiv)),
         .OSERDESRST(`YPCB_PHASER_DIAG_CONN(out_oserdes_rst)),
-        .RDENABLE(`YPCB_PHASER_DIAG_CONN(out_rd_enable)),
+        .RDENABLE(),
         .CTSBUS(`YPCB_PHASER_DIAG_CONN(out_cts_bus)),
         .DQSBUS(`YPCB_PHASER_DIAG_CONN(out_dqs_bus)),
         .DTSBUS(`YPCB_PHASER_DIAG_CONN(out_dts_bus)),
@@ -426,9 +423,9 @@ module ypcb_phaser_byte_lane_diag (
         sequence_wait_satisfied,
         sequence_done_q,
         1'b1,
-        phyctl_empty,
-        phyctl_full,
-        phyctl_almost_full,
+        1'b0,
+        1'b0,
+        1'b0,
         fifo_activity,
         heartbeat_q[25],
         rst_n,
@@ -439,7 +436,7 @@ module ypcb_phaser_byte_lane_diag (
     };
     wire [127:0] read_payload = {
         sequence_last_phyctlwd_q,
-        sequence_step_q,
+        {{(16 - PHASER_SEQUENCE_STEP_BITS){1'b0}}, sequence_step_q},
         sequence_advance_count_q,
         status_word,
         READ_VERSION,

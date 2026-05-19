@@ -67,7 +67,7 @@ def decode_status(payload: int) -> dict:
                 "out_rd_enable": bool(status & (1 << 26)),
                 "in_wrenable": bool(status & (1 << 27)),
                 "sequence_advance_count": unsigned_field(payload, 72, 16),
-                "sequence_step": unsigned_field(payload, 88, 8),
+                "sequence_step": unsigned_field(payload, 88, 16),
                 "last_phyctl_wd": f"0x{unsigned_field(payload, 96, 32):08x}",
             })
         else:
