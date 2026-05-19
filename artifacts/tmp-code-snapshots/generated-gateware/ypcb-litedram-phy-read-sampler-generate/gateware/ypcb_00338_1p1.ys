@@ -1,0 +1,10 @@
+verilog_defaults -push
+verilog_defaults -add -defer
+read_verilog /home/roland/UberDDR3/example_demo/ypcb_00338_1p1/ypcb_litedram_bscan_bridge.v
+read_verilog /tmp/ypcb-litedram-phy-read-sampler-generate/gateware/ypcb_00338_1p1.v
+verilog_defaults -pop
+attrmap -tocase keep -imap keep="true" keep=1 -imap keep="false" keep=0 -remove keep=0
+
+synth_xilinx -flatten -abc9 -arch xc7  -top ypcb_00338_1p1
+delete t:$scopeinfo
+write_json  ypcb_00338_1p1.json

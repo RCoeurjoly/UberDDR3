@@ -6,13 +6,17 @@
     flake-utils.url = "github:numtide/flake-utils";
     yosys.url = "git+https://github.com/YosysHQ/yosys?submodules=1";
     openXC7.url = "github:openXC7/toolchain-nix";
+    nextpnrXilinxPhaser = {
+      url = "github:RCoeurjoly/nextpnr-xilinx/stable-backports?submodules=1";
+      flake = false;
+    };
     prjxrayDb = {
       url = "github:openXC7/prjxray-db";
       flake = false;
     };
   };
 
-  outputs = { nixpkgs, flake-utils, yosys, openXC7, prjxrayDb, ... }:
+  outputs = { nixpkgs, flake-utils, yosys, openXC7, nextpnrXilinxPhaser, prjxrayDb, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -21,7 +25,10 @@
 
         openXC7Packages = openXC7.packages.${system};
         openXC7Fasm = openXC7Packages.fasm;
-        openXC7Nextpnr = openXC7Packages.nextpnr-xilinx;
+        openXC7Nextpnr = openXC7Packages.nextpnr-xilinx.overrideAttrs (old: {
+          src = nextpnrXilinxPhaser;
+          version = "phaser-";
+        });
         openXC7Prjxray = openXC7Packages.prjxray;
         patchedPrjxrayPython = "${openXC7Prjxray}/usr/share/python3";
 
@@ -160,6 +167,7 @@ EOF
         );
       in {
         packages = ypcbSeedPlans // {
+          phaser-nextpnr-xilinx = openXC7Nextpnr;
           default = mkYpcbRowstreamBitstream {
             seed = 3;
             freq = 25;

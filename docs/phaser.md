@@ -123,6 +123,22 @@ Need oracle-backed coverage for non-default parameters used by MIG-class byte-la
 - `PHY_CONTROL.SYNC_MODE`
 - `PHY_CONTROL.BURST_MODE`
 
+## Reproducible tooling inputs
+
+The PHASER chipdb must be regenerated from source by Nix, not copied from `/tmp` or checked in as an opaque local artifact. The UberDDR3 flake therefore pins the PHASER nextpnr source as a GitHub input:
+
+- `nextpnrXilinxPhaser`: `github:RCoeurjoly/nextpnr-xilinx/stable-backports?submodules=1`
+
+The active nextpnr package is `openXC7.packages..nextpnr-xilinx` with its `src` overridden to that flake input. Building `.#phaser-nextpnr-xilinx` is the intended way to recreate the patched nextpnr install, including its chipdb, from only flake inputs.
+
+Reproducibility rules:
+
+- No build path may reference `/tmp`.
+- No build path may reference `/home/roland/...` or any other machine-local checkout.
+- Preserved `/tmp` snapshots under `artifacts/tmp-code-snapshots/` are salvage/reference material only. They are not part of the accepted PHASER build path.
+- Any required nextpnr, prjxray-db, fasm, Yosys, or OpenXC7 change must be represented as a pinned flake input or as source committed in this repository.
+- Binary chipdb files are derived outputs. They are acceptable in the Nix store or build result, but not as unreproducible source inputs.
+
 ## Current artifacts
 
 Primary planning log:

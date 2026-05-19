@@ -54,6 +54,23 @@
         "type": "github"
       }
     },
+    "nextpnrXilinxPhaser": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1779104661,
+        "narHash": "sha256-iPDP8h/WmuDcUHLkwdA/XC/nV2ICl7i7blYu4YuiPoM=",
+        "owner": "RCoeurjoly",
+        "repo": "nextpnr-xilinx",
+        "rev": "1803f5eb083efd6f48aba5575e5cec606552d1b4",
+        "type": "github"
+      },
+      "original": {
+        "owner": "RCoeurjoly",
+        "ref": "stable-backports",
+        "repo": "nextpnr-xilinx",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1735563628,
@@ -139,6 +156,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "nextpnrXilinxPhaser": "nextpnrXilinxPhaser",
         "nixpkgs": "nixpkgs",
         "openXC7": "openXC7",
         "prjxrayDb": "prjxrayDb",
