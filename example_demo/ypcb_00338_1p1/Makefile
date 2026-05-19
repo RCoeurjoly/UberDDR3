@@ -24,6 +24,7 @@ TOP_MODULE ?= ${TOP}
 TOP_VERILOG ?= ${TOP}.v
 
 PNR_DEBUG ?= # --verbose --debug
+PNR_FREQ_MHZ ?= 83.333
 
 JTAG_LINK ?= -c digilent_hs2
 
@@ -47,7 +48,7 @@ ${CHIPDB}/${DBPART}.bin:
 	rm -f ${DBPART}.bba
 
 ${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_ARGS} ${PNR_DEBUG}
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ ${PNR_ARGS} --freq ${PNR_FREQ_MHZ} ${PNR_DEBUG}
 
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@

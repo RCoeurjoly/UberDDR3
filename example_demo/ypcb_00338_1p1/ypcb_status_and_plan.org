@@ -8,7 +8,7 @@ cd examples_demo/ypcb_00338_1p1
 make
 
 Info: Max frequency for clock 'controller_clk': 95.58 MHz (PASS at 83.33 MHz)
-
+** Success criteria
 Expected good final state:
 
   LED2 = on
@@ -24,8 +24,6 @@ Expected good final state:
 011
 	       
 * Plan
-** TODO_NEXT Build bitstream
-- State "TODO_NEXT"  from              [2026-05-19 Tue 22:55]
 ** TODO Try to pass timing
 
 - Build the YPCB target with the OpenXC7 clock profile.
@@ -50,6 +48,19 @@ Expected good final state:
 - Look for placements or constraints that explain why one board succeeds or
   fails relative to another.
 
+** DONE Make it so that minimum freq is a gate
+CLOSED: [2026-05-19 Tue 23:32]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 23:32]
+- State "TODO_NEXT"  from              [2026-05-19 Tue 23:20]
+Right now it says   Info: Max frequency for clock 'i_controller_clk': 84.40 MHz (PASS at 12.00 MHz), when min should be 83.33 MHz
+
+Info: Max frequency for clock 'i_controller_clk': 84.40 MHz (PASS at 83.33 MHz)
+
+** DONE Build bitstream
+CLOSED: [2026-05-19 Tue 23:18]
+- State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 23:18]
+- State "TODO_NEXT"  from              [2026-05-19 Tue 22:55]
+  Info: Max frequency for clock 'i_controller_clk': 84.40 MHz (PASS at 12.00 MHz)
 ** DONE Keep the reproducer minimal
 CLOSED: [2026-05-19 Tue 22:55]
 - State "DONE"       from "TODO"       [2026-05-19 Tue 22:55]
