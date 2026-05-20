@@ -1722,6 +1722,93 @@ Conclusion:
 - The previous tiny-BIST failure is addressed, not ignored: it was caused by the BIST byte-mask subtest being incompatible with the YPCB no-DM wrapper/oracle.
 - Scaling to more lanes remains out of scope for the current goal. The next work item, if needed later, is to decide whether to keep YPCB as an explicit no-DM board configuration or recover/verify real DM pins from authoritative board data.
 
+
+** 2026-05-20 one-lane whole-bank BIST success:
+
+Goal refinement:
+
+- The current goal is not wider scaling. The goal is a usable minimum DDR3
+  configuration.
+- "Usable" for this step means the active one x8 lane can calibrate and pass BIST
+  over the full configured one-lane address range, not only a tiny low-address
+  smoke test.
+- The active configuration remains =BYTE_LANES=1=, =DQ_BITS=8=, controller
+  =83.333 MHz=, DDR3 =333.333 MHz=, =ODELAY_SUPPORTED=0=, and no DM subtest.
+
+Implementation:
+
+- Added one-lane BIST range targets:
+  - =openxc7_bist_1lane_limit8= with =BIST_LIMIT_BITS=8=
+  - =openxc7_bist_1lane_limit12= with =BIST_LIMIT_BITS=12=
+  - =openxc7_bist_1lane_limit16= with =BIST_LIMIT_BITS=16=
+  - =openxc7_bist_1lane_full= with =BIST_LIMIT_BITS=0=
+- The range targets keep =YPCB_ONE_LANE= and =YPCB_BIST_TEST_DATAMASK=0=.
+- The full target is the authoritative whole-bank test for the minimum
+  configuration because its JTAG status reports =short:0= and finishes at
+  =write_addr=0x1ffffff=, the full one-lane BIST limit for this configuration.
+
+Measured ladder:
+
+| Target                       | Route result for =i_controller_clk= | Hardware result |
+|------------------------------+-------------------------------------+-----------------|
+| =openxc7_bist_1lane_limit8=  | =119.05 MHz= PASS at =83.333 MHz=  | =80/80= samples =calib_complete=1=, =state=23=, =final_done:1=, =wrong_low=0x00= |
+| =openxc7_bist_1lane_limit12= | =123.89 MHz= PASS at =83.333 MHz=  | =120/120= samples =calib_complete=1=, =state=23=, =final_done:1=, =wrong_low=0x00= |
+| =openxc7_bist_1lane_limit16= | =113.29 MHz= PASS at =83.333 MHz=  | =240/240= samples =calib_complete=1=, =state=23=, =final_done:1=, =wrong_low=0x00= |
+| =openxc7_bist_1lane_full=    | =116.14 MHz= PASS at =83.333 MHz=  | =585/600= samples already done; =600/600= =wrong_low=0x00=; =short:0= |
+
+Full-range hardware result:
+
+- Hardware transaction used the required atomic discipline:
+  acquire =/tmp/ypcb-hs3-210299BF3824.lock=, program the bitstream, sample JTAG,
+  release the lock.
+- Programmed bitstream:
+  =ypcb_00338_1p1_ddr3_bist_1lane_full_openxc7.bit=.
+- JTAG log:
+  =/tmp/ypcb_openxc7_bist_1lane_full_jtag.log=.
+- Summary over =600= samples at 250 ms spacing:
+  - =calib_complete=1= in =585/600=
+  - =state=23= in =585/600=
+  - =final_done:1= in =585/600=
+  - =wrong_low=0x00= in =600/600=
+  - =short:0= in =600/600=
+  - sticky state coverage showed =burst_write=, =burst_read=, =random_write=,
+    =random_read=, =read_data=, and =finish=.
+- Final sampled BIST request fields:
+  - =write_addr:0x1ffffff=
+  - =read_addr:0x1800000=
+  - =calib_addr:0x1ffffff=
+
+Conclusion:
+
+- The minimum DDR3 driver target is usable now: one x8 byte lane at DDR3
+  =333.333 MHz= calibrates and passes the full configured no-DM BIST under
+  OpenXC7.
+- This does not claim the full physical x64 memory interface is usable. It
+  claims the full address range of the deliberately reduced one-lane x8
+  interface is usable.
+- The earlier tiny-BIST result was a smoke test. This full target is the current
+  success criterion for the minimum configuration.
+
+Warning disposition for this experiment:
+
+- Yosys =Replacing memory ... with list of registers= warnings in
+  =ddr3_controller.v= are expected synthesis lowering of small unpacked
+  register arrays. They are ignored for this experiment because the resulting
+  design builds, routes, and passes the full hardware BIST.
+- Yosys =Replacing floating point parameter ... with string= warnings for
+  =IDELAYE2= and =ODELAYE2= parameters are expected with the Xilinx primitive
+  models. They are ignored here because the design uses the same primitive path
+  in the passing bitstream.
+- Yosys range-select warnings around =write_by_byte_counter= and =calib_sel=
+  are due to generic debug/status fields being wider than the one-lane
+  instantiated signal widths. They should be cleaned up later for warning
+  hygiene, but they are not treated as a functional blocker because the affected
+  high bits are unused/undef padding and the full BIST passes.
+- Yosys cell-port resizing warnings on =OSERDESE2= tie-off ports are Xilinx
+  primitive constant-width normalization. They are ignored for this experiment.
+- OpenXC7 route timing warnings are not present for the tested ladder: all range
+  targets passed the =83.333 MHz= controller-clock requirement.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
