@@ -963,6 +963,112 @@ Build and test =SHORT_BIST= only after the OpenXC7 early calibration divergence
 has a targeted hypothesis. For now, do not spend time on BIST behavior; it is
 behind the failing boundary in OpenXC7.
 
+** 2026-05-20 Vivado placement-oracle experiment:
+
+Goal: test whether OpenXC7's calibration failure is explained by gross placement
+of the DDR input-capture byte lanes, and decide whether Vivado-derived pre-place
+constraints are a high-value next experiment.
+
+Plan documented before execution:
+
+- Use Vivado =CALIB_ONLY= as the known-good same-board placement oracle.
+- Extract final OpenXC7 placement with a post-route JSON, not the pre-place Yosys
+  JSON.
+- Compare only the failing phase's resources first: DQ/DQS IOB, IDELAY,
+  ISERDES, and OSERDES by byte lane.
+- If OpenXC7 differs materially from Vivado for the failing selected lane, create
+  a narrow pre-place experiment for that byte lane only. If OpenXC7 already
+  matches Vivado, do not spend an experiment on no-op placement constraints.
+
+Executed measurement:
+
+- Ran nextpnr with =--write ypcb_00338_1p1_ddr3_calib_only_routed.json= for the
+  OpenXC7 =CALIB_ONLY= design.
+- The run matched the prior routed timing boundary: =i_controller_clk= max
+  frequency =84.45 MHz=, passing the =83.333 MHz= target.
+- Compared that routed JSON against
+  =build/ypcb_00338_1p1_ddr3_vivado_calib_only_ddr_cells.tsv=.
+
+Result:
+
+- Every byte lane has the same DQ IOB/IDELAY/ILOGIC/OLOGIC span in OpenXC7 and
+  Vivado:
+  - lane 0: =Y13..Y22=, DQS =Y20=
+  - lane 1: =Y25..Y36=, DQS =Y32=
+  - lane 2: =Y39..Y48=, DQS =Y44=
+  - lane 3: =Y1..Y10=, DQS =Y8=
+  - lane 4: =Y114..Y123=, DQS =Y120=
+  - lane 5: =Y125..Y136=, DQS =Y132=
+  - lane 6: =Y139..Y148=, DQS =Y144=
+  - lane 7: =Y51..Y60=, DQS =Y58=
+- For lanes 0 and 1, every DQ bit's =IOBUF=, =IDELAYE2=, =ISERDESE2=, and
+  =OSERDESE2= site matched Vivado exactly.
+- OpenXC7 reports DQS differential IOBs as both P/N physical sites, e.g.
+  lane 1 =IOB_X0Y31,IOB_X0Y32=, while Vivado's TSV reports the master site
+  =IOB_X0Y32=. The associated DQS =IDELAY=, =ILOGIC=, and =OLOGIC= site is the
+  same in both flows.
+
+Interpretation:
+
+- Vivado-derived pre-place constraints for the DDR byte-lane input capture sites
+  are not the next useful experiment: OpenXC7 is already placing those resources
+  where Vivado places them.
+- The failure is now more likely in primitive configuration, inversion/polarity,
+  ISERDES bit ordering, IDELAY behavior, or route/resource semantics than in
+  gross byte-lane site placement.
+- The next oracle-guided comparison should inspect configured properties/FASM for
+  lane 0 and lane 1 DQS/DQ =IDELAYE2= and =ISERDESE2= instances, then form one
+  targeted experiment around the first concrete mismatch.
+
+Next measured action:
+
+Use the Vivado routed DCP to report DQS/DQ primitive properties for lanes 0 and
+1, and compare them to OpenXC7 routed JSON/FASM for the same cells. Focus first
+on =ISERDESE2= data width/interface mode/clock inversion/bit order and
+=IDELAYE2= delay mode/load/value fields.
+
+
+** 2026-05-20 DQS IDELAY primitive-oracle experiment:
+
+Goal: test the first concrete Vivado/OpenXC7 primitive-configuration mismatch,
+not a broad placement guess.
+
+Measured oracle comparison:
+
+- Vivado routed =CALIB_ONLY= DCP reports =IDELAY_VALUE=10= for lane 0 and lane 1
+  DQS =IDELAYE2= instances.
+- OpenXC7 routed JSON preserves the RTL-derived fractional parameter as
+  =IDELAY_VALUE=9.600000= for the same DQS =IDELAYE2= instances.
+- OpenXC7 FASM encodes the DQS initial tap as =IDELAY_VALUE[4:0] = 5'b01001=,
+  i.e. tap =9=, for all eight DQS lanes.
+- The inspected DQ and DQS =ISERDESE2= parameters match the Vivado oracle for the
+  checked lanes: =DATA_RATE=DDR=, =DATA_WIDTH=8=, =INTERFACE_TYPE=NETWORKING=,
+  =IOBDELAY=IFD=, =SERDES_MODE=MASTER=, and =IS_CLKB_INVERTED=1=.
+
+Hypothesis:
+
+- The open flow truncates the fractional DQS IDELAY parameter to tap =9=, while
+  Vivado uses tap =10=. This may move the MPR/DQS sample point enough to produce
+  the observed saturated DQS/MPR capture in OpenXC7.
+- This is an oracle-guided experiment, not a random delay sweep: it tests the
+  exact primitive value where Vivado and OpenXC7 diverge.
+
+Experiment to execute:
+
+- Change =DQS_IDELAY_TAP= to an integer rounded expression for the input DQS
+  delay. For =DDR3_CLK_PERIOD=3000 ps=, the computed quarter-cycle delay is
+  =9.6= taps, so the rounded integer is tap =10=.
+- Rebuild =openxc7_calib_only=.
+- Confirm the new OpenXC7 FASM encodes DQS =IDELAY_VALUE[4:0] = 5'b01010=.
+- Program and sample under one hardware lock:
+  =acquire lock -> program rounded-tap OpenXC7 bitstream -> read JTAG samples -> release lock=.
+- Interpret the result against the prior baseline:
+  - reaches =DONE_CALIBRATE=: DQS initial tap truncation was a calibration blocker.
+  - stays at =ANALYZE_DQS= but DQS/MPR values change: tap mismatch matters but is
+    not sufficient.
+  - remains saturated with the same values: continue with ISERDES bit order,
+    DQS polarity, route semantics, or controller input interpretation.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
