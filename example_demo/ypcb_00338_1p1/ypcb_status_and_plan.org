@@ -681,6 +681,79 @@ Do not random-fix all warnings in the active calibration-debug bitstream. The
 safe measured path is to first narrow or time-multiplex the 960-bit JTAG payload,
 then reapply the low-risk width/tie-off cleanup and rerun the warning ledger.
 
+
+** 2026-05-20 Vivado comparison experiment:
+
+Goal: determine whether the calibration failure is specific to the OpenXC7
+implementation or persists with Vivado using the same RTL, XDC, and USER1 JTAG
+debug payload.
+
+Vivado environment:
+
+- Setup script: =/home/roland/Vivado/2025.2.1/Vivado/settings64.sh=.
+- Version: =vivado v2025.2.1 (64-bit)=.
+
+Build result:
+
+- Command: =source /home/roland/Vivado/2025.2.1/Vivado/settings64.sh && make vivado > /tmp/ypcb_vivado_make.log 2>&1=.
+- Output bitstream: =build/ypcb_00338_1p1_ddr3_vivado.bit=.
+- Vivado completed =write_bitstream= successfully.
+- Final route timing was clean: =WNS=0.495=, =TNS=0.000=, =WHS=0.050=,
+  =THS=0.000=.
+- The end of =build/top.log= reported =0 Warnings, 0 Critical Warnings and
+  0 Errors= for bitstream generation.
+
+Hardware transaction:
+
+The Vivado bitstream was programmed and sampled with one lock covering the whole
+attributable transaction:
+
+1. Acquire =/tmp/ypcb-hs3-210299BF3824.lock=.
+2. Program =build/ypcb_00338_1p1_ddr3_vivado.bit=.
+3. Run 16 OpenOCD USER1 samples.
+4. Release the lock.
+
+Measured result:
+
+- Programming completed and JTAG DONE readback reported =done 1=.
+- USER1 debug magic remained valid: =magic=0xd3b5=.
+- =pll_locked=1=.
+- =calib_complete=0=.
+- All 16 samples were stable at =state=17=.
+- =dqs_state=17=.
+- =dqs_lane=7= and =selected_collect_lane=7=.
+- =dqs_current=0xaa=.
+- =dqs_store=0x0002a800=.
+- =dqs_start_index=9= and =dqs_start_index_stored=9=.
+- =dqs_start_index_repeat=0=.
+- =all_lane_dqs=0xaaaaaaaaaaaaaaaa=.
+- =dqs_nonzero_nibbles=0xffffffff= and
+  =dqs_transition_nibbles=0xffffffff=.
+- All-lane/all-burst MPR page was all zero:
+  =b7=0000000000000000 b6=0000000000000000 b5=0000000000000000 b4=0000000000000000=
+  =b3=0000000000000000 b2=0000000000000000 b1=0000000000000000 b0=0000000000000000=.
+- =selected_mpr_dq=0x0000000000000000=.
+- =selected_dqs_collect=0x00=, reversed =0x00=, inverted =0xff=, and
+  inverted-reversed =0xff=.
+- BIST did not start: =bist_progress=0x00=, =correct_low=0=, =wrong_low=0=.
+
+Interpretation:
+
+- Vivado does not make the design calibrate on this board. That weakens the
+  hypothesis that the failure is only an OpenXC7 implementation artifact.
+- Vivado does change the measured calibration behavior substantially. OpenXC7
+  produced uneven all-lane DQS snapshots such as =0x00ff00ff0000ffff= and MPR
+  samples that were all ones at the captured point. Vivado produced a clean
+  all-lane DQS pattern =0xaaaaaaaaaaaaaaaa=, but the all-lane MPR page was all
+  zeros.
+- The JTAG debug path survived Vivado synthesis/implementation, so the USER1
+  instrumentation is usable for cross-tool comparison.
+- The next measured split should focus on the controller state represented by
+  =state=17= and why Vivado has good-looking DQS activity while MPR DQ is all
+  zero. This points at MPR command/data timing, read-data enable/sample-cycle
+  selection, or PHY/controller interpretation rather than a simple missing-DQS
+  failure.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
