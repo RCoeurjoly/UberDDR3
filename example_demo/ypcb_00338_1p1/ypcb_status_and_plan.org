@@ -1321,6 +1321,64 @@ Decision criteria:
   latched post-mortem payload: it should still identify the lane and sample that
   let Vivado pass calibration.
 
+
+Execution result:
+
+- Commit under test: =8d3a9f4= (=Decode YPCB all-lane COLLECT_DQS samples=),
+  plus the unchanged RTL exact-sample latch from =a684eff=.
+- Rebuilt =vivado_calib_only= from the same RTL. Vivado timing passed:
+  =WNS=0.523 ns=, =TNS=0.000=, =WHS=0.063 ns=.
+- Programmed and sampled Vivado =CALIB_ONLY= under one lock. It reached
+  =DONE_CALIBRATE=: 80/80 samples had =calib_complete=1= and =state=23=.
+- Programmed and sampled OpenXC7 =CALIB_ONLY= under one lock with the same
+  decoder. It did not calibrate: 80/80 samples had =calib_complete=0=, with
+  21 samples in =MPR_READ=, 11 in =COLLECT_DQS=, and 48 in =ANALYZE_DQS=.
+
+Vivado post-calibration payload:
+
+- Dominant/final DQS state:
+  - =dqs_lane=7=, =dqs_store=0x0002a800=, =dqs_start_index_stored=9=.
+  - =all_lane_dqs_collect=0x00ff00ff0000ffff=.
+  - =lane_collects={l0:0xff l1:0xff l2:0x00 l3:0x00 l4:0xff l5:0x00 l6:0xff l7:0x00}=.
+- The selected-lane DQS/MPR pages are not valid calibration pages in
+  =DONE_CALIBRATE= because =o_debug5/o_debug6/o_debug7= are intentionally
+  repurposed for BIST/debug request data in states =BURST_WRITE= through
+  =DONE_CALIBRATE=. Only =o_debug8= still carries the all-lane MPR latch.
+
+OpenXC7 failing payload:
+
+- Dominant failing state:
+  - =selected_collect_lane=1= in all 80 samples.
+  - =dqs_store=0xffffffff= and =dqs_start_index_stored=39= in all 80 samples.
+  - 78/80 samples had =lane_collects={l0:0xff l1:0xff l2:0x00 l3:0x00 l4:0xff l5:0x00 l6:0xff l7:0x00}=.
+  - 78/80 samples had all lane MPR words equal to =0xffffffffffffffff=.
+- Two =COLLECT_DQS= samples exposed useful transient data:
+  - =lane_collects={l0:0x2a l1:0xff l2:0xaa l3:0xaa l4:0xaa l5:0xaa l6:0xaa l7:0xaa}=.
+  - =lane_mpr_dq={l0:0xff00ff00ff00ff00 l1:0xffffffffffffffff l2:0x00ff00ff00ff00ff l3:0x00ff00ff00ff0000 l4:0x00ff00ff00ff00ff l5:0x00ff00ff00ff00ff l6:0x00ff00ff00ff00ff l7:0x00ff00ff00ff00ff}=.
+
+Interpretation after execution:
+
+- OpenXC7 is not globally missing DQS or MPR activity. Several lanes show
+  alternating-looking DQS/MPR data at the exact sample point in the transient
+  =COLLECT_DQS= captures.
+- The selected failing lane is lane 1, and lane 1 remains all-high for both DQS
+  and MPR DQ in those captures. This points back to lane-specific byte-lane
+  input interpretation, lane 1 pin/IO semantics, or a lane-ordering mismatch,
+  not a global read-command or MPR enable failure.
+- Vivado is a calibration oracle, but the current post-mortem debug payload only
+  preserves the final lane's =dqs_store=. It does not preserve the pass/fail
+  signature for each lane after calibration advances through all lanes.
+
+Next measured action:
+
+- Add a compact per-lane calibration summary latch that records, for each lane,
+  the DQS pass index and a small pass/fail/status code when =ANALYZE_DQS= finds
+  the expected pattern and when it reaches end-of-window. Decode this for both
+  Vivado and OpenXC7.
+- This will answer whether Vivado really passes lane 1 with a different
+  signature, whether OpenXC7 passes lane 0 then dies at lane 1, and whether lane
+  order seen by the controller differs from the physical byte-lane order.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
