@@ -1105,6 +1105,107 @@ Interpretation after execution:
   net/route features and IOB differential polarity features for lane 1 first,
   since the selected lane is consistently lane 1 in the failing OpenXC7 samples.
 
+
+** 2026-05-20 Lane 1 DQS polarity/route/ISERDES oracle experiment:
+
+Goal: test the next measured suspect after the DQS tap experiment: whether
+OpenXC7's failing selected lane, lane 1, differs from Vivado in DQS P/N polarity,
+local DQS input route, or ISERDES input interpretation.
+
+Plan documented before execution:
+
+- Use Vivado =CALIB_ONLY= as the known-good oracle.
+- Inspect lane 1 only first, because OpenXC7 consistently selects lane 1 at the
+  failing =ANALYZE_DQS= point.
+- Compare:
+  - DQS P/N port-to-site mapping.
+  - =IOBUFDS_dqs.O -> IDELAYE2_dqs.IDATAIN= route.
+  - =IDELAYE2_dqs.DATAOUT -> ISERDESE2_dqs.DDLY= route.
+  - =ISERDESE2_dqs= mode, clock inversion, DDLY use, and Q bit ordering.
+- Only create a new RTL/constraint experiment if this comparison exposes a
+  concrete mismatch.
+
+Executed measurement:
+
+- Extracted lane 1 DQS properties and local routes from Vivado routed DCP into
+  =/tmp/ypcb_vivado_lane1_dqs_oracle.txt=.
+- Regenerated current tap-10 OpenXC7 route artifacts with:
+  =ypcb_00338_1p1_ddr3_calib_only_tap10_routed.json= and
+  =ypcb_00338_1p1_ddr3_calib_only_lane1_oracle.fasm=.
+- The regenerated OpenXC7 route again passed =--freq 83.333= after routing:
+  =i_controller_clk= max frequency =84.45 MHz=.
+
+Static comparison result:
+
+- DQS P/N mapping matches the Vivado oracle:
+  - =ddr3_dqs_p[1]= is package pin =AM17= at =IOB_X0Y32=.
+  - =ddr3_dqs_n[1]= is package pin =AM18= at =IOB_X0Y31=.
+  - Vivado uses =IOBUFDS_dqs= at =IOB_X0Y32= with =IOB33M.INBUF_EN=.
+  - OpenXC7 uses the same master input buffer: =IOB_X0Y32/IOB33M/INBUF_EN=,
+    with the N-side output buffer at =IOB_X0Y31=.
+- DQS input termination/polarity features match at the level visible in the
+  routed artifacts:
+  - Vivado: =DIFF_SSTL15=, =SLEW=FAST=, =IN_TERM=UNTUNED_SPLIT_40=,
+    =DIFF_TERM=0=, =IBUF_LOW_PWR=0=.
+  - OpenXC7 FASM for lane 1 includes =IN_DIFF= on both IOB sites,
+    =IN_TERM.UNTUNED_SPLIT_40=, =SLEW.FAST=, =PULLTYPE.NONE=, and =OUT_DIFF=.
+- The local DQS input route matches the intended dedicated path:
+  - Vivado =IOBUFDS_dqs/O -> IDELAYE2_dqs/IDATAIN= route is
+    =IOB_IBUF0 LIOI_I0 LIOI_IDELAY0_IDATAIN=.
+  - OpenXC7 connects =IOBUFDS_dqs$intcell$IBUF.OUT= directly to
+    =IDELAYE2_dqs.IDATAIN= on the same =X0Y32= byte site.
+  - Vivado =IDELAYE2_dqs/DATAOUT -> ISERDESE2_dqs/DDLY= route is
+    =LIOI_IDELAY0_DATAOUT LIOI_ILOGIC0_DDLY=.
+  - OpenXC7 connects =IDELAYE2_dqs.DATAOUT= directly to
+    =ISERDESE2_dqs.DDLY= on the same =X0Y32= byte site.
+- =ISERDESE2_dqs= configuration matches the Vivado oracle for the meaningful
+  fields:
+  - =DATA_RATE=DDR=
+  - =DATA_WIDTH=8=
+  - =INTERFACE_TYPE=NETWORKING=
+  - =IOBDELAY=IFD=
+  - =NUM_CE=1=
+  - =IS_CLKB_INVERTED=1=
+  - =DDLY= is used, not direct =D=.
+  - Q ordering is the RTL-intended reverse mapping: =Q1 -> i_phy_iserdes_dqs[15]=
+    through =Q8 -> i_phy_iserdes_dqs[8]=.
+- Vivado ties =DYNCLKSEL= and =DYNCLKDIVSEL= high, while OpenXC7 omits those
+  ports in the routed JSON. This is not treated as actionable because Vivado also
+  reports =DYN_CLK_INV_EN=FALSE= and =DYN_CLKDIV_INV_EN=FALSE= for the same cell,
+  so the dynamic inversion inputs are disabled.
+
+Dynamic comparison context:
+
+- Vivado =CALIB_ONLY= reaches =DONE_CALIBRATE= and reports a stable selected
+  lane 0 post-calibration capture, usually =selected_dqs_collect=0x10= and
+  =selected_mpr_dq=0x3d3d3d3d3d3d3d3d=.
+- OpenXC7 tap-10 still fails at =ANALYZE_DQS= with selected lane 1 saturated:
+  =selected_dqs_collect=0xff= and
+  =selected_mpr_dq=0xffffffffffffffff=.
+- The common =all_lane_dqs= value seen in both logs is usually
+  =0x00ff00ff0000ffff=, so a simple controller-side inversion/reversal of the
+  selected 8-bit DQS byte is not enough: OpenXC7's selected lane has no observed
+  DQS transitions to analyze.
+
+Interpretation after execution:
+
+- Lane 1 DQS static implementation now matches Vivado closely enough that a
+  broad P/N swap, pre-place constraint, or ISERDES mode edit would be a random
+  fix rather than a measured experiment.
+- The remaining useful suspect is lower than this netlist-level comparison:
+  OpenXC7 bitstream feature semantics for the 7-series IOB/ILOGIC/IDELAY path,
+  or a runtime timing/clocking interaction that changes what the same-looking
+  lane 1 path captures.
+
+Next measured action:
+
+- Use a dynamic oracle instead of another static placement/property comparison.
+  The best next probe is a small debug build that latches the raw lane 1 DQS
+  ISERDES byte and lane 1 MPR DQ data at the exact =COLLECT_DQS= sample cycle,
+  before =ANALYZE_DQS= compresses it into =dqs_store=. If possible, latch the
+  same point for all lanes so Vivado and OpenXC7 can be compared sample-for-
+  sample rather than only after Vivado has completed calibration.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
