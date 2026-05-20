@@ -91,6 +91,15 @@
 `elsif YPCB_SHORT_BIST
      localparam[1:0] YPCB_BIST_MODE = 2'd1;
      localparam integer YPCB_BIST_LIMIT_BITS = 8;
+`elsif YPCB_BIST_LIMIT8
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 8;
+`elsif YPCB_BIST_LIMIT12
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 12;
+`elsif YPCB_BIST_LIMIT16
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 16;
 `else
      localparam[1:0] YPCB_BIST_MODE = 2'd1;
      localparam integer YPCB_BIST_LIMIT_BITS = 0;
