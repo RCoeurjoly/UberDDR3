@@ -3875,7 +3875,15 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     wire[5:0] debug_dqs_start_index_stored = dqs_start_index_stored;
     wire[3:0] debug_dqs_start_index_repeat = dqs_start_index_repeat;
 
-    assign o_debug1 = {27'd0, state_calibrate[4:0]};
+    assign o_debug1 = (state_calibrate >= BURST_WRITE && state_calibrate <= DONE_CALIBRATE) ? {
+        wrong_data[7:0],
+        correct_data[7:0],
+        write_test_address_counter[7:0],
+        reset_from_test,
+        o_wb_stall_calib,
+        calib_stb,
+        state_calibrate[4:0]
+    } : {27'd0, state_calibrate[4:0]};
 
     always @(posedge i_controller_clk) begin
         if (sync_rst_controller) begin
@@ -3950,7 +3958,22 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 debug_selected_dqs_reversed,
                 debug_selected_dqs_collect
             };
-            o_debug7 <= debug_all_lane_mpr_burst0_collect;
+            if (state_calibrate >= BURST_WRITE && state_calibrate <= DONE_CALIBRATE) begin
+                o_debug5 <= calib_data[63:0];
+                o_debug6 <= {
+                    read_test_address_counter[24:0],
+                    write_test_address_counter[24:0],
+                    write_by_byte_counter[5:0],
+                    calib_aux[3:0],
+                    calib_we,
+                    calib_stb,
+                    o_wb_stall_calib,
+                    o_wb_ack_uncalibrated
+                };
+                o_debug7 <= {calib_sel[31:0], 7'd0, calib_addr[24:0]};
+            end else begin
+                o_debug7 <= debug_all_lane_mpr_burst0_collect;
+            end
             o_debug8 <= debug_all_lane_mpr_collect;
         end
     end

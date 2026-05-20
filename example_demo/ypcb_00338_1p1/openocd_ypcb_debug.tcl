@@ -52,6 +52,9 @@ proc read_ypcb_debug {} {
     set all_lane_mpr_burst0 [expr 0x[string range $raw 128 143]]
     set selected_dqs_page [expr 0x[string range $raw 144 159]]
     set selected_mpr_dq [expr 0x[string range $raw 160 175]]
+    set bist_data_low $selected_mpr_dq
+    set bist_req_page [expr 0x[string range $raw 144 159]]
+    set bist_addr_sel_page $all_lane_mpr_burst0
     set dqs_counters [expr 0x[string range $raw 176 191]]
     set dqs_snapshot [expr 0x[string range $raw 192 207]]
     set dqs_debug [expr 0x[string range $raw 208 223]]
@@ -94,15 +97,26 @@ proc read_ypcb_debug {} {
     set dqs_text [format " dqs_debug=0x%016x dqs_state=%d dqs_lane=%d dqs_current=0x%02x dqs_store=0x%08x dqs_start_index=%d dqs_start_index_stored=%d dqs_start_index_repeat=%d all_lane_dqs=0x%016x dqs_nonzero_nibbles=0x%08x dqs_transition_nibbles=0x%08x selected_collect_lane=%d all_lane_mpr_bursts={b7:%s b6:%s b5:%s b4:%s b3:%s b2:%s b1:%s b0:%s} all_lane_mpr_burst0=0x%016x selected_mpr_dq=0x%016x selected_dqs_collect=0x%02x selected_dqs_rev=0x%02x selected_dqs_inv=0x%02x selected_dqs_inv_rev=0x%02x selected_collect_samples=%d"         $dqs_debug $dqs_state $dqs_lane $dqs_current $dqs_store $dqs_start_index $dqs_start_index_stored $dqs_start_index_repeat         $dqs_snapshot $dqs_nonzero $dqs_transition $selected_collect_lane $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex $all_lane_mpr_burst0 $selected_mpr_dq $selected_dqs_collect $selected_dqs_reversed $selected_dqs_inverted $selected_dqs_inv_reversed $selected_collect_samples]
     if {$state >= 17 && $state <= 23} {
         set calib_stb [expr {($debug1 >> 5) & 1}]
-        set repeat_test [expr {($debug1 >> 6) & 1}]
+        set o_wb_stall_calib [expr {($debug1 >> 6) & 1}]
         set reset_from_test [expr {($debug1 >> 7) & 1}]
-        set bist_progress [expr {($debug1 >> 8) & 0xff}]
+        set write_addr_low [expr {($debug1 >> 8) & 0xff}]
         set correct_low [expr {($debug1 >> 16) & 0xff}]
         set wrong_low [expr {($debug1 >> 24) & 0xff}]
-        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s bist_progress=0x%02x correct_low=%d wrong_low=%d calib_stb=%d repeat_test=%d reset_from_test=%d seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
+        set o_wb_ack_uncalibrated [expr {$bist_req_page & 1}]
+        set req_stall [expr {($bist_req_page >> 1) & 1}]
+        set req_calib_stb [expr {($bist_req_page >> 2) & 1}]
+        set req_calib_we [expr {($bist_req_page >> 3) & 1}]
+        set req_calib_aux [expr {($bist_req_page >> 4) & 0xf}]
+        set req_write_byte [expr {($bist_req_page >> 8) & 0x3f}]
+        set req_write_addr [expr {($bist_req_page >> 14) & 0x1ffffff}]
+        set req_read_addr [expr {($bist_req_page >> 39) & 0x1ffffff}]
+        set req_calib_addr [expr {$bist_addr_sel_page & 0x1ffffff}]
+        set req_calib_sel_low [expr {($bist_addr_sel_page >> 32) & 0xffffffff}]
+        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s bist_write_addr_low=0x%02x correct_low=0x%02x wrong_low=0x%02x calib_stb=%d o_wb_stall_calib=%d req_stall=%d o_wb_ack_uncalibrated=%d reset_from_test=%d bist_req={we:%d aux:0x%x write_byte:%d write_addr:0x%07x read_addr:0x%07x calib_addr:0x%07x sel_low:0x%08x data_low:0x%016x} seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
             $raw $magic $sys_rstn $pll_locked $calib_complete $user1_selected $debug1 $state \
             $dqs_text \
-            $bist_progress $correct_low $wrong_low $calib_stb $repeat_test $reset_from_test \
+            $write_addr_low $correct_low $wrong_low $calib_stb $o_wb_stall_calib $req_stall $o_wb_ack_uncalibrated $reset_from_test \
+            $req_calib_we $req_calib_aux $req_write_byte $req_write_addr $req_read_addr $req_calib_addr $req_calib_sel_low $bist_data_low \
             $done_seen $finish_seen $analyze_low_seen $read_data_seen $issue_read_seen $issue_write2_seen $issue_write1_seen \
             $burst_write_seen $burst_read_seen $random_write_seen $random_read_seen $alternate_seen]
     } else {
