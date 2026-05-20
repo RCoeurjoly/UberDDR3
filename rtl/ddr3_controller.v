@@ -554,6 +554,7 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
+    reg[LANES*8-1:0] debug_lane_dqs_summary = {LANES*8{1'b0}};
     reg[3:0] train_delay;
     reg[3:0] delay_before_read_data = 0;
     reg[$clog2(DELAY_BEFORE_WRITE_LEVEL_FEEDBACK):0] delay_before_write_level_feedback = 0;
@@ -2428,7 +2429,8 @@ module ddr3_controller #(
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
             dqs_start_index_stored <= 0;
-            dqs_start_index_repeat <= 0;        
+            dqs_start_index_repeat <= 0;
+            debug_lane_dqs_summary <= {LANES*8{1'b0}};
             delay_before_write_level_feedback <= 0;
             delay_before_read_data <= 0;
             read_lane_data <= 0;
@@ -3866,7 +3868,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     reg[LANES*8-1:0] debug_dqs_prev = 0;
     reg[31:0] debug_dqs_nonzero_count = 32'd0;
     reg[31:0] debug_dqs_transition_count = 32'd0;
-    reg[LANES*8-1:0] debug_lane_dqs_summary = {LANES*8{1'b0}};
     reg[7:0] debug_collect_sample_count = 8'd0;
     reg[2:0] debug_collect_lane = 3'd0;
     reg[7:0] debug_selected_dqs_collect = 8'd0;
@@ -3914,7 +3915,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             debug_dqs_prev <= 0;
             debug_dqs_nonzero_count <= 32'd0;
             debug_dqs_transition_count <= 32'd0;
-            debug_lane_dqs_summary <= {LANES*8{1'b0}};
             debug_collect_sample_count <= 8'd0;
             debug_collect_lane <= 3'd0;
             debug_selected_dqs_collect <= 8'd0;
