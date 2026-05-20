@@ -1292,6 +1292,35 @@ Next measured action:
   as a poor oracle target and move to all-lane/selected-lane comparison rather
   than a lane-specific fix.
 
+
+** 2026-05-20 Vivado/OpenXC7 all-lane COLLECT_DQS oracle comparison:
+
+Goal: use the existing exact-sample latch to compare Vivado and OpenXC7 lane by
+lane at =COLLECT_DQS=, instead of using fixed lane 1 as the oracle target.
+
+Plan documented before execution:
+
+- Keep RTL/calibration behavior unchanged.
+- Extend only the OpenOCD decoder to print all eight lane DQS bytes and all
+  eight lane MPR DQ words reconstructed from the already-latched all-lane MPR
+  burst payload.
+- Rebuild =vivado_calib_only= from the same RTL commit as the OpenXC7 probe, so
+  the Vivado oracle includes the same =COLLECT_DQS= latch semantics.
+- Program and sample Vivado =CALIB_ONLY= under one board lock.
+- Reuse the existing OpenXC7 =CALIB_ONLY= result where possible, and rerun it
+  only if the decoder output needs a lane-by-lane printout from the same payload.
+
+Decision criteria:
+
+- If Vivado shows a non-saturated lane 1 DQS/MPR sample while OpenXC7 lane 1 is
+  all ones, focus on open-flow runtime input capture or read timing semantics.
+- If Vivado also shows lane 1 saturated but another lane is healthy at the same
+  sample point, fixed lane 1 was the wrong oracle target and subsequent probes
+  should compare selected-lane/all-lane behavior.
+- If Vivado reaches =DONE_CALIBRATE= before we can observe early states, use the
+  latched post-mortem payload: it should still identify the lane and sample that
+  let Vivado pass calibration.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
