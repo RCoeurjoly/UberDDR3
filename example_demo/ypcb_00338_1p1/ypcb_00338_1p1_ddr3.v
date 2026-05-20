@@ -63,7 +63,9 @@
      wire[63:0] o_debug7;
      wire[511:0] o_debug8;
      wire[8-1:0] ddr3_dm;
-`ifdef YPCB_TWO_LANES
+`ifdef YPCB_ONE_LANE
+     localparam integer YPCB_BYTE_LANES = 1;
+`elsif YPCB_TWO_LANES
      localparam integer YPCB_BYTE_LANES = 2;
 `else
      localparam integer YPCB_BYTE_LANES = 8;
@@ -82,6 +84,9 @@
 `ifdef YPCB_CALIB_ONLY
      localparam[1:0] YPCB_BIST_MODE = 2'd0;
      localparam integer YPCB_BIST_LIMIT_BITS = 0;
+`elsif YPCB_TINY_BIST
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 4;
 `elsif YPCB_SHORT_BIST
      localparam[1:0] YPCB_BIST_MODE = 2'd1;
      localparam integer YPCB_BIST_LIMIT_BITS = 8;

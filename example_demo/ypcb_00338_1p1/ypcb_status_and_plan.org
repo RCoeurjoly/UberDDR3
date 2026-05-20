@@ -1609,6 +1609,63 @@ Interpretation:
   over address/data patterns succeeded. The 2-lane OpenXC7 result proves
   calibration completion only, not full DDR3 driver correctness.
 
+
+** 2026-05-20 minimum-lane success plan:
+
+Goal refinement:
+
+- The full goal is not to scale YPCB back to 8 lanes in this experiment.
+- The goal is to make DDR3 work at the smallest credible setting.
+- Stop if =BYTE_LANES=1=, =DQ_BITS=8=, DDR3 clock =333.333 MHz=, and a tiny BIST pass on hardware.
+- Scaling to 2/4/8 lanes is out of scope for this success criterion.
+
+Minimum lane-count evidence:
+
+- =BYTE_LANES=1= is the true candidate minimum. =BYTE_LANES=2= is the default/common x16 shape, not a hard lower bound.
+- UberDDR3 scales the physical interface as one x8 byte lane: =dq[7:0]=, one DQS pair, and one DM bit for =BYTE_LANES=1=.
+- The controller contains an explicit guard for =LANES=1= width math: =$clog2(LANES) == 0 ? 1 : $clog2(LANES)=. That would be unnecessary if one lane were never intended to elaborate.
+- A scratch Yosys elaboration check forcing =YPCB_BYTE_LANES=1= completed through =proc; check= without a fatal structural error.
+- No evidence has been found that UberDDR3 byte lanes must be enabled in pairs.
+
+Physical caveats:
+
+- YPCB command/address/control signals are shared across the memory interface. Reducing =BYTE_LANES= means the controller only uses the selected lower byte lane(s); it does not make the other physical DRAM byte lanes disappear.
+- This is acceptable for the minimum bring-up target because the measured question is whether any coherent x8 lane can calibrate and complete a tiny BIST.
+- The current YPCB reproducer has an internal =ddr3_dm= wire but no top-level board DM port in the wrapper. Keep that caveat in the measurement record; do not silently treat this as a final production memory interface.
+- One-lane mode uses physical/logical lane 0: =ddr3_dq[7:0]= and =ddr3_dqs_p/n[0]=. Do not mix DQ bits across byte lanes.
+
+Implementation:
+
+- Add =YPCB_ONE_LANE= as a compile-time build mode.
+- Add =YPCB_TINY_BIST= with =BIST_MODE=1= and =BIST_LIMIT_BITS=4=, so the test exercises a small write/read range after calibration rather than the full memory sweep.
+- Add OpenXC7 targets:
+  - =openxc7_calib_only_1lane=
+  - =openxc7_tiny_bist_1lane=
+  - =openxc7_tiny_bist_2lanes=
+- Keep the already-proven =openxc7_calib_only_2lanes= as fallback evidence, not the primary goal.
+
+Execution plan:
+
+1. Build =openxc7_calib_only_1lane=.
+2. Program and sample it with one hardware lock covering the whole transaction:
+   acquire lock, program bitstream, read JTAG samples, release lock.
+3. If one-lane calibration reaches =DONE_CALIBRATE=, build and run
+   =openxc7_tiny_bist_1lane= under the same lock discipline.
+4. If one-lane tiny BIST reaches final done with no wrong-count evidence, stop:
+   the minimum DDR3 target is working.
+5. If one-lane calibration fails for a structural or hardware reason, document the
+   failure and fall back to =openxc7_tiny_bist_2lanes= because two-lane
+   =CALIB_ONLY= is already proven.
+6. Do not run a lane-count ladder unless the minimum target fails and the new
+   failure mode specifically requires that comparison.
+
+Commit discipline:
+
+- Commit the build-mode/instrumentation change separately before hardware result
+  documentation when practical.
+- Commit each measured result separately so every bitstream and JTAG log can be
+  tied to a precise source revision.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

@@ -33,15 +33,24 @@ XDC ?= ${PROJECT}.xdc
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
-.PHONY: openxc7_calib_only openxc7_short_bist openxc7_calib_only_2lanes openxc7_calib_only_odelay openxc7_calib_only_odelay_2lanes
+.PHONY: openxc7_calib_only openxc7_short_bist openxc7_calib_only_1lane openxc7_calib_only_2lanes openxc7_tiny_bist_1lane openxc7_tiny_bist_2lanes openxc7_calib_only_odelay openxc7_calib_only_odelay_2lanes
 openxc7_calib_only:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY"
 
 openxc7_short_bist:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_short_bist TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_SHORT_BIST"
 
+openxc7_calib_only_1lane:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only_1lane TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY -D YPCB_ONE_LANE"
+
 openxc7_calib_only_2lanes:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only_2lanes TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY -D YPCB_TWO_LANES"
+
+openxc7_tiny_bist_1lane:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_tiny_bist_1lane TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_TINY_BIST -D YPCB_ONE_LANE"
+
+openxc7_tiny_bist_2lanes:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_tiny_bist_2lanes TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_TINY_BIST -D YPCB_TWO_LANES"
 
 openxc7_calib_only_odelay:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only_odelay TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY -D YPCB_ODELAY_SUPPORTED"
