@@ -22,8 +22,10 @@ DDR_TYPES = {
     "BUFG",
 }
 
-LANE_RE = re.compile(r"genblk5\[(\d+)\]")
+DQ_RE = re.compile(r"genblk5\[(\d+)\]")
+DQS_RE = re.compile(r"genblk7\[(\d+)\]")
 CMD_RE = re.compile(r"genblk1\[(\d+)\]")
+SITE_Y_RE = re.compile(r"Y(\d+)$")
 
 
 def top_module(modules: dict) -> str:
@@ -41,18 +43,39 @@ def load_json_cells(path: Path) -> list[tuple[str, str]]:
     return [(name, cell.get("type", "")) for name, cell in cells.items()]
 
 
+def y_number(site: str) -> int | None:
+    match = SITE_Y_RE.search(site or "")
+    return int(match.group(1)) if match else None
+
+
+def compact_sites(sites: set[str]) -> str:
+    clean = sorted((s for s in sites if s), key=lambda s: (re.sub(r"Y\d+$", "", s), y_number(s) or -1, s))
+    return ",".join(clean) if clean else "-"
+
+
+def site_span(sites: set[str]) -> str:
+    ys = [y for y in (y_number(s) for s in sites) if y is not None]
+    if not ys:
+        return "-"
+    return f"Y{min(ys)}..Y{max(ys)}"
+
+
 def summarize_json(path: Path) -> list[str]:
     cells = load_json_cells(path)
     counts = Counter(cell_type for _, cell_type in cells if cell_type in DDR_TYPES)
-    lane_counts: dict[int, Counter[str]] = defaultdict(Counter)
+    dq_lane_counts: dict[int, Counter[str]] = defaultdict(Counter)
+    dqs_lane_counts: dict[int, Counter[str]] = defaultdict(Counter)
     cmd_counts: dict[int, Counter[str]] = defaultdict(Counter)
 
     for name, cell_type in cells:
         if cell_type not in DDR_TYPES:
             continue
-        lane_match = LANE_RE.search(name)
-        if lane_match:
-            lane_counts[int(lane_match.group(1))][cell_type] += 1
+        dq_match = DQ_RE.search(name)
+        if dq_match:
+            dq_lane_counts[int(dq_match.group(1)) // 8][cell_type] += 1
+        dqs_match = DQS_RE.search(name)
+        if dqs_match:
+            dqs_lane_counts[int(dqs_match.group(1))][cell_type] += 1
         cmd_match = CMD_RE.search(name)
         if cmd_match:
             cmd_counts[int(cmd_match.group(1))][cell_type] += 1
@@ -61,12 +84,14 @@ def summarize_json(path: Path) -> list[str]:
     for cell_type, count in sorted(counts.items()):
         lines.append(f"{cell_type}\t{count}")
 
-    lines.append("## DQ/DQS lane primitive counts")
-    lines.append("lane\tIOBUF\tIOBUFDS\tIDELAYE2\tISERDESE2\tOSERDESE2")
-    for lane in sorted(lane_counts):
-        c = lane_counts[lane]
+    lines.append("## Byte-lane primitive counts")
+    lines.append("lane\tDQ_IOBUF\tDQ_IDELAYE2\tDQ_ISERDESE2\tDQ_OSERDESE2\tDQS_IOBUFDS\tDQS_IDELAYE2\tDQS_ISERDESE2\tDQS_OSERDESE2")
+    for lane in sorted(set(dq_lane_counts) | set(dqs_lane_counts)):
+        dq = dq_lane_counts[lane]
+        dqs = dqs_lane_counts[lane]
         lines.append(
-            f"{lane}\t{c['IOBUF']}\t{c['IOBUFDS']}\t{c['IDELAYE2']}\t{c['ISERDESE2']}\t{c['OSERDESE2']}"
+            f"{lane}\t{dq['IOBUF']}\t{dq['IDELAYE2']}\t{dq['ISERDESE2']}\t{dq['OSERDESE2']}\t"
+            f"{dqs['IOBUFDS']}\t{dqs['IDELAYE2']}\t{dqs['ISERDESE2']}\t{dqs['OSERDESE2']}"
         )
 
     lines.append("## Command/address OSERDES count")
@@ -78,31 +103,37 @@ def summarize_vivado_tsv(path: Path) -> list[str]:
     if not path.exists():
         return [f"# Vivado TSV {path} missing"]
     counts = Counter()
-    lane_sites: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
-    rows = []
+    dq_sites: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    dqs_sites: dict[int, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     with path.open(newline="") as f:
         reader = csv.DictReader(f, delimiter="\t")
         for row in reader:
-            rows.append(row)
             ref = row.get("ref_name", "")
             counts[ref] += 1
-            lane_match = LANE_RE.search(row.get("name", ""))
-            if lane_match:
-                lane_sites[int(lane_match.group(1))][ref].add(row.get("site", ""))
+            name = row.get("name", "")
+            site = row.get("site", "")
+            dq_match = DQ_RE.search(name)
+            if dq_match:
+                dq_sites[int(dq_match.group(1)) // 8][ref].add(site)
+            dqs_match = DQS_RE.search(name)
+            if dqs_match:
+                dqs_sites[int(dqs_match.group(1))][ref].add(site)
 
     lines = [f"# Vivado cells {path}", "## DDR primitive counts"]
     for cell_type, count in sorted(counts.items()):
         lines.append(f"{cell_type}\t{count}")
 
-    lines.append("## DQ/DQS lane sites")
-    lines.append("lane\tIOBUF_sites\tIOBUFDS_sites\tIDELAYE2_sites\tISERDESE2_sites\tOSERDESE2_sites")
-    for lane in sorted(lane_sites):
-        refs = lane_sites[lane]
-        fields = []
-        for ref in ["IOBUF", "IOBUFDS", "IDELAYE2", "ISERDESE2", "OSERDESE2"]:
-            sites = sorted(s for s in refs[ref] if s)
-            fields.append(",".join(sites) if sites else "-")
-        lines.append(f"{lane}\t" + "\t".join(fields))
+    lines.append("## Byte-lane site summary")
+    lines.append("lane\tDQ_IOB_span\tDQ_IDELAY_span\tDQ_ILOGIC_span\tDQ_OLOGIC_span\tDQS_IOB\tDQS_IDELAY\tDQS_ILOGIC\tDQS_OLOGIC")
+    for lane in sorted(set(dq_sites) | set(dqs_sites)):
+        dq = dq_sites[lane]
+        dqs = dqs_sites[lane]
+        lines.append(
+            f"{lane}\t{site_span(dq['IOBUF'])}\t{site_span(dq['IDELAYE2'])}\t"
+            f"{site_span(dq['ISERDESE2'])}\t{site_span(dq['OSERDESE2'])}\t"
+            f"{compact_sites(dqs['IOBUFDS'])}\t{compact_sites(dqs['IDELAYE2'])}\t"
+            f"{compact_sites(dqs['ISERDESE2'])}\t{compact_sites(dqs['OSERDESE2'])}"
+        )
     return lines
 
 
