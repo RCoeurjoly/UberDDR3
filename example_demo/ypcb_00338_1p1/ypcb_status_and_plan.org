@@ -1069,6 +1069,42 @@ Experiment to execute:
   - remains saturated with the same values: continue with ISERDES bit order,
     DQS polarity, route semantics, or controller input interpretation.
 
+Executed result:
+
+- Rebuilt =openxc7_calib_only= after rounding =DQS_IDELAY_TAP=. The final routed
+  OpenXC7 timing still passed: =i_controller_clk= max frequency =84.45 MHz= at
+  the =83.333 MHz= target.
+- The original DQS =IDELAY_VALUE=9.600000= synthesis warning disappeared; the
+  remaining floating-point warnings are for unrelated primitive fields such as
+  =REFCLK_FREQUENCY=200.000000=.
+- The rebuilt FASM now encodes all eight DQS lanes as
+  =IDELAY_VALUE[4:0] = 5'b01010=, matching Vivado's tap =10= oracle.
+- Programmed and sampled under one hardware lock. Raw log:
+  =/tmp/ypcb_openxc7_calib_only_dqs_tap10_jtag.log=.
+- Hardware result across =80= samples:
+  - =state=2= (=MPR_READ=): =10= samples
+  - =state=3= (=COLLECT_DQS=): =7= samples
+  - =state=4= (=ANALYZE_DQS=): =63= samples
+  - =calib_complete=0= for all =80= samples
+- The selected-lane failure signature did not improve:
+  - =selected_collect_lane=1=
+  - =dqs_store=0xffffffff=
+  - =dqs_start_index_stored=39=
+  - =selected_dqs_collect=0xff=
+  - =selected_mpr_dq=0xffffffffffffffff=
+
+Interpretation after execution:
+
+- The DQS tap 9-vs-10 mismatch was real, but it is not the primary calibration
+  blocker for OpenXC7 on YPCB. Matching Vivado's initial DQS IDELAY tap leaves
+  the same saturated DQS/MPR capture signature.
+- Continue with the remaining oracle-guided suspects: DQS polarity/input
+  interpretation, ISERDES bit order, route/resource semantics around the DQS
+  differential input path, or controller interpretation of the per-lane capture.
+- A useful next experiment is to use the Vivado oracle to compare the DQS input
+  net/route features and IOB differential polarity features for lane 1 first,
+  since the selected lane is consistently lane 1 in the failing OpenXC7 samples.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
