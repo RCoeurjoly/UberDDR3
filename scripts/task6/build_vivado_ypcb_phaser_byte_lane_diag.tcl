@@ -3,7 +3,7 @@
 # Usage:
 #   vivado -mode batch -nojournal -nolog \
 #     -source scripts/task6/build_vivado_ypcb_phaser_byte_lane_diag.tcl \
-#     -tclargs <out_dir> ?sequence_spec_json?
+#     -tclargs <out_dir> ?sequence_spec_json? ?extra_verilog_defines?
 #
 # This is an oracle bitstream only.  The deliverable flow remains open-source.
 
@@ -13,15 +13,24 @@ proc write_file {path text} {
     close $fp
 }
 
-if {$argc < 1 || $argc > 2} {
-    error "usage: build_vivado_ypcb_phaser_byte_lane_diag.tcl <out_dir> ?sequence_spec_json?"
+if {$argc < 1 || $argc > 3} {
+    error "usage: build_vivado_ypcb_phaser_byte_lane_diag.tcl <out_dir> ?sequence_spec_json? ?extra_verilog_defines?"
 }
 
 set out_dir [lindex $argv 0]
-set sequence_spec "example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observe_only.json"
-if {$argc == 2} {
+set sequence_spec "example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence_observed.json"
+if {$argc >= 2 && [lindex $argv 1] ne ""} {
     set sequence_spec [lindex $argv 1]
 }
+set extra_verilog_defines {}
+if {$argc == 3 && [lindex $argv 2] ne ""} {
+    set extra_verilog_defines [split [lindex $argv 2] ","]
+}
+set verilog_defines [concat {YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED} $extra_verilog_defines]
+set ddr3_lane0_context [expr {[lsearch -exact $verilog_defines "YPCB_PHASER_BYTE_LANE_DIAG_DDR3_LANE0"] >= 0}]
+set dqs_phaseref_context [expr {[lsearch -exact $verilog_defines "YPCB_PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF"] >= 0}]
+set golden_c0_group2a_context [expr {[lsearch -exact $verilog_defines "YPCB_PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A"] >= 0}]
+set golden_c0_group2b_context [expr {[lsearch -exact $verilog_defines "YPCB_PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B"] >= 0}]
 file mkdir $out_dir
 
 set sequence_header "example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_sequence.vh"
@@ -30,7 +39,7 @@ exec python3 scripts/task6/generate_ypcb_phaser_sequence_header.py \
     --out $sequence_header
 
 set xdc_path [file join $out_dir "ypcb_phaser_byte_lane_diag_vivado.xdc"]
-write_file $xdc_path {
+set xdc_text {
 set_property LOC AA28 [get_ports {clk50}]
 set_property IOSTANDARD LVCMOS18 [get_ports {clk50}]
 create_clock -name clk50 -period 20.000 [get_ports clk50]
@@ -47,17 +56,41 @@ set_property IOSTANDARD LVCMOS18 [get_ports {led[2]}]
 
 set_property LOC PHASER_REF_X0Y0 [get_cells phaser_ref_i]
 set_property LOC PHY_CONTROL_X0Y0 [get_cells phy_control_i]
-set_property LOC PHASER_IN_PHY_X0Y0 [get_cells phaser_in_i]
-set_property LOC PHASER_OUT_PHY_X0Y0 [get_cells phaser_out_i]
 set_property LOC PLLE2_ADV_X0Y1 [get_cells phaser_pll_i]
 }
+if {$golden_c0_group2b_context} {
+    append xdc_text "set_property LOC PHASER_OUT_PHY_X0Y1 \[get_cells phaser_out_i\]\n"
+} else {
+    append xdc_text "set_property LOC PHASER_OUT_PHY_X0Y0 \[get_cells phaser_out_i\]\n"
+}
+if {$golden_c0_group2a_context} {
+    append xdc_text "set_property LOC PHASER_IN_PHY_X0Y0 \[get_cells phaser_in_i\]\n"
+} elseif {$dqs_phaseref_context || $golden_c0_group2b_context} {
+    append xdc_text "set_property LOC PHASER_IN_PHY_X0Y1 \[get_cells phaser_in_i\]\n"
+} else {
+    append xdc_text "set_property LOC PHASER_IN_PHY_X0Y0 \[get_cells phaser_in_i\]\n"
+}
+if {$ddr3_lane0_context} {
+    set lane0_xdc_path "example_demo/ypcb_00338_1p1/ypcb_phaser_ddr3_lane0_probe.xdc"
+    set fp [open $lane0_xdc_path r]
+    append xdc_text "\n" [read $fp]
+    close $fp
+}
+if {[lsearch -exact $verilog_defines "YPCB_PHASER_BYTE_LANE_DIAG_IN_FIFO"] >= 0} {
+    if {$golden_c0_group2b_context} {
+        append xdc_text "set_property LOC IN_FIFO_X0Y1 \[get_cells in_fifo_i\]\n"
+    } else {
+        append xdc_text "set_property LOC IN_FIFO_X0Y0 \[get_cells in_fifo_i\]\n"
+    }
+}
+write_file $xdc_path $xdc_text
 
 create_project -force ypcb_phaser_byte_lane_diag_vivado \
     [file join $out_dir "vivado_project"] \
     -part xc7k480tffg1156-2
 
 read_verilog -sv example_demo/ypcb_00338_1p1/ypcb_bscan_smoke.sv
-set_property verilog_define {YPCB_PHASER_BYTE_LANE_DIAG_CLOCKED} [current_fileset]
+set_property verilog_define $verilog_defines [current_fileset]
 read_verilog -sv example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag.sv
 read_xdc $xdc_path
 

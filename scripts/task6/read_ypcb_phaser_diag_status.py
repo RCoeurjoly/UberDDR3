@@ -16,10 +16,12 @@ from read_jtag_debug_xvc import unsigned_field
 
 
 MAGIC = 0x50485344
-BITS = 128
+BITS_DEFAULT = 136
 
 
-def decode_status(payload: int) -> dict:
+def decode_status(payload: int, bits: int = BITS_DEFAULT) -> dict:
+    hex_digits = (bits + 3) // 4
+    last_phyctl_wd_offset = 96
     version = unsigned_field(payload, 32, 8)
     status = unsigned_field(payload, 40, 32)
     fields = {
@@ -45,10 +47,10 @@ def decode_status(payload: int) -> dict:
                 "rst_n": bool(status & (1 << 4)),
                 "heartbeat_bit": bool(status & (1 << 5)),
                 "fifo_activity": bool(status & (1 << 6)),
-                "phyctl_almost_full": bool(status & (1 << 7)),
-                "phyctl_full": bool(status & (1 << 8)),
-                "phyctl_empty": bool(status & (1 << 9)),
-                "sequence_active": bool(status & (1 << 10)),
+                "reserved_status_bit_7": bool(status & (1 << 7)),
+                "reserved_status_bit_8": bool(status & (1 << 8)),
+                "ddr3_lane0_dqs_iserdes_nonzero_seen": bool(status & (1 << 9)),
+                "ddr3_lane0_dqs_iserdes_toggle_seen": bool(status & (1 << 10)),
                 "sequence_done": bool(status & (1 << 11)),
                 "sequence_wait_satisfied": bool(status & (1 << 12)),
                 "sync_enable": bool(status & (1 << 13)),
@@ -66,9 +68,13 @@ def decode_status(payload: int) -> dict:
                 "dqs_out_of_range": bool(status & (1 << 25)),
                 "out_rd_enable": bool(status & (1 << 26)),
                 "in_wrenable": bool(status & (1 << 27)),
+                "ddr3_lane0_dq_seen_high_and_low": bool(status & (1 << 28)),
+                "ddr3_lane0_dq_toggle_seen": bool(status & (1 << 29)),
+                "ddr3_lane0_dqs_seen_high_and_low": bool(status & (1 << 30)),
+                "ddr3_lane0_dqs_toggle_seen": bool(status & (1 << 31)),
                 "sequence_advance_count": unsigned_field(payload, 72, 16),
                 "sequence_step": unsigned_field(payload, 88, 16),
-                "last_phyctl_wd": f"0x{unsigned_field(payload, 96, 32):08x}",
+                "last_phyctl_wd": f"0x{unsigned_field(payload, last_phyctl_wd_offset, 32):08x}",
             })
         else:
             fields.update({
@@ -95,7 +101,7 @@ def decode_status(payload: int) -> dict:
                     "out_counter_read": unsigned_field(payload, 88, 9),
                 })
     return {
-        "raw_hex": f"0x{payload:032x}",
+        "raw_hex": f"0x{payload:0{hex_digits}x}",
         "magic_ok": fields["magic"] == MAGIC,
         "fields": fields,
     }
@@ -109,6 +115,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--backend", choices=("mpsse", "bitbang"), default="mpsse")
     parser.add_argument("--freq-hz", type=int, default=1_000_000)
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=0)
+    parser.add_argument("--bits", type=int, choices=(128, 136), default=BITS_DEFAULT)
     parser.add_argument("--bit-delay-us", type=float, default=0.0)
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x02)
@@ -140,8 +147,8 @@ def main() -> int:
         attempts = args.poll_count if args.poll else 1
         decoded = None
         for attempt in range(attempts):
-            payload = read_payload(client, args.ir_len, args.user_ir, BITS)
-            decoded = decode_status(payload)
+            payload = read_payload(client, args.ir_len, args.user_ir, args.bits)
+            decoded = decode_status(payload, args.bits)
             fields = decoded["fields"]
             if not args.poll or (
                 decoded["magic_ok"]

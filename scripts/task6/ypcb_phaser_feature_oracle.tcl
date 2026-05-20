@@ -68,6 +68,9 @@ proc variant_body {variant} {
         phaser_ref_clocked {
             return $phaser_ref_clocked
         }
+        phaser_ref_ddr3_laneA_clocked {
+            return $phaser_ref_clocked
+        }
         phy_control {
             return "$common
     (* keep = \"true\", dont_touch = \"true\" *)
@@ -138,6 +141,56 @@ proc variant_body {variant} {
     );
 "
         }
+        phaser_in_ddr3_laneA_clocked {
+            return "$phaser_ref_clocked
+    wire dqs_found;
+    wire dqs_out_of_range;
+    wire fine_overflow;
+    wire iclk;
+    wire iclkdiv;
+    wire iserdes_rst;
+    wire phase_locked;
+    wire rclk;
+    wire wrenable;
+    wire \[5:0\] counter_read;
+
+    (* keep = \"true\", dont_touch = \"true\" *)
+    PHASER_IN_PHY #(
+        .CLKOUT_DIV(2),
+        .FINE_DELAY(33),
+        .OUTPUT_CLK_SRC(\"DELAYED_REF\"),
+        .REFCLK_PERIOD(1.875),
+        .MEMREFCLK_PERIOD(1.875),
+        .PHASEREFCLK_PERIOD(1.875)
+    ) phaser_in_i (
+        .DQSFOUND(dqs_found),
+        .DQSOUTOFRANGE(dqs_out_of_range),
+        .FINEOVERFLOW(fine_overflow),
+        .ICLK(iclk),
+        .ICLKDIV(iclkdiv),
+        .ISERDESRST(iserdes_rst),
+        .PHASELOCKED(phase_locked),
+        .RCLK(rclk),
+        .WRENABLE(wrenable),
+        .COUNTERREADVAL(counter_read),
+        .BURSTPENDINGPHY(1'b0),
+        .COUNTERLOADEN(1'b0),
+        .COUNTERREADEN(blink_counter\[20\]),
+        .FINEENABLE(1'b0),
+        .FINEINC(1'b0),
+        .FREQREFCLK(phaser_freq_refclk),
+        .MEMREFCLK(phaser_freq_refclk),
+        .PHASEREFCLK(),
+        .RST(rst),
+        .RSTDQSFIND(rst),
+        .SYNCIN(phaser_sync_refclk),
+        .SYSCLK(clk50),
+        .ENCALIBPHY(2'b00),
+        .RANKSELPHY(2'b00),
+        .COUNTERLOADVAL(blink_counter\[5:0\])
+    );
+"
+        }
         phaser_in_div2 {
             return "$common
     (* keep = \"true\", dont_touch = \"true\" *)
@@ -155,6 +208,18 @@ proc variant_body {variant} {
     (* keep = \"true\", dont_touch = \"true\" *)
     PHASER_OUT_PHY #(
         .CLKOUT_DIV(4),
+        .OUTPUT_CLK_SRC(\"PHASE_REF\"),
+        .REFCLK_PERIOD(2.500),
+        .MEMREFCLK_PERIOD(2.500),
+        .PHASEREFCLK_PERIOD(2.500)
+    ) phaser_out_i ();
+"
+        }
+        phaser_out_div2 {
+            return "$common
+    (* keep = \"true\", dont_touch = \"true\" *)
+    PHASER_OUT_PHY #(
+        .CLKOUT_DIV(2),
         .OUTPUT_CLK_SRC(\"PHASE_REF\"),
         .REFCLK_PERIOD(2.500),
         .MEMREFCLK_PERIOD(2.500),
@@ -213,6 +278,61 @@ proc variant_body {variant} {
     );
 "
         }
+        phaser_out_ddr3_laneA_clocked {
+            return "$phaser_ref_clocked
+    wire coarse_overflow;
+    wire fine_overflow;
+    wire oclk;
+    wire oclk_delayed;
+    wire oclkdiv;
+    wire oserdes_rst;
+    wire rd_enable;
+    wire \[1:0\] cts_bus;
+    wire \[1:0\] dqs_bus;
+    wire \[1:0\] dts_bus;
+    wire \[8:0\] counter_read;
+
+    (* keep = \"true\", dont_touch = \"true\" *)
+    PHASER_OUT_PHY #(
+        .CLKOUT_DIV(2),
+        .DATA_CTL_N(\"TRUE\"),
+        .FINE_DELAY(60),
+        .OCLKDELAY_INV(\"TRUE\"),
+        .OUTPUT_CLK_SRC(\"DELAYED_REF\"),
+        .REFCLK_PERIOD(1.875),
+        .MEMREFCLK_PERIOD(1.875),
+        .PHASEREFCLK_PERIOD(1.000)
+    ) phaser_out_i (
+        .COARSEOVERFLOW(coarse_overflow),
+        .FINEOVERFLOW(fine_overflow),
+        .OCLK(oclk),
+        .OCLKDELAYED(oclk_delayed),
+        .OCLKDIV(oclkdiv),
+        .OSERDESRST(oserdes_rst),
+        .RDENABLE(rd_enable),
+        .CTSBUS(cts_bus),
+        .DQSBUS(dqs_bus),
+        .DTSBUS(dts_bus),
+        .COUNTERREADVAL(counter_read),
+        .BURSTPENDINGPHY(1'b0),
+        .COARSEENABLE(1'b0),
+        .COARSEINC(1'b0),
+        .COUNTERLOADEN(1'b0),
+        .COUNTERREADEN(blink_counter\[20\]),
+        .FINEENABLE(1'b0),
+        .FINEINC(1'b0),
+        .FREQREFCLK(phaser_freq_refclk),
+        .MEMREFCLK(phaser_freq_refclk),
+        .PHASEREFCLK(),
+        .RST(rst),
+        .SELFINEOCLKDELAY(1'b0),
+        .SYNCIN(phaser_sync_refclk),
+        .SYSCLK(clk50),
+        .ENCALIBPHY(2'b00),
+        .COUNTERLOADVAL(blink_counter\[8:0\])
+    );
+"
+        }
         in_fifo {
             return "$common
     (* keep = \"true\", dont_touch = \"true\" *) IN_FIFO in_fifo_i ();
@@ -231,13 +351,17 @@ proc variant_body {variant} {
 
 proc placement_constraints {variant} {
     set locks ""
-    if {$variant in {phaser_ref phaser_ref_clocked phy_control phaser_in_div4 phaser_in_div2 phaser_in_div4_clocked phaser_out_div4 phaser_out_div4_clocked in_fifo out_fifo}} {
+    if {$variant in {phaser_ref phaser_ref_clocked phaser_ref_ddr3_laneA_clocked phy_control phaser_in_div4 phaser_in_div2 phaser_in_div4_clocked phaser_in_ddr3_laneA_clocked phaser_out_div4 phaser_out_div2 phaser_out_div4_clocked phaser_out_ddr3_laneA_clocked in_fifo out_fifo}} {
         append locks "set_property LOC PHASER_REF_X0Y0 \[get_cells phaser_ref_i\]\n"
     }
-    if {$variant in {phaser_ref_clocked}} {
+    if {$variant in {phaser_ref_ddr3_laneA_clocked phaser_in_ddr3_laneA_clocked phaser_out_ddr3_laneA_clocked}} {
+        set locks ""
+        append locks "set_property LOC PHASER_REF_X0Y2 \[get_cells phaser_ref_i\]\n"
+    }
+    if {$variant in {phaser_ref_clocked phaser_ref_ddr3_laneA_clocked}} {
         append locks "set_property LOC PLLE2_ADV_X0Y1 \[get_cells phaser_pll_i\]\n"
     }
-    if {$variant in {phaser_in_div4_clocked phaser_out_div4_clocked}} {
+    if {$variant in {phaser_in_div4_clocked phaser_out_div4_clocked phaser_in_ddr3_laneA_clocked phaser_out_ddr3_laneA_clocked}} {
         append locks "set_property LOC PLLE2_ADV_X0Y1 \[get_cells phaser_pll_i\]\n"
     }
     if {$variant eq "phy_control"} {
@@ -246,8 +370,14 @@ proc placement_constraints {variant} {
     if {$variant in {phaser_in_div4 phaser_in_div2 phaser_in_div4_clocked}} {
         append locks "set_property LOC PHASER_IN_PHY_X0Y0 \[get_cells phaser_in_i\]\n"
     }
-    if {$variant in {phaser_out_div4 phaser_out_div4_clocked}} {
+    if {$variant eq "phaser_in_ddr3_laneA_clocked"} {
+        append locks "set_property LOC PHASER_IN_PHY_X0Y8 \[get_cells phaser_in_i\]\n"
+    }
+    if {$variant in {phaser_out_div4 phaser_out_div2 phaser_out_div4_clocked}} {
         append locks "set_property LOC PHASER_OUT_PHY_X0Y0 \[get_cells phaser_out_i\]\n"
+    }
+    if {$variant eq "phaser_out_ddr3_laneA_clocked"} {
+        append locks "set_property LOC PHASER_OUT_PHY_X0Y8 \[get_cells phaser_out_i\]\n"
     }
     if {$variant eq "in_fifo"} {
         append locks "set_property LOC IN_FIFO_X0Y0 \[get_cells in_fifo_i\]\n"

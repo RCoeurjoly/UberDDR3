@@ -28,6 +28,9 @@ PHASER_REF_DIAG_XDC = ${PHASER_BYTE_LANE_DIAG_PROJECT}.xdc
 PHASER_REF_DIAG_PRE_PLACE = ${PHASER_REF_DIAG_PROJECT}_pre_place.py
 PHASER_BYTE_LANE_DIAG_XDC = ${PHASER_BYTE_LANE_DIAG_PROJECT}.xdc
 PHASER_BYTE_LANE_DIAG_PRE_PLACE = ${PHASER_BYTE_LANE_DIAG_PROJECT}_pre_place.py
+PHASER_DDR3_LANE0_DQS_ISERDES_PRE_PLACE = ypcb_phaser_ddr3_lane0_dqs_iserdes_pre_place.py
+PHASER_DDR3_GOLDEN_C0_GROUP2B_PRE_PLACE = ypcb_phaser_ddr3_golden_c0_group2b_pre_place.py
+PHASER_DDR3_GOLDEN_C0_GROUP2A_PRE_PLACE = ypcb_phaser_ddr3_golden_c0_group2a_pre_place.py
 PHASER_SHELL_SMOKE_XDC = ${BSCAN_SMOKE_XDC}
 CHIPDB ?= .
 CHIPDB_BIN := ${CHIPDB}/${DBPART}.bin
@@ -75,7 +78,15 @@ YPCB_CALIB_DEBUG_WB_DATA_ENABLE ?= 1
 YPCB_CALIB_DEBUG_WB_DATA_SNAPSHOT_ENABLE ?= 0
 YPCB_CALIB_ISOLATE_WB_UNTIL_CALIB_DONE ?= 0
 PHASER_BYTE_LANE_DIAG_CLOCKED ?= 0
+PHASER_BYTE_LANE_DIAG_DDR3_LANE0 ?= 0
+PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES ?= 0
+PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF ?= 0
+PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF ?= 0
 PHASER_BYTE_LANE_DIAG_PHYCTL_STIMULUS ?= 0
+PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS ?= 0
+PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED ?= 0
+PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A ?= 0
+PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B ?= 0
 PHASER_BYTE_LANE_DIAG_SEQUENCE_SPEC ?= ${PHASER_BYTE_LANE_DIAG_PROJECT}_sequence_observed.json
 PHASER_BYTE_LANE_DIAG_SEQUENCE_HEADER ?= ${PHASER_BYTE_LANE_DIAG_PROJECT}_sequence.vh
 PHASER_BYTE_LANE_DIAG_SEQUENCE_GENERATOR ?= ${REPO_ROOT}/scripts/task6/generate_ypcb_phaser_sequence_header.py
@@ -93,6 +104,27 @@ PHASER_BYTE_LANE_DIAG_POST_FASM ?= true
 ifeq (${PHASER_BYTE_LANE_DIAG_CLOCKED},1)
 override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_CLOCKED
 override PHASER_BYTE_LANE_DIAG_POST_FASM = python3 ../../scripts/task6/patch_ypcb_phaser_byte_lane_cmt_route.py
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_DDR3_LANE0},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_DDR3_LANE0
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A
+endif
+ifeq (${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B},1)
+override PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES += -DYPCB_PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B
 endif
 ifeq (${PHASER_BYTE_LANE_DIAG_PHYCTL_STIMULUS},1)
 $(warning PHASER_BYTE_LANE_DIAG_PHYCTL_STIMULUS is deprecated; update ${PHASER_BYTE_LANE_DIAG_SEQUENCE_SPEC} instead of re-enabling the removed free-running stimulus.)
@@ -311,14 +343,81 @@ phaser-ref-diag-locked: phaser-ref-diag
 .PHONY: phaser-byte-lane-diag
 phaser-byte-lane-diag: PNR_PRE_PACK =
 phaser-byte-lane-diag: PNR_PRE_PLACE = --pre-place ${PHASER_BYTE_LANE_DIAG_PRE_PLACE}
-phaser-byte-lane-diag: APPEND_YPCB_VREF = 0
 phaser-byte-lane-diag:
 	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
-	$(MAKE) ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF=0 PHASER_BYTE_LANE_DIAG_CLOCKED="${PHASER_BYTE_LANE_DIAG_CLOCKED}" PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+	$(MAKE) ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF="${PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF}" PHASER_BYTE_LANE_DIAG_CLOCKED="${PHASER_BYTE_LANE_DIAG_CLOCKED}" PHASER_BYTE_LANE_DIAG_DDR3_LANE0="${PHASER_BYTE_LANE_DIAG_DDR3_LANE0}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF}" PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS="${PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS}" PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED="${PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B}" PHASER_BYTE_LANE_DIAG_XDC="${PHASER_BYTE_LANE_DIAG_XDC}" SYNTH_XILINX_FLAGS="${SYNTH_XILINX_FLAGS}" PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
 
 .PHONY: phaser-byte-lane-diag-clocked
 phaser-byte-lane-diag-clocked: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
 phaser-byte-lane-diag-clocked: phaser-byte-lane-diag
+
+.PHONY: phaser-ddr3-lane0-proof
+phaser-ddr3-lane0-proof: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
+phaser-ddr3-lane0-proof: PHASER_BYTE_LANE_DIAG_DDR3_LANE0 = 1
+phaser-ddr3-lane0-proof: PHASER_BYTE_LANE_DIAG_XDC = ypcb_phaser_ddr3_lane0_probe.xdc
+phaser-ddr3-lane0-proof: PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF = 1
+phaser-ddr3-lane0-proof: phaser-byte-lane-diag
+
+.PHONY: phaser-ddr3-lane0-dqs-iserdes-proof
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_DDR3_LANE0 = 1
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES = 0
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF = 1
+phaser-ddr3-lane0-dqs-iserdes-proof: SYNTH_XILINX_FLAGS = -flatten -abc9 -arch xc7 -noclkbuf
+phaser-ddr3-lane0-dqs-iserdes-proof: PNR_PRE_PLACE = --pre-place ${PHASER_DDR3_LANE0_DQS_ISERDES_PRE_PLACE}
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_XDC = ypcb_phaser_ddr3_lane0_probe.xdc
+phaser-ddr3-lane0-dqs-iserdes-proof: PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF = 1
+phaser-ddr3-lane0-dqs-iserdes-proof:
+	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
+	$(MAKE) ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF="${PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF}" PHASER_BYTE_LANE_DIAG_CLOCKED="${PHASER_BYTE_LANE_DIAG_CLOCKED}" PHASER_BYTE_LANE_DIAG_DDR3_LANE0="${PHASER_BYTE_LANE_DIAG_DDR3_LANE0}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF}" PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS="${PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS}" PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED="${PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B}" PHASER_BYTE_LANE_DIAG_XDC="${PHASER_BYTE_LANE_DIAG_XDC}" SYNTH_XILINX_FLAGS="${SYNTH_XILINX_FLAGS}" PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: phaser-ddr3-golden-c0-group2b-dqs-proof
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_LANE0 = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES = 0
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof: SYNTH_XILINX_FLAGS = -flatten -abc9 -arch xc7 -noclkbuf
+phaser-ddr3-golden-c0-group2b-dqs-proof: PNR_PRE_PLACE = --pre-place ${PHASER_DDR3_GOLDEN_C0_GROUP2B_PRE_PLACE}
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_XDC = ypcb_phaser_ddr3_lane0_probe.xdc
+phaser-ddr3-golden-c0-group2b-dqs-proof: PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF = 1
+phaser-ddr3-golden-c0-group2b-dqs-proof:
+	@if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
+	$(MAKE) ${PHASER_BYTE_LANE_DIAG_PROJECT}_openxc7.bit PNR_PRE_PACK= PNR_PRE_PLACE="$(PNR_PRE_PLACE)" APPEND_YPCB_VREF="${PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF}" PHASER_BYTE_LANE_DIAG_CLOCKED="${PHASER_BYTE_LANE_DIAG_CLOCKED}" PHASER_BYTE_LANE_DIAG_DDR3_LANE0="${PHASER_BYTE_LANE_DIAG_DDR3_LANE0}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES}" PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF="${PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF}" PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS="${PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS}" PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED="${PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A}" PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B="${PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B}" PHASER_BYTE_LANE_DIAG_XDC="${PHASER_BYTE_LANE_DIAG_XDC}" SYNTH_XILINX_FLAGS="${SYNTH_XILINX_FLAGS}" PNR_ARGS="$(PNR_ARGS)" PNR_DEBUG="$(PNR_DEBUG)"
+
+.PHONY: phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof
+phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof: PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED = 1
+phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof: phaser-ddr3-golden-c0-group2b-dqs-proof
+
+.PHONY: phaser-ddr3-golden-c0-group2a-dqs-proof
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_CLOCKED = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_LANE0 = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_ISERDES = 0
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_DDR3_DQS_PHASEREF = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2A = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: SYNTH_XILINX_FLAGS = -flatten -abc9 -arch xc7 -noclkbuf
+phaser-ddr3-golden-c0-group2a-dqs-proof: PNR_PRE_PLACE = --pre-place ${PHASER_DDR3_GOLDEN_C0_GROUP2A_PRE_PLACE}
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_XDC = ypcb_phaser_ddr3_lane0_probe.xdc
+phaser-ddr3-golden-c0-group2a-dqs-proof: PHASER_BYTE_LANE_DIAG_APPEND_YPCB_VREF = 1
+phaser-ddr3-golden-c0-group2a-dqs-proof: phaser-byte-lane-diag
+
+.PHONY: phaser-ddr3-golden-c0-group2a-in-fifo-connected-proof
+phaser-ddr3-golden-c0-group2a-in-fifo-connected-proof: PHASER_BYTE_LANE_DIAG_IN_FIFO_SYSTEST_CONNECTED = 1
+phaser-ddr3-golden-c0-group2a-in-fifo-connected-proof: phaser-ddr3-golden-c0-group2a-dqs-proof
+
+.PHONY: phaser-ddr3-reduced-1lane-no-fifo-proof
+phaser-ddr3-reduced-1lane-no-fifo-proof: phaser-ddr3-golden-c0-group2b-dqs-proof
+
+.PHONY: phaser-ddr3-reduced-1lane-in-fifo-proof
+phaser-ddr3-reduced-1lane-in-fifo-proof: phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof
+
+.PHONY: phaser-ddr3-reduced-2lane-no-fifo-proof
+phaser-ddr3-reduced-2lane-no-fifo-proof: phaser-ddr3-golden-c0-group2a-dqs-proof phaser-ddr3-golden-c0-group2b-dqs-proof
+
+.PHONY: phaser-ddr3-reduced-2lane-in-fifo-proof
+phaser-ddr3-reduced-2lane-in-fifo-proof: phaser-ddr3-golden-c0-group2a-in-fifo-connected-proof phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof
 
 .PHONY: rowstream-v40-json
 rowstream-v40-json: PNR_PRE_PLACE = --pre-place ${V40_PRE_PLACE_BEL_LOCKS}
@@ -726,9 +825,10 @@ ${PHASER_SHELL_SMOKE_PROJECT}.fasm: ${PHASER_SHELL_SMOKE_PROJECT}.json ${CHIPDB_
 	if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_SHELL_SMOKE_XDC} --json ${PHASER_SHELL_SMOKE_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
 
-${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm: ${PHASER_BYTE_LANE_DIAG_PROJECT}.json ${CHIPDB_BIN} ${PHASER_BYTE_LANE_DIAG_XDC}
+${PHASER_BYTE_LANE_DIAG_PROJECT}.fasm: ${PHASER_BYTE_LANE_DIAG_PROJECT}.json ${CHIPDB_BIN} ${PHASER_BYTE_LANE_DIAG_XDC} ypcb_vref.features
 	if [ "$(word 1,${PNR_DEBUG})" = "--write" ]; then mkdir -p $(dir $(abspath $(word 2,${PNR_DEBUG}))); fi
 	nextpnr-xilinx --chipdb ${CHIPDB_BIN} --xdc ${PHASER_BYTE_LANE_DIAG_XDC} --json ${PHASER_BYTE_LANE_DIAG_PROJECT}.json --fasm $@ ${PNR_PRE_PACK} ${PNR_PRE_PLACE} ${PNR_ARGS} ${PNR_DEBUG}
+	@if [ "${APPEND_YPCB_VREF}" = "1" ]; then cat ypcb_vref.features >> $@; else echo "Skipping ypcb_vref.features append"; fi
 	${PHASER_BYTE_LANE_DIAG_POST_FASM} $@
 
 ${PROJECT}.frames: ${PROJECT}.fasm

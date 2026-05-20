@@ -23,6 +23,7 @@ OVERLAY_ROWS = {
             "vivado-mini/phaser_in_div4/provisional-segbits-phaser_in_div4.db",
             "vivado-mini/phaser_in_div2/provisional-segbits-phaser_in_div2.db",
             "vivado-mini/phaser_out_div4/provisional-segbits-phaser_out_div4.db",
+            "vivado-mini/phaser_out_div2/provisional-segbits-phaser_out_div2.db",
         ),
     ),
     "segbits_cmt_fifo_r.db": (
@@ -30,16 +31,26 @@ OVERLAY_ROWS = {
         (
             "vivado-mini/in_fifo/provisional-segbits-in_fifo.db",
             "vivado-mini/out_fifo/provisional-segbits-out_fifo.db",
+            "vivado-cmt-fifo-routes/provisional-segbits-in_fifo_d00.db",
+            "vivado-cmt-fifo-routes/provisional-segbits-in_fifo_d01.db",
+            "vivado-cmt-fifo-routes/provisional-segbits-out_fifo_d00.db",
+            "vivado-cmt-fifo-routes/provisional-segbits-in_fifo_rden.db",
+            "vivado-cmt-fifo-routes/provisional-segbits-out_fifo_wren.db",
+            "vivado-cmt-fifo-phaser-routes/provisional-segbits-in_fifo_phaser_wrclk.db",
+            "vivado-cmt-fifo-phaser-routes/provisional-segbits-in_fifo_phaser_wren.db",
         ),
     ),
 }
 
 XC7K480T_TILE_BITS = {
     "CMT_TOP_R_UPPER_B_X8Y31": {"baseaddr": "0x00460080", "offset": 53, "words": 22},
+    "CMT_TOP_R_UPPER_B_X8Y135": {"baseaddr": "0x00420080", "offset": 53, "words": 22},
     "CMT_TOP_R_UPPER_B_X8Y239": {"baseaddr": "0x00000080", "offset": 53, "words": 22},
     "CMT_TOP_R_LOWER_T_X8Y18": {"baseaddr": "0x00460080", "offset": 34, "words": 7},
+    "CMT_TOP_R_LOWER_T_X8Y122": {"baseaddr": "0x00420080", "offset": 34, "words": 7},
     "CMT_TOP_R_LOWER_T_X8Y226": {"baseaddr": "0x00000080", "offset": 34, "words": 7},
     "CMT_FIFO_R_X7Y8": {"baseaddr": "0x00460080", "offset": 14, "words": 4},
+    "CMT_FIFO_R_X7Y20": {"baseaddr": "0x00460080", "offset": 14, "words": 4},
     "CMT_FIFO_R_X7Y241": {"baseaddr": "0x00000080", "offset": 14, "words": 4},
 }
 
@@ -66,10 +77,18 @@ PROVISIONAL_BIT_EXCLUDES = {
     (
         "segbits_cmt_fifo_r.db",
         "CMT_FIFO_R.IN_FIFO_X0Y0.IN_USE",
-    ): {"1_29", "1_93", "24_105"},
+    ): {"0_27", "0_30", "1_26", "1_29"},
+    (
+        "segbits_cmt_fifo_r.db",
+        "CMT_FIFO_R.IN_FIFO_X0Y1.IN_USE",
+    ): {"0_27", "0_30", "1_26", "1_29"},
     (
         "segbits_cmt_fifo_r.db",
         "CMT_FIFO_R.OUT_FIFO_X0Y0.IN_USE",
+    ): {"1_21", "1_85"},
+    (
+        "segbits_cmt_fifo_r.db",
+        "CMT_FIFO_R.OUT_FIFO_X0Y1.IN_USE",
     ): {"1_21", "1_85"},
     (
         "segbits_cmt_top_r_lower_t.db",
@@ -94,13 +113,29 @@ PROVISIONAL_ROW_ALIASES = {
         "segbits_cmt_top_r_lower_t.db",
         "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
     ): (
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y1.CLKOUT_DIV_4_IN_USE",
         "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y17.CLKOUT_DIV_4_IN_USE",
+    ),
+    (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_2_IN_USE",
+    ): (
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y1.CLKOUT_DIV_2_IN_USE",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y17.CLKOUT_DIV_2_IN_USE",
     ),
     (
         "segbits_cmt_top_r_lower_t.db",
         "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_4_IN_USE",
     ): (
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_4_IN_USE",
         "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y16.CLKOUT_DIV_4_IN_USE",
+    ),
+    (
+        "segbits_cmt_top_r_lower_t.db",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_2_IN_USE",
+    ): (
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_2_IN_USE",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y16.CLKOUT_DIV_2_IN_USE",
     ),
     (
         "segbits_cmt_top_r_upper_b.db",
@@ -133,14 +168,77 @@ PROVISIONAL_ROW_ALIASES = {
 EXTRA_SEGBIT_ROWS = {
     "segbits_cmt_fifo_r.db": (
         "CMT_FIFO_R.IN_FIFO_X0Y0.IN_USE "
-        "0_27 0_30 0_81 0_91 0_94 1_26 1_77 1_90 "
-        "20_105 26_68 26_94 26_97 26_122 26_125",
+        "0_27 0_30 0_81 0_91 0_94 1_26 1_29 1_77 1_90 1_93 "
+        "20_105 24_105 26_68 26_94 26_97 26_122 26_125",
+        "CMT_FIFO_R.IN_FIFO_X0Y1.IN_USE "
+        "0_27 0_30 0_81 0_91 0_94 1_26 1_29 1_77 1_90 1_93 "
+        "20_105 24_105 26_68 26_94 26_97 26_122 26_125",
         "CMT_FIFO_R.OUT_FIFO_X0Y0.IN_USE "
         "0_17 0_25 0_26 0_89 0_90 1_13 1_24 1_88 "
         "20_41 24_41 26_30 26_33 26_58 26_61 27_4",
+        "CMT_FIFO_R.OUT_FIFO_X0Y1.IN_USE "
+        "0_17 0_25 0_26 0_89 0_90 1_13 1_24 1_88 "
+        "20_41 24_41 26_30 26_33 26_58 26_61 27_4",
+        "CMT_FIFO_R.CMT_IN_FIFO_D00.CMT_FIFO_L_IMUX26_0 2_14 7_15",
+        "CMT_FIFO_R.CMT_IN_FIFO_D01.CMT_FIFO_L_IMUX40_0 11_10 13_10",
+        "CMT_FIFO_R.CMT_OUT_FIFO_D00.CMT_FIFO_L_IMUX28_0 2_14 7_15",
+        "CMT_FIFO_R.CMT_IN_FIFO_RDEN.CMT_FIFO_L_IMUX7_7 18_120 22_121 24_121 25_121",
+        "CMT_FIFO_R.CMT_IN_FIFO_WREN.CMT_FIFO_L_IMUX7_6 "
+        "8_120 13_121 16_57 22_57 24_57 25_57",
+        "CMT_FIFO_R.CMT_OUT_FIFO_RDEN.CMT_FIFO_L_IMUX6_7 "
+        "19_560 22_561 24_561 25_561",
+        "CMT_FIFO_R.CMT_OUT_FIFO_WREN.CMT_FIFO_L_IMUX6_6 "
+        "8_120 13_121 16_49 22_49 24_49 25_49",
+        "CMT_FIFO_R.CMT_IN_FIFO_RDCLK.CMT_FIFO_L_CLK1_7 "
+        "1_537 !0_542",
+        "CMT_FIFO_R.CMT_IN_FIFO_WRCLK.CMT_FIFO_L_CLK1_6 "
+        "0_477 !1_477",
+        "CMT_FIFO_R.CMT_IN_FIFO_WRCLK.CMT_FIFO_L_PHASER_WRCLK "
+        "26_98 !0_27 !0_30 !1_26 !1_29",
+        "CMT_FIFO_R.CMT_IN_FIFO_WREN.CMT_FIFO_L_PHASER_WRENABLE "
+        "27_93",
+        "CMT_FIFO_R.CMT_IN_FIFO_RESET.CMT_FIFO_L_IMUX5_7 "
+        "8_513 11_455 12_455 13_513 17_553 22_553 25_553 !0_529 !1_525 !20_553",
+        "CMT_FIFO_R.CMT_OUT_FIFO_RDCLK.CMT_FIFO_L_CLK0_7 "
+        "1_532 !1_533",
+        "CMT_FIFO_R.CMT_OUT_FIFO_WRCLK.CMT_FIFO_L_CLK0_6 "
+        "0_470 !0_474",
+        "CMT_FIFO_R.CMT_OUT_FIFO_RESET.CMT_FIFO_L_IMUX5_6 "
+        "4_465 6_464 18_488 23_489 25_489 !0_465 !1_461 !20_489",
     ),
     "segbits_cmt_top_r_lower_t.db": (
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_2_IN_USE "
+        "0_75 0_139 0_145 0_203 1_78 1_141 1_142 1_206 "
+        "20_91 20_155 20_213 21_154 21_156 21_158 21_162 "
+        "21_164 21_172 21_174 21_178 21_180 21_220 21_222 "
+        "24_91 24_155 24_213 25_154 25_156 25_158 25_162 "
+        "25_164 25_172 25_174 25_178 25_180 25_220 25_222 "
+        "28_113 28_119 28_120 28_123 28_147 28_150 28_152 "
+        "29_116 29_124 29_147 29_184",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y1.CLKOUT_DIV_2_IN_USE "
+        "0_75 0_139 0_145 0_203 1_78 1_141 1_142 1_206 "
+        "20_91 20_155 20_213 21_154 21_156 21_158 21_162 "
+        "21_164 21_172 21_174 21_178 21_180 21_220 21_222 "
+        "24_91 24_155 24_213 25_154 25_156 25_158 25_162 "
+        "25_164 25_172 25_174 25_178 25_180 25_220 25_222 "
+        "28_113 28_119 28_120 28_123 28_147 28_150 28_152 "
+        "29_116 29_124 29_147 29_184",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y17.CLKOUT_DIV_2_IN_USE "
+        "0_75 0_139 0_145 0_203 1_78 1_141 1_142 1_206 "
+        "20_91 20_155 20_213 21_154 21_156 21_158 21_162 "
+        "21_164 21_172 21_174 21_178 21_180 21_220 21_222 "
+        "24_91 24_155 24_213 25_154 25_156 25_158 25_162 "
+        "25_164 25_172 25_174 25_178 25_180 25_220 25_222 "
+        "28_113 28_119 28_120 28_123 28_147 28_150 28_152 "
+        "29_116 29_124 29_147 29_184",
         "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y0.CLKOUT_DIV_4_IN_USE "
+        "0_75 0_139 0_145 0_203 1_78 1_141 1_142 1_206 "
+        "20_91 20_155 20_213 21_154 21_156 21_158 21_164 "
+        "21_172 21_174 21_178 21_180 21_220 21_222 24_91 "
+        "24_213 25_154 25_158 25_172 25_220 25_222 28_113 "
+        "28_119 28_120 28_147 28_150 28_152 28_153 28_185 "
+        "29_116 29_124 29_147",
+        "CMT_TOP_R_LOWER_T.PHASER_IN_PHY_X0Y1.CLKOUT_DIV_4_IN_USE "
         "0_75 0_139 0_145 0_203 1_78 1_141 1_142 1_206 "
         "20_91 20_155 20_213 21_154 21_156 21_158 21_164 "
         "21_172 21_174 21_178 21_180 21_220 21_222 24_91 "
@@ -159,11 +257,37 @@ EXTRA_SEGBIT_ROWS = {
         "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
         "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_81 "
         "25_42 25_46 25_52 25_54 28_25 29_22 29_29 29_30 29_75",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_4_IN_USE "
+        "0_11 0_17 0_75 1_13 1_14 1_78 20_1 20_59 20_69 "
+        "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
+        "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_81 "
+        "25_42 25_46 25_52 25_54 28_25 29_22 29_29 29_30 29_75",
         "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y16.CLKOUT_DIV_4_IN_USE "
         "0_11 0_17 0_75 1_13 1_14 1_78 20_1 20_59 20_69 "
         "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
         "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_81 "
         "25_42 25_46 25_52 25_54 28_25 29_22 29_29 29_30 29_75",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y0.CLKOUT_DIV_2_IN_USE "
+        "0_11 0_17 0_75 1_13 1_14 1_78 20_1 20_59 20_69 "
+        "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
+        "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_59 "
+        "24_69 24_73 24_81 25_12 25_42 25_44 25_46 25_50 "
+        "25_52 25_54 25_58 25_60 25_62 25_74 25_78 28_25 "
+        "28_64 28_75 29_22 29_29",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_2_IN_USE "
+        "0_11 0_17 0_75 1_13 1_14 1_78 20_1 20_59 20_69 "
+        "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
+        "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_59 "
+        "24_69 24_73 24_81 25_12 25_42 25_44 25_46 25_50 "
+        "25_52 25_54 25_58 25_60 25_62 25_74 25_78 28_25 "
+        "28_64 28_75 29_22 29_29",
+        "CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y16.CLKOUT_DIV_2_IN_USE "
+        "0_11 0_17 0_75 1_13 1_14 1_78 20_1 20_59 20_69 "
+        "20_73 20_81 21_12 21_42 21_44 21_46 21_50 21_52 "
+        "21_54 21_58 21_60 21_62 21_74 21_78 24_1 24_59 "
+        "24_69 24_73 24_81 25_12 25_42 25_44 25_46 25_50 "
+        "25_52 25_54 25_58 25_60 25_62 25_74 25_78 28_25 "
+        "28_64 28_75 29_22 29_29",
     ),
     "segbits_cmt_top_r_lower_b.db": (
         "CMT_TOP_R_LOWER_B.MMCM_CLK_FREQ_BB_REBUF0_NS.MMCM_CLK_FREQ_BB_NS0 "
@@ -296,6 +420,12 @@ PPIP_EXTRA_ROWS = {
         "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_2.CMT_FREQ_BB_PREF_IN2 always",
         "CMT_TOP_R_UPPER_B.CMT_FREQ_PHASER_REFMUX_2.CMT_FREQ_BB_PREF_IN3 always",
     ),
+    "ppips_cmt_top_r_lower_t.db": (
+        # YPCB lane-0 DQS reaches the DB/B-side PHASER_IN through this
+        # internal PHASERREF handoff; the adjacent DB PHASEREFCLK hop is
+        # already an upstream always ppip in Kintex-7.
+        "CMT_TOP_R_LOWER_T.CMT_PHASERREF_DOWN_PHASERIN_B.CMT_PHASER_DOWN_DQS_TO_PHASER_B always",
+    ),
     "ppips_cmt_top_r_upper_t.db": (
         "CMT_TOP_R_UPPER_T.PLL_CLK_FREQ_BB0_NS.PLL_CLK_FREQ_BB_BUFOUT_NS0 always",
         "CMT_TOP_R_UPPER_T.PLL_CLK_FREQ_BB1_NS.PLL_CLK_FREQ_BB_BUFOUT_NS1 always",
@@ -351,8 +481,10 @@ def clean_row(line: str, word_offset: int) -> str | None:
     for field in line.split():
         if field.startswith("origin:"):
             continue
-        if "_" in field:
-            frame_text, bit_text = field.split("_", 1)
+        negative = field.startswith("!")
+        bit_field = field[1:] if negative else field
+        if "_" in bit_field:
+            frame_text, bit_text = bit_field.split("_", 1)
             if frame_text.isdigit() and bit_text.isdigit():
                 frame = int(frame_text)
                 bit_index = int(bit_text)
@@ -360,7 +492,8 @@ def clean_row(line: str, word_offset: int) -> str | None:
                 bit = bit_index % 32
                 if word < word_offset:
                     raise ValueError(f"{field} is before tile word offset {word_offset}")
-                fields.append(f"{frame}_{(word - word_offset) * 32 + bit}")
+                normalized = f"{frame}_{(word - word_offset) * 32 + bit}"
+                fields.append(f"!{normalized}" if negative else normalized)
                 continue
         fields.append(field)
     return " ".join(fields)
@@ -437,7 +570,7 @@ def write_overlay_file(
             rows.append(row)
             existing.add(row)
 
-    rows = [add_row_bits(filename, row) for row in rows]
+    rows = [add_row_bits(filename, filter_provisional_bits(filename, row)) for row in rows]
 
     target = overlay_db / filename
     if target.is_symlink():

@@ -10,6 +10,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import time
 import shlex
 import subprocess
 import sys
@@ -18,7 +19,12 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNS_ROOT = ROOT / "artifacts" / "task6" / "runs"
-LOCK_PATH = Path("/tmp/ypcb-hs3-210299BF3824.lock")
+LOCK_PATH = Path(os.environ.get(
+    "YPCB_HS3_LOCK_PATH",
+    "/home/roland/.codex/memories/board-locks/ypcb-hs3-210299BF3824.lock",
+))
+LEGACY_LOCK_PATH = Path("/tmp/ypcb-hs3-210299BF3824.lock")
+PROGRAMMER_PROCESS_NAMES = ("openocd", "openFPGALoader")
 
 
 def iso_timestamp() -> str:
@@ -183,6 +189,50 @@ def update_command_result(
         handle.write(json.dumps(payload, sort_keys=True) + "\n")
 
 
+
+def active_programmer_processes() -> list[str]:
+    try:
+        proc = subprocess.run(
+            ["ps", "-eo", "pid=,args="],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            check=False,
+        )
+    except OSError:
+        return []
+    if proc.returncode != 0:
+        return []
+    current_pid = os.getpid()
+    active: list[str] = []
+    for line in proc.stdout.splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        parts = stripped.split(maxsplit=1)
+        if not parts:
+            continue
+        try:
+            pid = int(parts[0])
+        except ValueError:
+            continue
+        if pid == current_pid:
+            continue
+        command = parts[1] if len(parts) > 1 else ""
+        if any(name in command for name in PROGRAMMER_PROCESS_NAMES):
+            active.append(stripped)
+    return active
+
+
+def acquire_exclusive_lock(lock_file) -> None:
+    while True:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        active = active_programmer_processes()
+        if not active:
+            return
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
+        time.sleep(2.0)
+
 def cmd_with_lock(args: argparse.Namespace) -> int:
     run_dir = args.run_dir.resolve()
     if not run_dir.is_dir():
@@ -191,8 +241,10 @@ def cmd_with_lock(args: argparse.Namespace) -> int:
         raise SystemExit("missing command after --")
 
     LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with LOCK_PATH.open("w", encoding="utf-8") as lock_file:
-        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+    LEGACY_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
+    with LOCK_PATH.open("a+", encoding="utf-8") as lock_file, LEGACY_LOCK_PATH.open("a+", encoding="utf-8") as legacy_lock_file:
+        acquire_exclusive_lock(lock_file)
+        fcntl.flock(legacy_lock_file.fileno(), fcntl.LOCK_EX)
         lock_file.seek(0)
         lock_file.truncate()
         lock_file.write(

@@ -1408,3 +1408,285 @@ Keep local patches small and ready to split out:
 - nextpnr-xilinx/openXC7: ODELAY/HR output-buffer fixes if required for the
   final DDR PHY.
 - UberDDR3: YPCB example, JTAG-readable BIST wrapper, and HIL documentation.
+
+### 2026-05-20 Vivado systest DDR3 golden reference
+
+The old Vivado-based YPCB-00338-1P1 systest project in
+`/home/roland/ypcb_00338_1p1_hack/examples/YPCB_00338_1P1_systest` is now the
+explicit DDR3 golden reference for PHASER bring-up. This is an oracle and
+hardware sanity reference only; it is not part of the final open-source
+bitstream path.
+
+Archived golden artifacts live in
+`artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/`:
+
+- `top_wrapper.bit` SHA256
+  `516220740a0440dcf7c98a480fa693685a861fbb05b5301f8182af2d9aaf3fd3`.
+- `top_wrapper_routed.dcp` SHA256
+  `ce30e4a753d3e61bbd93a5b7cb974120b5e0870874c5b12c8800497a25d20559`.
+- `YPCB_00338_1P1_systest.xpr` SHA256
+  `a04d8db83b8186b2f1850a43444294f1337fd5f598460a8d003b00d3e2013567`.
+- `top.hwh`, `top_wrapper.xsa`, `top_wrapper.mmi`, route/timing/DRC/utilization
+  reports, implementation `runme.log`, `pcie_port.xdc`, `address-map.json`, and
+  `sha256.txt` are archived beside them.
+
+The HWH-derived address map is captured in `address-map.json`. The key DDR3
+apertures are:
+
+- MicroBlaze data-cache master `M_AXI_DC`: channel 0 at
+  `0x100000000..0x17fffffff`, channel 1 at `0x180000000..0x1ffffffff`.
+- XDMA master `M_AXI`: channel 0 at `0x00000000..0x7fffffff`, channel 1 at
+  `0x80000000..0xffffffff`.
+- MicroBlaze peripheral/control master `M_AXI_DP`: MIG controls at
+  `0x76100000..0x761fffff` and `0x76200000..0x762fffff`.
+
+New host-side golden-reference harness:
+
+- Script: `scripts/task6/ypcb_vivado_systest_driver.py`.
+- Address map:
+  `python3 scripts/task6/ypcb_vivado_systest_driver.py address-map`.
+- Locked hardware integrity command used for acceptance:
+  `python3 scripts/task6/task6_board_run.py with-lock --run-dir artifacts/task6/runs/2026-05-20T11-41-50+0200-vivado-systest-golden-reference --log-name vivado-systest-integrity-c0-pass.log -- python3 scripts/task6/ypcb_vivado_systest_driver.py integrity --launch-hw-server --program --words 16 --output artifacts/task6/runs/2026-05-20T11-41-50+0200-vivado-systest-golden-reference/readback/integrity-c0-pass.json`.
+
+Accepted hardware evidence:
+
+- Run directory:
+  `artifacts/task6/runs/2026-05-20T11-41-50+0200-vivado-systest-golden-reference`.
+- PASS payload:
+  `readback/integrity-c0-pass.json`.
+- Verdict: `PASS` in `verdict.json`.
+- The run acquired the shared HS3 lock, launched
+  `/home/roland/Vivado/2025.2.1/Vivado/bin/hw_server`, connected with
+  `/home/roland/Vivado/2025.2.1/Vivado/bin/xsdb`, programmed the archived
+  `top_wrapper.bit`, selected `MicroBlaze #0`, wrote 16 words to channel-0 DDR3
+  through the MicroBlaze `M_AXI_DC` aperture at `0x100000000`, and read all 16
+  words back exactly. The machine-readable result has `pass=true`,
+  `returncode=0`, `programmed=true`, and bitstream SHA256
+  `516220740a0440dcf7c98a480fa693685a861fbb05b5301f8182af2d9aaf3fd3`.
+
+This changes the immediate PHASER plan: we do have a hardware-passing Vivado
+MIG/PHASER DDR3 golden reference. FIFO micro-oracles remain useful for open-flow
+DB work, but the canonical behavioral reference for a working DDR3 design is now
+this archived systest plus its passing XSDB integrity run.
+
+### 2026-05-20 golden DDR3 hard-macro extraction
+
+Started the top-down reverse-engineering path from the hardware-passing Vivado
+systest golden reference. New extraction tools:
+
+- `scripts/task6/extract_vivado_golden_ddr3.tcl` opens the archived routed DCP
+  and emits bounded TSV evidence for PHASER/FIFO/PHY_CONTROL, ISERDES/OSERDES,
+  IDELAY, pins, sampled route nets, clocks, and selected resolved properties.
+- `scripts/task6/summarize_vivado_golden_ddr3.py` normalizes those TSV files
+  into a machine-readable lane/resource summary.
+
+Generated artifact root:
+
+- `artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/reverse-engineering`
+- Human summary: `README.md`
+- Machine summary: `golden-hardmacro-summary.json`
+- Checksums: `sha256.txt`
+- Raw bounded extract: `full-hardmacro-extract/{cells.tsv,cell-properties.tsv,pins.tsv,net-pips.tsv,clocks.tsv,summary.txt}`
+
+Extraction command:
+
+```sh
+/home/roland/Vivado/2025.2.1/Vivado/bin/vivado -mode batch -nojournal -nolog \
+  -source scripts/task6/extract_vivado_golden_ddr3.tcl \
+  -tclargs artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/top_wrapper_routed.dcp \
+           artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/reverse-engineering/full-hardmacro-extract
+python3 scripts/task6/summarize_vivado_golden_ddr3.py \
+  artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/reverse-engineering/full-hardmacro-extract \
+  --summary-only --require-channel c0 --require-byte-lanes 9 \
+  --out artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/reverse-engineering/golden-hardmacro-summary.json
+```
+
+Key facts from the golden DCP:
+
+- Selected hard-macro/IO timing cells: 594 total.
+- Counts: 6 `PHASER_REF`, 18 `PHASER_IN_PHY`, 24 `PHASER_OUT_PHY`,
+  6 `PHY_CONTROL`, 18 `IN_FIFO`, 24 `OUT_FIFO`, 144 `IDELAYE2`,
+  144 `ISERDESE2`, and 210 `OSERDESE2`.
+- Channel 0 and channel 1 each infer 12 byte-lane hierarchy entries across
+  PHY groups 0, 1, and 2.
+- Golden channel-0 `group2.B` uses `PHASER_IN_PHY_X0Y1`,
+  `PHASER_OUT_PHY_X0Y1`, `IN_FIFO_X0Y1`, and `OUT_FIFO_X0Y1`; this is the
+  closest direct match to the previous open DQS diagnostic placement.
+- Golden channel-0 `group2.A` uses `PHASER_IN_PHY_X0Y0`,
+  `PHASER_OUT_PHY_X0Y0`, `IN_FIFO_X0Y0`, and `OUT_FIFO_X0Y0`; this matches the
+  earlier isolated FIFO micro-oracle site family.
+- `c0.group1.B-D` and `c1.group1.B-D` have output-side resources but no
+  extracted `PHASER_IN_PHY`/`IN_FIFO`; this is a MIG hierarchy fact, not an
+  extraction failure.
+
+Immediate consequence: the next open-flow byte-lane diagnostic should stop
+assuming that `IN_FIFO_X0Y0` and `PHASER_IN_PHY_X0Y1` belong to the same golden
+lane. For direct golden alignment, build the next focused open diagnostic around
+one complete golden lane tuple, preferably `c0.group2.B` at X0Y1 for continuity
+with the previous DQS path, or `c0.group2.A` at X0Y0 for continuity with the
+FIFO micro-oracles. Do not patch DB rows from the sampled route inventory; use a
+focused Vivado route proof for the exact net/window first.
+
+### 2026-05-20 open golden c0.group2.B no-FIFO atomic pass
+
+The first open-flow diagnostic aligned to the Vivado DDR3 SYSTEST golden tuple now builds and passes hardware. The target is `phaser-ddr3-golden-c0-group2b-dqs-proof`, with pre-placement in `example_demo/ypcb_00338_1p1/ypcb_phaser_ddr3_golden_c0_group2b_pre_place.py` locking `PHASER_REF_X0Y0`, `PHY_CONTROL_X0Y0`, `PHASER_IN_PHY_X0Y1`, `PHASER_OUT_PHY_X0Y1`, and `PLLE2_ADV_X0Y1`. This is the complete golden `c0.group2.B` PHASER tuple, unlike the earlier mixed X0Y1 input / X0Y0 output diagnostic.
+
+Implementation notes:
+- `ypcb_phaser_byte_lane_diag.sv` now selects `OUTBURSTPENDING[1]` when the DDR3 DQS PHASEREF path selects `INBURSTPENDING[1]`; Vivado golden `c0.group2.B` routes both through lane-B index 1.
+- `scripts/task6/build_phaser_prjxray_db_overlay.py` now includes provisional `PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_{2,4}_IN_USE` rows. The div4 row was required for this diagnostic to assemble; the div2 row is staged for the actual SYSTEST-style PHASER_OUT property set.
+- First build after the RTL lane-index fix routed successfully but failed assembly on missing `CMT_TOP_R_LOWER_T.PHASER_OUT_PHY_X0Y1.CLKOUT_DIV_4_IN_USE`. After the overlay row was added, the open bitstream built through `fasm2frames` and `xc7frames2bit`.
+
+Build command:
+
+```sh
+nix develop -c make -B -C example_demo/ypcb_00338_1p1   phaser-ddr3-golden-c0-group2b-dqs-proof   PNR_DEBUG='--write ../../artifacts/task6/golden-c0-group2b-open/nextpnr-routed.json'
+```
+
+Atomic HIL run:
+
+```sh
+python3 scripts/task6/task6_board_run.py with-lock   --run-dir artifacts/task6/runs/2026-05-20T12-24-54+0200-phaser-ddr3-golden-c0-group2b-no-fifo-atomic   --log-name atomic-phaser-hil.log --   python3 scripts/task6/run_ypcb_phaser_atomic_hil.py     --run-dir artifacts/task6/runs/2026-05-20T12-24-54+0200-phaser-ddr3-golden-c0-group2b-no-fifo-atomic     --bitstream example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag_openxc7.bit     --cycles 3 --read-bits 136 --tdo-bit 7     --artifact example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag.fasm     --artifact example_demo/ypcb_00338_1p1/ypcb_phaser_byte_lane_diag.frames     --artifact artifacts/task6/golden-c0-group2b-open/nextpnr-routed.json
+```
+
+Result: PASS for all three atomic cycles. Each cycle reported `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, `phyctl_ready=true`, and `sequence_done=true`. Raw payload was stable across all cycles: `0x0000000103ffc400f0005c1b0450485344`. Decoded status also shows live DDR3 lane pad observers, but the PHASER DQS acquisition bits remain expectedly not yet solved: `in_phase_locked=false`, `dqs_found=false`, and `dqs_out_of_range=false`.
+
+Archived artifacts:
+- Run directory: `artifacts/task6/runs/2026-05-20T12-24-54+0200-phaser-ddr3-golden-c0-group2b-no-fifo-atomic`
+- Bitstream SHA256: `be32b6c5613388dffa15dc1980ddab73ed25663d4362a528cbe837ae95073b9b`
+- FASM SHA256: `e44170b1581359ee08d30449cb106b8c82257efc90da163341450703358e8089`
+- Frames SHA256: `8da7ef90d00a96902d39154fadd20b75f1b4dff27ea56e8cba4f194d20a92ac7`
+- Routed JSON SHA256: `29ea5ffaab74aa8c1d4320e46cc842d56c24101124e38e558dfa1c9c7cd5cef0`
+
+Next gate: build the same golden `c0.group2.B` tuple with bare `IN_FIFO_X0Y1` present and no FIFO clock/reset/data ports. Do not return to X0Y0 FIFO assumptions for this path; the Vivado golden tuple says `PHASER_IN_PHY_X0Y1` belongs with `IN_FIFO_X0Y1`.
+
+### 2026-05-20 open c0.group2.B bare-IN_FIFO result
+
+The open-flow golden `c0.group2.B` diagnostic now builds a bare `IN_FIFO_X0Y1` increment after adding the missing `CMT_FIFO_R_X7Y20` tilegrid window to `scripts/task6/build_phaser_prjxray_db_overlay.py`. The accepted no-FIFO base remains the previous run; this FIFO increment is not accepted.
+
+Atomic HIL run: `artifacts/task6/runs/2026-05-20T12-41-57+0200-phaser-ddr3-golden-c0-group2b-in-fifo-bare-atomic`.
+
+Result: FAIL. Three locked program/read cycles all returned `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, and `sequence_done=true`, but `phyctl_ready=false`. Raw payload was stable: `0x0000000107ff880078005c130450485344`.
+
+Failed-gate artifact hashes:
+
+```text
+6dcf70d81fbe146f3b85b36122762d371dad096b75db5b3abfeb9e6f06106132  nextpnr-routed.json
+5967c581e02463e8cb2521f88285027828892c23f8258f0c5c2eccbb8c1a9858  ypcb_phaser_byte_lane_diag.fasm
+111d0b03c46e9ef981d1f48929fd0ac97c28524d35561ee9087c2588d5e97435  ypcb_phaser_byte_lane_diag.frames
+c8cadcf8df5fb7a1b62d1389c740a545cf67535bc531a58c8f41c740a69393a7  ypcb_phaser_byte_lane_diag_openxc7.bit
+```
+
+Next step is not OUT FIFO. First build or extract a Vivado bare-IN_FIFO oracle in the same full golden `c0.group2.B` context and replace the provisional `CMT_FIFO_R_X7Y20` FIFO row/window assumptions only with oracle-backed evidence.
+
+### 2026-05-20 synthetic Vivado c0.group2.B diagnostic result
+
+`build_vivado_ypcb_phaser_byte_lane_diag.tcl` now supports `YPCB_PHASER_BYTE_LANE_DIAG_GOLDEN_C0_GROUP2B`, locking the synthetic diagnostic to `PHASER_IN_PHY_X0Y1`, `PHASER_OUT_PHY_X0Y1`, and optionally `IN_FIFO_X0Y1`.
+
+Both Vivado variants built, but neither is accepted as a golden oracle:
+
+- No-FIFO HIL: `artifacts/task6/runs/2026-05-20T12-52-19+0200-vivado-golden-c0-group2b-no-fifo-atomic`
+- Bare-IN_FIFO HIL: `artifacts/task6/runs/2026-05-20T12-50-30+0200-vivado-golden-c0-group2b-in-fifo-bare-atomic`
+- Both failed `phyctl_ready=false` for all three atomic cycles, with stable payload `0x000000040fff1000c0005c130450485344`.
+
+Vivado hashes:
+
+```text
+10d810ebc9991d782e61ec395c69312669fd7c909f3523b829b292c9734267fd  no_fifo/ypcb_phaser_byte_lane_diag_vivado.bit
+198391de8776f22733338ce7d74a04bafba9a0cb8cba334912449d5e9fa85447  no_fifo/post-route.dcp
+a8212215c27eb61d54b3bd7db8d62e3b072f090d664cef4b38d2f8e5a280c23d  in_fifo_bare/ypcb_phaser_byte_lane_diag_vivado.bit
+94f4e223a95e477e42a940c84563502f36f05cea199e999e2a7c9328ff0b8a51  in_fifo_bare/post-route.dcp
+```
+
+This synthetic Vivado diagnostic is therefore not equivalent to the hardware-passing SYSTEST golden. Continue reverse engineering from the archived SYSTEST DCP, not from this failed synthetic oracle.
+
+### 2026-05-20 direct SYSTEST c0.group2.B focused extraction and SYSTEST-param open rerun
+
+The current reverse-engineering source is now the routed SYSTEST DCP directly, not the failed synthetic Vivado diagnostic. Focused extraction artifacts live at:
+
+`artifacts/task6/vivado-golden/ypcb-00338-1p1-systest-2026-05-16/reverse-engineering/c0-group2b-focused/`
+
+Generated files: `cells.tsv`, `properties.tsv`, `pins.tsv`, `nets.tsv`, `net-pips.tsv`, `summary.json`, and `README.md`. The extracted hardmacro tuple is `PHASER_REF_X0Y0`, shared `PHY_CONTROL_X0Y0`, and lane-B `PHASER_IN_PHY_X0Y1`, `PHASER_OUT_PHY_X0Y1`, `IN_FIFO_X0Y1`, `OUT_FIFO_X0Y1`.
+
+The focused DCP properties showed the open golden target was not enabling its existing SYSTEST parameter block. `example_demo/ypcb_00338_1p1/Makefile` now carries `PHASER_BYTE_LANE_DIAG_SYSTEST_PARAMS`, propagates it through PHASER diagnostic builds, and enables it for `phaser-ddr3-golden-c0-group2b-dqs-proof`. That sets the open diagnostic to the DCP-derived primitive properties: `PHY_CONTROL.BURST_MODE=TRUE`, `PHASER_IN/OUT.CLKOUT_DIV=2`, `OUTPUT_CLK_SRC=DELAYED_REF`, input `FINE_DELAY=33`, output `FINE_DELAY=60`, output `DATA_CTL_N=TRUE`, and SYSTEST ref/mem/phaseref periods.
+
+SYSTEST-parameter no-FIFO open build:
+
+```sh
+nix develop -c make -B -C example_demo/ypcb_00338_1p1 \
+  phaser-ddr3-golden-c0-group2b-dqs-proof \
+  PNR_DEBUG='--write ../../artifacts/task6/golden-c0-group2b-open-systest-params/nextpnr-routed.json'
+```
+
+Atomic HIL: `artifacts/task6/runs/2026-05-20T-systest-params-c0-group2b-no-fifo-atomic`.
+Result: PASS for all three cycles. Each cycle had `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, `phyctl_ready=true`, and `sequence_done=true`; raw payload stayed `0x0000000103ffc400f0005c1b0450485344`. Artifact hashes: bitstream `b9a155cb5629f7c0a6b9df83b0f451777b24043b7d925bcf82c38132ab5c411a`, FASM `5a89b83ad05ea84dab30a7c201d6b852bc3c19d3fd80db105795be63077be7ca`, frames `a9b19b78e64453f2b6d90e614d56570b4d9893a9e032a73a78592b8ec71011a5`, routed JSON `0da65580c505127ffb9fae255dd07ee12d73d760b879b68a8a303d2c541cc029`.
+
+SYSTEST-parameter bare-IN_FIFO open build:
+
+```sh
+nix develop -c make -B -C example_demo/ypcb_00338_1p1 \
+  phaser-ddr3-golden-c0-group2b-dqs-proof \
+  PHASER_BYTE_LANE_DIAG_YOSYS_DEFINES='-DYPCB_PHASER_BYTE_LANE_DIAG_IN_FIFO' \
+  PNR_DEBUG='--write ../../artifacts/task6/golden-c0-group2b-open-systest-params/in-fifo-bare/nextpnr-routed.json'
+```
+
+Atomic HIL: `artifacts/task6/runs/2026-05-20T-systest-params-c0-group2b-in-fifo-bare-atomic`.
+Result: FAIL. The readback remained atomic and mostly stable, but `phyctl_ready=false` in all three cycles. Passing fields stayed `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, and `sequence_done=true`. Raw payloads were `0x0000000107ff880078005c130450485344`, `0x0000000107ff880078005c130450485344`, and `0x0000000107ff880078005c530450485344`. Artifact hashes: bitstream `55ee94851fa41dfdcf96d07846084d002efd2fdba51d12b4f2e82f51f596b354`, FASM `bd78dbc8348bc404b12cbdf1d5d5afb126d6103469cc40cd6f5198707e9791e7`, frames `63030509f4cfa3d4cb7ddf7c426d54adb3ce46a3b69662218835a584dd644c3f`, routed JSON `d5120f72c75969e7fa2c4f98616952da11c558f13ec1471e5dc0e5e39081137b`.
+
+Direct SYSTEST pin evidence matters for the next step: the real c0.group2.B `IN_FIFO` is not a bare footprint. In the routed DCP, `IN_FIFO.RDCLK=CLK`, `IN_FIFO.WRCLK=iserdes_clkdiv`, `IN_FIFO.RESET=ififo_rst`, `IN_FIFO.RDEN=<const1>`, and `IN_FIFO.WREN=ififo_wr_enable`; `PHASER_IN.WRENABLE` drives `ififo_wr_enable`. Therefore the SYSTEST-param bare-IN_FIFO failure does not justify proceeding to OUT/both FIFO shapes and does not prove the primitive properties wrong. Next work should stay DCP-driven: compare the real SYSTEST `CMT_FIFO_R_X7Y20` FIFO routes/frame bits and the connected `IN_FIFO` clock/reset/enable shape against the open FASM before changing DB rows.
+
+### 2026-05-20 SYSTEST-connected c0.group2.B IN_FIFO bitless-route experiment
+
+Implemented the next DCP-driven FIFO increment as `phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof`. The RTL now mirrors the hardware-passing SYSTEST `c0.group2.B` IN_FIFO control shape instead of the earlier bare FIFO footprint: `IN_FIFO.RDCLK=CLK`, `IN_FIFO.WRCLK=iserdes_clkdiv`, `IN_FIFO.RESET=lane_reset/ififo_rst`, `IN_FIFO.RDEN=1'b1`, and `IN_FIFO.WREN=PHASER_IN.WRENABLE`. The direct fabric status tap on `PHASER_IN.WRENABLE` was removed because nextpnr correctly could not route the hard-macro output both into the dedicated FIFO path and into a slice input.
+
+Build command:
+
+```sh
+nix develop -c make -B -C example_demo/ypcb_00338_1p1   phaser-ddr3-golden-c0-group2b-in-fifo-connected-proof   PNR_DEBUG='--write ../../artifacts/task6/golden-c0-group2b-open-systest-params/in-fifo-connected/nextpnr-routed.json'
+```
+
+The build now completes through `xc7frames2bit`. The only new assembly workaround is local and explicit in `scripts/task6/patch_ypcb_phaser_byte_lane_cmt_route.py`: suppress the two Vivado-proven dedicated route features `CMT_FIFO_R_X7Y20.CMT_IN_FIFO_WRCLK.CMT_FIFO_L_PHASER_WRCLK` and `CMT_FIFO_R_X7Y20.CMT_IN_FIFO_WREN.CMT_FIFO_L_PHASER_WRENABLE` as a bitless-route experiment. A direct empty-row attempt in the prjxray overlay was rejected because `fasm2frames` requires at least one bit token per segbits row. The existing SYSTEST-backed reset row `CMT_IN_FIFO_RESET.CMT_FIFO_L_IMUX5_7` remains represented in the overlay, with the local conflicting `INT_R_X1Y15.GFAN1.GND_WIRE` route excluded.
+
+Build artifact hashes:
+
+- bitstream `a95233c272482a9fb9e5753cc22a300567609ce3c687da8abef1c19add1b2fc3`
+- patched FASM `5705fc4f6530045a62047e4933c44e54c61c23012a448ea6e4eccac985d23b09`
+- frames `5dc68ef0a1e56adc8a1f7a7d6f246a71b3e551dd474ee6bffb8ecfbc05c83f8b`
+- routed JSON `1052d38d4a87a8cc9cb98a77e97b30e4e4bf032468891697bef2ea345ead1e4a`
+
+Route comparison artifacts live at `artifacts/task6/golden-c0-group2b-open-systest-params/in-fifo-connected/systest-vs-open-cmt-fifo.{json,md}`. Because the two PHASER-source FIFO routes are deliberately removed from the patched FASM before assembly, the report shows the reset route present and the two PHASER-source routes missing; this is expected for this failed bitless-route experiment and should not be read as proof that nextpnr failed to emit them.
+
+Atomic HIL:
+
+`artifacts/task6/runs/2026-05-20T-systest-params-c0-group2b-in-fifo-connected-bitless-atomic`
+
+Result: FAIL for all three cycles. The atomic readback was stable and attributable to the just-programmed bitstream: raw payload `0x000000040fff1000f0005c130450485344` in all cycles, with `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, `phaser_ref_locked=true`, `sequence_done=true`, `sequence_advance_count=4096`, `sequence_step=4095`, and `last_phyctl_wd=0x0000040f`. The failing acceptance field was `phyctl_ready=false` in every cycle.
+
+Classification: SYSTEST-connected IN_FIFO control improves the oracle alignment and keeps the design buildable, but suppressing the dedicated PHASER-to-IN_FIFO WRCLK/WRENABLE routes as bitless does not recover `PHYCTLREADY`. Do not advance to OUT_FIFO or both-FIFO shapes from this result. The next concrete reverse-engineering step is to derive real Vivado frame-delta-backed DB rows, or a stronger equivalent proof, for `CMT_FIFO_L_PHASER_WRCLK -> CMT_IN_FIFO_WRCLK` and `CMT_FIFO_L_PHASER_WRENABLE -> CMT_IN_FIFO_WREN`; after that, rerun this same connected-IN_FIFO shape atomically before adding data/status ports.
+
+
+
+### 2026-05-20 connected-IN_FIFO PHASER route row proof
+
+Vivado frame-delta-backed DB-row proof now exists for the two dedicated SYSTEST c0.group2.B IN_FIFO PHASER routes:
+
+- `CMT_FIFO_L_PHASER_WRCLK -> CMT_IN_FIFO_WRCLK`
+- `CMT_FIFO_L_PHASER_WRENABLE -> CMT_IN_FIFO_WREN`
+
+Oracle script: `scripts/task6/build_vivado_cmt_fifo_phaser_route_oracle.tcl`. Proof artifacts: `artifacts/task6/phaser-feature-oracle/vivado-cmt-fifo-phaser-routes/`. The generated rows are `provisional-segbits-in_fifo_phaser_wrclk.db` and `provisional-segbits-in_fifo_phaser_wren.db`; hashes are `db93ca48b263d7a1b9b6f32586741456510cb05f4112abe7e4320bb6fb4ad663` and `a29573d04fb7aa38eda7a02c71e7f989785f1edb6af6766129e7a75389d4f636`.
+
+The open overlay now includes normalized rows:
+
+```text
+CMT_FIFO_R.CMT_IN_FIFO_WRCLK.CMT_FIFO_L_PHASER_WRCLK 26_98 !0_27 !0_30 !1_26 !1_29
+CMT_FIFO_R.CMT_IN_FIFO_WREN.CMT_FIFO_L_PHASER_WRENABLE 27_93
+```
+
+`IN_FIFO_X0Y{0,1}.IN_USE` was narrowed to exclude the WRCLK selector bits `0_27`, `0_30`, `1_26`, and `1_29`; the Vivado delta proves those bits are default clock-source selector state, not mandatory FIFO in-use state. The temporary bitless suppression for the two PHASER routes was removed from `scripts/task6/patch_ypcb_phaser_byte_lane_cmt_route.py`.
+
+The connected-IN_FIFO target now builds through `fasm2frames` and `xc7frames2bit` without suppressing those routes. Bitstream SHA256: `00bcd3270e6c0d88b3fafbcaf5f0c44fcbcbe9c8286b2c40d7c9e94c3e12cf4b`.
+
+Atomic HIL run: `artifacts/task6/runs/2026-05-20T-systest-params-c0-group2b-in-fifo-connected-phaser-rows-atomic`.
+
+Result: FAIL. All three cycles had `magic_ok=true`, `version=4`, `phaser_pll_locked=true`, and `sequence_done=true`, but `phaser_ref_locked=false` and `phyctl_ready=false`. Raw payloads were `0x000000040fff1000f0405c110450485344`, `0x000000040fff1000f0005c110450485344`, and `0x000000040fff1000f0005c110450485344`.
+
+Conclusion: the dedicated PHASER WRCLK/WREN DB rows are proven enough for assembly, but this connected-IN_FIFO hardware shape is still not accepted. Do not add OUT_FIFO or data/status ports yet. Next reverse-engineering should compare no-FIFO PASS vs connected-IN_FIFO-with-PHASER-rows frame/FASM effects around PHASER_REF, PHASER_IN, and CMT_FIFO, with special attention to the WRCLK selector negative bits and narrowed `IN_FIFO.IN_USE` row.

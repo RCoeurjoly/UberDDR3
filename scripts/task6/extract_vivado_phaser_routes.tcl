@@ -60,10 +60,12 @@ open_checkpoint $dcp
 set fp [open $out_path w]
 
 set filters {
-    {REF_NAME == PHASER_REF && LOC == PHASER_REF_X0Y0}
-    {REF_NAME == PHY_CONTROL && LOC == PHY_CONTROL_X0Y0}
-    {REF_NAME == PHASER_IN_PHY && LOC == PHASER_IN_PHY_X0Y0}
-    {REF_NAME == PHASER_OUT_PHY && LOC == PHASER_OUT_PHY_X0Y0}
+    {REF_NAME == PHASER_REF}
+    {REF_NAME == PHY_CONTROL}
+    {REF_NAME == PHASER_IN_PHY}
+    {REF_NAME == PHASER_OUT_PHY}
+    {REF_NAME == IN_FIFO}
+    {REF_NAME == OUT_FIFO}
 }
 
 foreach filter $filters {
