@@ -1809,6 +1809,48 @@ Warning disposition for this experiment:
 - OpenXC7 route timing warnings are not present for the tested ladder: all range
   targets passed the =83.333 MHz= controller-clock requirement.
 
+
+** Future scaling directions, not executed:
+
+The current proven target is the minimum useful configuration: one x8 byte lane,
+full configured one-lane BIST, DDR3 =333.333 MHz=, and no DM subtest. Scaling is
+future work and should move one variable at a time.
+
+Primary scaling axes:
+
+1. More byte lanes:
+   - =BYTE_LANES=1= to =2=, then =4=, then =8=.
+   - This grows the physical DDR data interface from x8 to x16, x32, and x64.
+   - This is the most direct path toward using the full YPCB physical memory
+     interface.
+
+2. Wider application-side data path:
+   - More byte lanes naturally increase UberDDR3's user/Wishbone data width.
+   - Integration can then choose whether to consume the native wide interface or
+     add a narrower bridge/cacheline adapter.
+   - This is an integration/throughput question, separate from PHY calibration.
+
+3. Higher frequency:
+   - The current working point is controller =83.333 MHz= and DDR3
+     =333.333 MHz=.
+   - Frequency should be increased only after the desired lane count is correct
+     at the current working point, because timing closure and PHY margin both get
+     harder.
+
+Recommended order when scaling resumes:
+
+1. Keep DDR3 =333.333 MHz=, no-DM BIST, same toolchain, and same lock discipline.
+2. Test =BYTE_LANES=2= over a full configured BIST range.
+3. If that passes, test =BYTE_LANES=4= the same way.
+4. If that passes, test =BYTE_LANES=8= the same way.
+5. Only after the target lane width passes, consider frequency increases.
+6. Treat real DM support as a separate board-definition task: either verify and
+   constrain actual YPCB DM pins from authoritative board data, or keep YPCB as a
+   deliberate no-DM configuration.
+
+Do not execute this scaling ladder until explicitly requested. The current
+success criterion remains the one-lane full-BIST result above.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
