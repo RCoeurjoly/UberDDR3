@@ -888,6 +888,81 @@ own experiment, and test both Vivado and OpenXC7 under the same locked
 program-and-read transaction. Keep the full BIST build as the reference, but do
 not use it as the primary answer for calibration completion timing.
 
+** 2026-05-20 calibration-only oracle experiment:
+
+Goal: separate early calibration from the long full-BIST path, then use Vivado
+as a same-board oracle for OpenXC7.
+
+Implementation commits:
+
+- =8d71283= adds YPCB =CALIB_ONLY= and =SHORT_BIST= build modes and explicit
+  JTAG decode for BIST mode, initial/final calibration done, and reset causes.
+- =163e090= fixes debug-only address slices so shortened/optimized counters do
+  not create out-of-bounds synthesis warnings.
+
+Build results:
+
+- =make vivado_calib_only= produced
+  =build/ypcb_00338_1p1_ddr3_vivado_calib_only.bit=.
+- Vivado timing passed: WNS =0.537 ns=, TNS =0.000=, WHS =0.084 ns=,
+  THS =0.000=.
+- =make openxc7_calib_only= produced
+  =ypcb_00338_1p1_ddr3_calib_only_openxc7.bit=.
+- OpenXC7 post-route timing passed =--freq 83.333= with =i_controller_clk=
+  max frequency =84.45 MHz=.
+
+Locked hardware measurements:
+
+- Vivado command discipline: one lock covered program plus =80= JTAG samples at
+  =250 ms= delay. Raw log: =/tmp/ypcb_vivado_calib_only_jtag.log=.
+- OpenXC7 command discipline: one lock covered program plus =80= JTAG samples at
+  =250 ms= delay. Raw log: =/tmp/ypcb_openxc7_calib_only_jtag.log=.
+
+Vivado =CALIB_ONLY= result:
+
+- All =80= samples were at current =state=23= (=DONE_CALIBRATE=).
+- =calib_complete=1= for all samples.
+- =bist_flags={mode:0 initial_done:1 final_done:1 reset_from_calibrate:0 reset_from_test:0 short:0}=.
+- DQS/MPR oracle values after completion were stable:
+  - =dqs_store=0x0002a800=
+  - =dqs_start_index=9= and =dqs_start_index_stored=9=
+  - =selected_collect_lane=0=
+  - =selected_mpr_dq=0x3d3d3d3d3d3d3d3d=
+  - =selected_dqs_collect=0x10= in =76/80= samples and =0x12= in =4/80=.
+
+OpenXC7 =CALIB_ONLY= result:
+
+- Current states observed across =80= samples:
+  - =state=2= (=MPR_READ=): =18= samples
+  - =state=3= (=COLLECT_DQS=): =8= samples
+  - =state=4= (=ANALYZE_DQS=): =54= samples
+- =calib_complete=0= for all samples.
+- =calib_flags={mode:0 limit_bits:0 initial_done:0 final_done:0 reset_from_calibrate:0 reset_from_test:0}=.
+- OpenXC7 selected-lane capture stayed saturated:
+  - =dqs_store=0xffffffff=
+  - =dqs_start_index_stored=39=
+  - =selected_collect_lane=1=
+  - =selected_dqs_collect=0xff=
+  - =selected_mpr_dq=0xffffffffffffffff=
+
+Interpretation:
+
+- Vivado does calibrate on YPCB when BIST is bypassed. The previous long full-BIST
+  result was not a calibration failure; it was an ambiguous full-BIST-duration
+  measurement.
+- OpenXC7 still fails before calibration completion even with BIST removed. The
+  first useful divergence remains early MPR/DQS capture and analysis, not BIST.
+- The highest-value next comparison is now phase-local: compare Vivado and
+  OpenXC7 primitive placement and routing for the selected DQS/DQ lane around
+  =MPR_READ=, =COLLECT_DQS=, and =ANALYZE_DQS=, using other Xilinx board
+  examples as structural references.
+
+Next measured action:
+
+Build and test =SHORT_BIST= only after the OpenXC7 early calibration divergence
+has a targeted hypothesis. For now, do not spend time on BIST behavior; it is
+behind the failing boundary in OpenXC7.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
