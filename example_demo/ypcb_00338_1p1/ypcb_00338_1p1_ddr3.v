@@ -68,6 +68,11 @@
 `else
      localparam integer YPCB_BYTE_LANES = 8;
 `endif
+`ifdef YPCB_ODELAY_SUPPORTED
+     localparam integer YPCB_ODELAY_SUPPORTED_VALUE = 1;
+`else
+     localparam integer YPCB_ODELAY_SUPPORTED_VALUE = 0;
+`endif
      localparam integer YPCB_DQ_WIDTH = 8 * YPCB_BYTE_LANES;
      localparam integer YPCB_WB_DATA_WIDTH = 8 * YPCB_DQ_WIDTH;
      localparam integer YPCB_WB_SEL_WIDTH = YPCB_WB_DATA_WIDTH / 8;
@@ -128,7 +133,7 @@
         .WB2_DATA_BITS(32), //width of 2nd wishbone data bus
         .DUAL_RANK_DIMM(0),
         .MICRON_SIM(0), //enable faster simulation for micron ddr3 model (shorten POWER_ON_RESET_HIGH and INITIAL_CKE_LOW)
-        .ODELAY_SUPPORTED(0), //set to 1 when ODELAYE2 is supported
+        .ODELAY_SUPPORTED(YPCB_ODELAY_SUPPORTED_VALUE), //set to 1 when ODELAYE2 is supported
         .SECOND_WISHBONE(0), //set to 1 if 2nd wishbone is needed
         .ECC_ENABLE(0), // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )
         .WB_ERROR(0), // set to 1 to support Wishbone error (asserts at ECC double bit error)
