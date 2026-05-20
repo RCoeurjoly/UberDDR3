@@ -1506,6 +1506,58 @@ Interpretation criteria:
 - If both fail, revisit the two-lane mapping/top-level slicing before drawing a
   DDR conclusion.
 
+Execution result:
+
+- Build target: =make openxc7_calib_only_2lanes=.
+- Output bitstream:
+  =ypcb_00338_1p1_ddr3_calib_only_2lanes_openxc7.bit=.
+- The reduced-lane design routed cleanly with much more timing margin:
+  post-route =i_controller_clk= max frequency was =122.79 MHz= against the
+  =83.333 MHz= target.
+- The DDR PHY/controller instance was reduced to two logical byte lanes. The
+  remaining unused top-level DDR pins still appear as constrained top-level pads,
+  but the DDR capture resources dropped to the expected reduced shape, including
+  =18 IDELAYE2= and =18 ISERDESE2=.
+- The hardware measurement used one locked transaction: acquire
+  =/tmp/ypcb-hs3-210299BF3824.lock=, program the 2-lane OpenXC7 bitstream, read
+  =80= USER1 JTAG samples, release the lock.
+
+Hardware result:
+
+- =calib_complete=1= in all =80= samples.
+- State was =23= (=DONE_CALIBRATE=) in all =80= samples.
+- Per-lane DQS summary was stable:
+  =lane_dqs_summary={l0:p1/f0/i17 l1:p1/f0/i17 l2:p0/f0/i0 l3:p0/f0/i0 l4:p0/f0/i0 l5:p0/f0/i0 l6:p0/f0/i0 l7:p0/f0/i0}=.
+- =dqs_summary=0x0000000000009191= in all samples.
+- =dqs_start_index_stored=17= in all samples.
+- =all_lane_dqs_collect=0x000000000000ffff= after completion, as expected for
+  active lanes 0 and 1 only.
+- =bist_flags={mode:0 initial_done:1 final_done:1 reset_from_calibrate:0 reset_from_test:0 short:0}=,
+  confirming this was a clean =CALIB_ONLY= completion.
+
+Interpretation after execution:
+
+- Angelo's reduced-lane hypothesis is confirmed for the current OpenXC7-buildable
+  no-ODELAY configuration: OpenXC7 can calibrate YPCB when reduced to two byte
+  lanes.
+- Therefore the 8-lane no-ODELAY failure is not a global DDR command/MPR/DQS
+  absence and not a fundamental incompatibility of the RTL with OpenXC7. It is
+  tied to scale, timing margin, or per-lane phase margin in the 8-lane
+  no-ODELAY path.
+- Vivado's 8-lane =CALIB_ONLY= oracle passes all lanes at index =9=. OpenXC7
+  2-lane passes lanes 0 and 1 at index =17=. OpenXC7 8-lane often finds pass
+  indices around =17/18= and sometimes fails later lanes at index =39=. The
+  consistent offset from Vivado remains important, but the new result says the
+  open-flow phase point is at least workable for a small lane count.
+- The next useful experiment is a lane-count ladder, not a random seed sweep:
+  build =CALIB_ONLY= with 4 lanes, then possibly 6 lanes, under the same lock and
+  decode. This will find whether failure appears at a specific physical bank,
+  byte lane, or aggregate lane count.
+- In parallel, keep =ODELAY_SUPPORTED=1= as the correct long-term Xilinx/HP-bank
+  direction. The OpenXC7 ODELAYE2 packing failure is now a separate toolchain
+  blocker worth reducing and fixing because Angelo expects ODELAY for robust
+  8-lane Kintex-7 operation.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
