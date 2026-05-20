@@ -3867,6 +3867,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     reg[7:0] debug_collect_sample_count = 8'd0;
     reg[2:0] debug_collect_lane = 3'd0;
     reg[7:0] debug_selected_dqs_collect = 8'd0;
+    reg[LANES*8-1:0] debug_all_lane_dqs_collect = {LANES*8{1'b0}};
     reg[63:0] debug_selected_mpr_dq_collect = 64'd0;
     reg[63:0] debug_all_lane_mpr_burst0_collect = 64'd0;
     reg[DQ_BITS*LANES*8-1:0] debug_all_lane_mpr_collect = {DQ_BITS*LANES*8{1'b0}};
@@ -3913,6 +3914,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             debug_collect_sample_count <= 8'd0;
             debug_collect_lane <= 3'd0;
             debug_selected_dqs_collect <= 8'd0;
+            debug_all_lane_dqs_collect <= {LANES*8{1'b0}};
             debug_selected_mpr_dq_collect <= 64'd0;
             debug_all_lane_mpr_burst0_collect <= 64'd0;
             debug_all_lane_mpr_collect <= {DQ_BITS*LANES*8{1'b0}};
@@ -3927,10 +3929,10 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 state_calibrate[4:0]
             };
 
-            o_debug3 <= 64'd0;
             if (state_calibrate == COLLECT_DQS && delay_before_read_data == 0) begin
                 debug_collect_lane <= lane;
                 debug_selected_dqs_collect <= i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8];
+                debug_all_lane_dqs_collect <= i_phy_iserdes_dqs;
                 debug_all_lane_mpr_burst0_collect <= i_phy_iserdes_data[((DQ_BITS*LANES)*0) +: (DQ_BITS*LANES)];
                 debug_all_lane_mpr_collect <= i_phy_iserdes_data;
                 debug_selected_mpr_dq_collect <= {
@@ -3949,7 +3951,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             end
 
             for (debug_lane_index = 0; debug_lane_index < LANES && debug_lane_index < 8; debug_lane_index = debug_lane_index + 1) begin
-                o_debug3[debug_lane_index*8 +: 8] <= i_phy_iserdes_dqs[debug_lane_index*8 +: 8];
                 if (state_calibrate == COLLECT_DQS || state_calibrate == ANALYZE_DQS) begin
                     if (i_phy_iserdes_dqs[debug_lane_index*8 +: 8] != 8'd0 && debug_dqs_nonzero_count[debug_lane_index*4 +: 4] != 4'hf) begin
                         debug_dqs_nonzero_count[debug_lane_index*4 +: 4] <= debug_dqs_nonzero_count[debug_lane_index*4 +: 4] + 1'b1;
@@ -3960,6 +3961,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 end
             end
             debug_dqs_prev <= i_phy_iserdes_dqs;
+            o_debug3 <= debug_all_lane_dqs_collect;
             o_debug4 <= {debug_dqs_transition_count, debug_dqs_nonzero_count};
             o_debug5 <= debug_selected_mpr_dq_collect;
             o_debug6 <= {

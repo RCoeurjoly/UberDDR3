@@ -1206,6 +1206,35 @@ Next measured action:
   same point for all lanes so Vivado and OpenXC7 can be compared sample-for-
   sample rather than only after Vivado has completed calibration.
 
+
+** 2026-05-20 COLLECT_DQS dynamic lane-1 probe:
+
+Goal: compare Vivado and OpenXC7 at the exact dynamic sample point before
+=ANALYZE_DQS= compresses DQS history into =dqs_store=.
+
+Plan documented before execution:
+
+- Keep the calibration algorithm unchanged.
+- Reuse the existing 960-bit JTAG/BSCAN debug payload.
+- Change =o_debug3= from a live all-lane DQS snapshot to the all-lane DQS byte
+  vector latched at =state_calibrate == COLLECT_DQS && delay_before_read_data == 0=.
+- Keep the existing all-lane MPR DQ capture, which is already latched at the same
+  =COLLECT_DQS= sample point.
+- Update =openocd_ypcb_debug.tcl= to print explicit lane 1 values from the same
+  latched sample:
+  - =lane1_collect_dqs= from the latched all-lane DQS vector.
+  - =lane1_mpr_dq= reconstructed from the lane 1 byte in each of the eight MPR
+    bursts.
+- Interpret results:
+  - Vivado lane 1 DQS/MPR healthy but OpenXC7 saturated: open-flow runtime
+    input capture/bitstream semantics remain suspect.
+  - Both flows show lane 1 saturation at this exact point: lane 1 may be a bad
+    comparison target after Vivado has selected/calibrated lane 0, and the next
+    probe should walk all lanes at the same sample point.
+  - OpenXC7 DQS has transitions but MPR is saturated: focus on DQ/MPR data path.
+  - OpenXC7 DQS is saturated and MPR is saturated: focus on DQS input capture,
+    read command timing, or DQS gating/tri-state behavior.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

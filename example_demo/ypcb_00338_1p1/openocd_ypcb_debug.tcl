@@ -30,7 +30,7 @@ proc read_ypcb_debug {} {
     #   [383:320] selected-lane DQS polarity/bit-order page from COLLECT_DQS
     #   [319:256] selected-lane MPR DQ data from the same COLLECT_DQS sample
     #   [255:192] per-lane DQS activity counters
-    #   [191:128] all-lane ISERDES DQS snapshot
+    #   [191:128] all-lane ISERDES DQS latched at COLLECT_DQS
     #   [127:64]  current-lane DQS calibration debug page
     #   [63:48]   magic 0xd3b5
     #   [47]      SYS_RSTN
@@ -88,13 +88,23 @@ proc read_ypcb_debug {} {
     set dqs_store [expr {($dqs_debug >> 32) & 0xffffffff}]
     set dqs_nonzero [expr {$dqs_counters & 0xffffffff}]
     set dqs_transition [expr {($dqs_counters >> 32) & 0xffffffff}]
+    set lane1_collect_dqs [expr {($dqs_snapshot >> 8) & 0xff}]
+    set lane1_mpr_b7 [string range $all_mpr_b7_hex 12 13]
+    set lane1_mpr_b6 [string range $all_mpr_b6_hex 12 13]
+    set lane1_mpr_b5 [string range $all_mpr_b5_hex 12 13]
+    set lane1_mpr_b4 [string range $all_mpr_b4_hex 12 13]
+    set lane1_mpr_b3 [string range $all_mpr_b3_hex 12 13]
+    set lane1_mpr_b2 [string range $all_mpr_b2_hex 12 13]
+    set lane1_mpr_b1 [string range $all_mpr_b1_hex 12 13]
+    set lane1_mpr_b0 [string range $all_mpr_b0_hex 12 13]
+    set lane1_mpr_dq [expr 0x${lane1_mpr_b7}${lane1_mpr_b6}${lane1_mpr_b5}${lane1_mpr_b4}${lane1_mpr_b3}${lane1_mpr_b2}${lane1_mpr_b1}${lane1_mpr_b0}]
     set selected_dqs_collect [expr {$selected_dqs_page & 0xff}]
     set selected_dqs_reversed [expr {($selected_dqs_page >> 8) & 0xff}]
     set selected_dqs_inverted [expr {($selected_dqs_page >> 16) & 0xff}]
     set selected_dqs_inv_reversed [expr {($selected_dqs_page >> 24) & 0xff}]
     set selected_collect_samples [expr {($selected_dqs_page >> 32) & 0xff}]
     set selected_collect_lane [expr {($selected_dqs_page >> 40) & 0x7}]
-    set dqs_text [format " dqs_debug=0x%016x dqs_state=%d dqs_lane=%d dqs_current=0x%02x dqs_store=0x%08x dqs_start_index=%d dqs_start_index_stored=%d dqs_start_index_repeat=%d all_lane_dqs=0x%016x dqs_nonzero_nibbles=0x%08x dqs_transition_nibbles=0x%08x selected_collect_lane=%d all_lane_mpr_bursts={b7:%s b6:%s b5:%s b4:%s b3:%s b2:%s b1:%s b0:%s} all_lane_mpr_burst0=0x%016x selected_mpr_dq=0x%016x selected_dqs_collect=0x%02x selected_dqs_rev=0x%02x selected_dqs_inv=0x%02x selected_dqs_inv_rev=0x%02x selected_collect_samples=%d"         $dqs_debug $dqs_state $dqs_lane $dqs_current $dqs_store $dqs_start_index $dqs_start_index_stored $dqs_start_index_repeat         $dqs_snapshot $dqs_nonzero $dqs_transition $selected_collect_lane $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex $all_lane_mpr_burst0 $selected_mpr_dq $selected_dqs_collect $selected_dqs_reversed $selected_dqs_inverted $selected_dqs_inv_reversed $selected_collect_samples]
+    set dqs_text [format " dqs_debug=0x%016x dqs_state=%d dqs_lane=%d dqs_current=0x%02x dqs_store=0x%08x dqs_start_index=%d dqs_start_index_stored=%d dqs_start_index_repeat=%d all_lane_dqs_collect=0x%016x lane1_collect_dqs=0x%02x dqs_nonzero_nibbles=0x%08x dqs_transition_nibbles=0x%08x selected_collect_lane=%d all_lane_mpr_bursts={b7:%s b6:%s b5:%s b4:%s b3:%s b2:%s b1:%s b0:%s} all_lane_mpr_burst0=0x%016x lane1_mpr_dq=0x%016x selected_mpr_dq=0x%016x selected_dqs_collect=0x%02x selected_dqs_rev=0x%02x selected_dqs_inv=0x%02x selected_dqs_inv_rev=0x%02x selected_collect_samples=%d"         $dqs_debug $dqs_state $dqs_lane $dqs_current $dqs_store $dqs_start_index $dqs_start_index_stored $dqs_start_index_repeat         $dqs_snapshot $lane1_collect_dqs $dqs_nonzero $dqs_transition $selected_collect_lane $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex $all_lane_mpr_burst0 $lane1_mpr_dq $selected_mpr_dq $selected_dqs_collect $selected_dqs_reversed $selected_dqs_inverted $selected_dqs_inv_reversed $selected_collect_samples]
     if {$state >= 17 && $state <= 23} {
         set calib_stb [expr {($debug1 >> 5) & 1}]
         set o_wb_stall_calib [expr {($debug1 >> 6) & 1}]
