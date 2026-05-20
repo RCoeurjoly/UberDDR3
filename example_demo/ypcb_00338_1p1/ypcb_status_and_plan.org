@@ -1235,6 +1235,63 @@ Plan documented before execution:
   - OpenXC7 DQS is saturated and MPR is saturated: focus on DQS input capture,
     read command timing, or DQS gating/tri-state behavior.
 
+
+Execution result:
+
+- Commit under test: =a684eff= (=Add YPCB COLLECT_DQS lane1 probe=).
+- =make openxc7_calib_only= completed and generated
+  =ypcb_00338_1p1_ddr3_calib_only_openxc7.bit=.
+- Post-route timing passed after routing:
+  - =jtag_debug_inst.tck= max frequency 249.50 MHz.
+  - =i_controller_clk= max frequency 85.06 MHz, passing the 83.333 MHz target.
+- The locked hardware transaction programmed the bitstream and collected 80 JTAG
+  samples before releasing =/tmp/ypcb-hs3-210299BF3824.lock=.
+- State distribution from the 80 samples:
+  - 14 samples in =state=2= (=MPR_READ=).
+  - 12 samples in =state=3= (=COLLECT_DQS=).
+  - 54 samples in =state=4= (=ANALYZE_DQS=).
+  - 80 samples had =calib_complete=0=.
+- Exact =COLLECT_DQS= latched fields:
+  - =selected_collect_lane=1= in all 80 samples.
+  - =lane1_collect_dqs=0xff= in all 80 samples.
+  - =selected_dqs_collect=0xff= in all 80 samples.
+  - =lane1_mpr_dq=0xffffffffffffffff= in all 80 samples.
+  - =selected_mpr_dq=0xffffffffffffffff= in all 80 samples.
+  - =dqs_store=0xffffffff= in all 80 samples.
+  - =dqs_start_index_stored=39= in all 80 samples.
+  - =all_lane_dqs_collect=0x00ff00ff0000ffff= for 76 of 80 samples, with four
+    nearby variants during live cycling.
+
+Interpretation after execution:
+
+- The saturation is already present at the exact =COLLECT_DQS= sample point. It
+  is not an artifact introduced later by =ANALYZE_DQS= compression into
+  =dqs_store=.
+- Lane 1 has both DQS and MPR DQ saturated high at the same sample point. That
+  makes a pure DQS bit-order explanation weak for this OpenXC7 run; the sampled
+  DQ data is also wrong before analysis.
+- The all-lane DQS collect vector is still nonzero and structured, so this is
+  not a global absence of DQS capture. The failing selected lane is seeing an
+  all-high byte and all-high MPR data.
+- The critical path report now names =debug_lane[1]= in the controller clock
+  domain, but route still closes at 85.06 MHz. The debug mux is adding timing
+  pressure, so keep subsequent probes narrow or explicitly register their debug
+  outputs.
+
+Next measured action:
+
+- Run the same exact-sample decoder against the Vivado calibration-only oracle,
+  or add a compile-time/JTAG-selected lane index so OpenXC7 and Vivado can walk
+  lanes 0..7 at the identical =COLLECT_DQS= point. The decision criterion is
+  whether Vivado sees non-saturated MPR/DQS on lane 1 at this point, or whether
+  lane 1 is expected to be saturated until another lane is selected.
+- If Vivado lane 1 is healthy while OpenXC7 lane 1 is all ones, focus on
+  open-flow runtime input capture semantics around ILOGIC/IDELAY/ISERDES and DQ
+  tri-state/read timing.
+- If Vivado lane 1 also shows all ones at this exact point, treat fixed lane 1
+  as a poor oracle target and move to all-lane/selected-lane comparison rather
+  than a lane-specific fix.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
