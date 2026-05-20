@@ -579,6 +579,108 @@ Interpretation:
   adjacent controller cycles around =delay_before_read_data == 0=, or add a
   small time-indexed ring buffer for the MPR/DQS sample window.
 
+** 2026-05-20 OpenXC7 warning analysis:
+
+Goal: analyze every warning class in the YPCB OpenXC7 flow and either address it
+or explicitly ignore/defer it.
+
+Captured baseline:
+
+- Forced full rebuild command: touch top Verilog, then =make openxc7= with output
+  redirected to =/tmp/ypcb_openxc7_warnings.log=.
+- Build completed and routed =i_controller_clk= at 89.90 MHz, passing the
+  83.333 MHz target.
+- Yosys reported =4494= warnings. nextpnr reported no final route warnings.
+
+Warning classes:
+
+1. Floating-point primitive parameters.
+
+   Examples:
+   - =clk_wiz.v=: PLL phase/duty/period parameters.
+   - =rtl/ddr3_phy.v=: IDELAYE2 =REFCLK_FREQUENCY= and DQS =IDELAY_VALUE=.
+
+   Decision: ignore for now. These are Xilinx primitive/model parameter typing
+   messages from Yosys converting real-valued parameters. They do not indicate a
+   missing net or changed logic by themselves. Fixing them globally would touch
+   primitive instantiations and should be validated separately.
+
+2. Memory replaced with list of registers.
+
+   Examples: =stage2_data=, =stage2_dm=, =o_wb_data_q=, delay counters, command
+   pipeline arrays.
+
+   Decision: ignore. This is the expected synthesis representation for small RTL
+   register arrays used with per-lane indexing. It is noisy but not a correctness
+   warning.
+
+3. OSERDESE2 32-bit-to-1-bit port resizing from unsized zero tie-offs.
+
+   Examples: =SHIFTIN1(0)=, =SHIFTIN2(0)=, =T1(0)=, =T2(0)=, =T3(0)=,
+   =T4(0)=, =TBYTEIN(0)=.
+
+   Decision: valid fix, deferred. A trial changed these to =1'b0= and removed
+   the associated width warnings, but the forced full route then missed timing
+   at 82.58 MHz. Since this is warning hygiene, not a functional fix, do not keep
+   the source edit while the 960-bit debug probe is already close to timing.
+
+4. Top-level 1-bit input width resizing from unsized constants.
+
+   Examples: =i_wb_cyc(1)=, =i_wb_stb(0)=, =i_wb_we(0)=, =i_wb2_cyc(0)=,
+   =i_wb2_stb(0)=, =i_wb2_we(0)=, =i_user_self_refresh(0)=.
+
+   Decision: valid fix, deferred for the same timing reason as class 3. Use
+   explicitly sized =1'b0=/=1'b1= when the wide debug probe is narrowed or when a
+   timing-clean warning pass is made.
+
+5. Top-level dynamic bit write warning on =debug_state_seen[o_debug1[4:0]] <= 1'b1=.
+
+   Decision: valid fix, deferred. Rewriting as an ORed one-hot update removed the
+   warning but was part of the same source cleanup netlist that missed timing.
+   The current warning is confined to debug instrumentation and does not affect
+   DDR3 behavior.
+
+6. Controller undriven generated wires and multiple-driver generated mux warnings.
+
+   Examples point into dynamic indexed calibration logic around:
+   - stage2 lane realignment assignments near =ddr3_controller.v:1088=,
+     =1119=, and =1160=.
+   - read-pipe/data-start arrays and =dq_target_index= generated mem2bits wires.
+   - BIST byte-write assignment to =calib_data= around =ddr3_controller.v:3193=.
+
+   Decision: defer, not ignore permanently. These warnings are the only class
+   that could hide a real synthesis semantic issue. They come from existing RTL
+   patterns with dynamic array indexing, variable part selects, and multiple
+   nonblocking writes to parts of the same vector. Refactoring them safely is a
+   separate experiment because it touches calibration/BIST behavior and must be
+   verified against hardware.
+
+7. =ABC: The network is combinational=.
+
+   Decision: ignore. This is an ABC informational warning during logic mapping,
+   not a specific RTL hazard in this flow.
+
+8. nextpnr placement timing =FAIL= before route.
+
+   Decision: ignore if post-route timing passes. The flow already gates on the
+   final post-route frequency. The baseline warning-capture build recovered from
+   placement =FAIL= to post-route =PASS=.
+
+Attempted cleanup result:
+
+- Trial fixes for classes 3, 4, and 5 reduced Yosys warnings from =4494= to
+  =3794=.
+- The forced full route missed target at 82.58 MHz versus 83.333 MHz.
+- Source edits from that trial were backed out. Keep the warning ledger and defer
+  these cleanup edits until the debug payload is smaller or timing margin is
+  available.
+
+Next action:
+
+Do not random-fix all warnings in the active calibration-debug bitstream. The
+safe measured path is to first narrow or time-multiplex the 960-bit JTAG payload,
+then reapply the low-risk width/tie-off cleanup and rerun the warning ledger.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
