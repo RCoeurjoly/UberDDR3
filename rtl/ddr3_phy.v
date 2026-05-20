@@ -121,9 +121,10 @@ module ddr3_phy #(
     //value used in data to have the delay relative to the data.
     localparam DQS_ODELAY_TAP = ((DDR3_CLK_PERIOD/4))/78.125 + DATA_ODELAY_TAP;
     
-    //Incoming DQS should be 90 degree delayed relative to incoming data
+    //Incoming DQS should be 90 degree delayed relative to incoming data.
+    //IDELAY_VALUE is an integer tap count; round 78.125ps/tap using integer math.
     localparam DATA_IDELAY_TAP = 0; //600ps delay
-    localparam DQS_IDELAY_TAP = ((DDR3_CLK_PERIOD/4))/78.125 + DATA_IDELAY_TAP;
+    localparam DQS_IDELAY_TAP = (((DDR3_CLK_PERIOD / 4) * 8 + 312) / 625) + DATA_IDELAY_TAP;
     
     genvar gen_index;
     wire[cmd_len-1:0] oserdes_cmd, //serialized(4:1) i_controller_cmd_slot_x 
