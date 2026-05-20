@@ -836,6 +836,58 @@ OpenXC7. For Vivado, this should confirm whether the design reaches
 =DONE_CALIBRATE= when the BIST write/read sweep is shortened. For OpenXC7, it
 will not mask the early failure if the design still cannot pass =ANALYZE_DQS=.
 
+** 2026-05-20 long Vivado BIST wait:
+
+Goal: test the hypothesis that the Vivado bitstream only needed more time after
+entering =BURST_WRITE=.
+
+Command discipline:
+
+- The run used one locked hardware transaction:
+  acquire =/tmp/ypcb-hs3-210299BF3824.lock=, source Vivado, program
+  =build/ypcb_00338_1p1_ddr3_vivado.bit=, sample USER1, release lock.
+- OpenOCD captured =360= samples with =250 ms= delay, about =90 s= of post-program
+  JTAG observation.
+- Raw log: =/tmp/ypcb_vivado_long_bist_jtag.log=.
+
+Result:
+
+- =magic=0xd3b5= remained valid through the run.
+- =pll_locked=1= throughout.
+- =calib_complete=0= for all =360= samples.
+- Top-level =state=17= (=BURST_WRITE=) for all samples.
+- No samples reached =state=18..23=, =DONE_CALIBRATE=, =finish=1=, or =done=1=.
+- =read_addr= stayed =0= for all samples.
+- Sampled =write_addr= reached as high as =0x07fc2da=, then later samples showed
+  lower addresses again, with the final sample at =0x01b1bc4=.
+- The debug "seen" flags recorded =burst_read:1= in =332/360= samples, while the
+  controller state and request fields still showed active BIST write requests.
+  Treat that as evidence that the BIST/debug overlay observed internal read-path
+  activity or stale/latched phase flags, not as proof that the controller had
+  entered the =BURST_READ= state.
+- =wrong_low= became =0xaa= after the first =28= samples, so the BIST probe is
+  seeing mismatch information during this long write/test window.
+
+Interpretation:
+
+- This run does not show that the Vivado bitstream reaches
+  =DONE_CALIBRATE= on the full BIST configuration.
+- It also does not look like a simple "wait a few more seconds" issue. After
+  about =90 s=, the sampled state was still =BURST_WRITE= and =calib_complete=0=.
+- Vivado still teaches something useful: unlike OpenXC7, it passes the early
+  DQS/MPR calibration states and reaches the BIST write path. The OpenXC7
+  failure remains earlier, around =ANALYZE_DQS=.
+- The full BIST path is too long or too ambiguous for quick calibration
+  attribution. The next measured experiment should shorten or bypass BIST so
+  both flows can answer one question cleanly: "did calibration complete?"
+
+Next measured action:
+
+Add a controlled short-BIST or calibration-only build option, commit it as its
+own experiment, and test both Vivado and OpenXC7 under the same locked
+program-and-read transaction. Keep the full BIST build as the reference, but do
+not use it as the primary answer for calibration completion timing.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
