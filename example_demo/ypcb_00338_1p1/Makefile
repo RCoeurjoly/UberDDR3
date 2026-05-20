@@ -89,6 +89,18 @@ ${BUILDDIR}/vivado.tcl: ${BUILDDIR}
 	place_design
 	phys_opt_design
 	route_design
+	write_checkpoint -force ${PROJECT}_vivado_routed.dcp
+	report_utilization -file ${PROJECT}_vivado_util.rpt
+	report_timing_summary -file ${PROJECT}_vivado_timing.rpt
+	report_clock_utilization -file ${PROJECT}_vivado_clock_util.rpt
+	report_io -file ${PROJECT}_vivado_io.rpt
+	set ddr_cells [get_cells -hierarchical -filter {REF_NAME =~ ISERDESE2 || REF_NAME =~ OSERDESE2 || REF_NAME =~ IDELAYE2 || REF_NAME =~ ODELAYE2 || REF_NAME =~ IDELAYCTRL || REF_NAME =~ IOBUF || REF_NAME =~ IOBUFDS || REF_NAME =~ PLLE2_ADV || REF_NAME =~ BUFG}]
+	set fp [open ${PROJECT}_vivado_ddr_cells.tsv w]
+	puts \$$fp "name\tref_name\tsite\tbel\tloc"
+	foreach c [lsort \$$ddr_cells] {
+	    puts \$$fp [format "%s\t%s\t%s\t%s\t%s" \$$c [get_property REF_NAME \$$c] [get_property SITE \$$c] [get_property BEL \$$c] [get_property LOC \$$c]]
+	}
+	close \$$fp
 	write_bitstream -verbose -force ${PROJECT}_vivado.bit
 	# report_utilization -file util.rpt
 	# report_timing_summary -file timing.rpt
