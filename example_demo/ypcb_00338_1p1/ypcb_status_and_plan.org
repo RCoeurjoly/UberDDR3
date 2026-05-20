@@ -754,6 +754,88 @@ Interpretation:
   selection, or PHY/controller interpretation rather than a simple missing-DQS
   failure.
 
+
+** 2026-05-20 placement audit and Vivado BIST-state probe:
+
+Goal: use Vivado as a same-board reference and similar examples as structural
+references, then explain what Vivado's stable =state=17= means.
+
+Implemented commits:
+
+- =67516a6= adds Vivado routed reports and a DDR placement audit helper.
+- =3ada8c5= changes the audit to summarize byte lanes and DQS sites.
+- =8aa1249= adds a =BURST_WRITE= / BIST request debug overlay and decodes it
+  in the OpenOCD script.
+
+Vivado report result:
+
+- Report-enabled =make -B vivado= completed.
+- Final Vivado timing after the BIST probe was clean:
+  =WNS=0.522=, =TNS=0.000=, =WHS=0.046=, =THS=0.000=.
+- Bitstream generation completed with =0 Warnings, 0 Critical Warnings and
+  0 Errors= in the final Vivado stages.
+- Generated local artifacts include the routed DCP, timing/utilization/clock/IO
+  reports, and =build/ypcb_00338_1p1_ddr3_vivado_ddr_cells.tsv=. These are
+  measurement artifacts and should not be committed.
+
+Placement audit result:
+
+- YPCB OpenXC7 and YPCB Vivado have matching DDR primitive counts at the logical
+  level: =64 IOBUF=, =8 IOBUFDS=, =72 IDELAYE2=, =72 ISERDESE2=,
+  =97 OSERDESE2=, =1 PLLE2_ADV=.
+- The YPCB byte-lane structure is coherent by inspection: each lane has
+  =8 DQ IOBUF/IDELAY/ISERDES/OSERDES= plus =1 DQS IOBUFDS/IDELAY/ISERDES/OSERDES=.
+- Similar examples show the same per-byte-lane structure for their lane count.
+  This does not prove the board pinout is correct, but it weakens the idea that
+  YPCB has an obvious missing primitive or malformed byte-lane generation.
+- Vivado places each YPCB byte lane into compact I/O site spans with the DQS site
+  inside the same span:
+  - lane 0: DQ =Y13..Y22=, DQS =Y20=
+  - lane 1: DQ =Y25..Y36=, DQS =Y32=
+  - lane 2: DQ =Y39..Y48=, DQS =Y44=
+  - lane 3: DQ =Y1..Y10=, DQS =Y8=
+  - lane 4: DQ =Y114..Y123=, DQS =Y120=
+  - lane 5: DQ =Y125..Y136=, DQS =Y132=
+  - lane 6: DQ =Y139..Y148=, DQS =Y144=
+  - lane 7: DQ =Y51..Y60=, DQS =Y58=
+
+Vivado BIST-state probe result for commit =8aa1249=:
+
+- The hardware run used one locked transaction: acquire HS3 lock, program the
+  Vivado bitstream, sample USER1 16 times, release lock.
+- USER1 remained valid: =magic=0xd3b5=.
+- =pll_locked=1= and =calib_complete=0=.
+- All samples were =state=17= (=BURST_WRITE=), but the state was not wedged.
+- The BIST request overlay showed accepted write requests:
+  - =calib_stb=1=
+  - =o_wb_stall_calib=0= for most samples
+  - =o_wb_ack_uncalibrated=1= for most samples
+  - =we=1= and =aux=0x2=, matching BIST write requests
+  - sampled =write_addr= advanced from =0x00095ee= to =0x047471f=
+  - sampled =calib_addr= tracked =write_addr=
+  - =read_addr= stayed =0= because =BURST_READ= had not started yet
+- One sample had =o_wb_stall_calib=1=, which is expected transient backpressure,
+  not a permanent stall.
+
+Updated interpretation:
+
+- Vivado reaching =state=17= is not evidence of a new failure at =BURST_WRITE=.
+  It is actively streaming the first BIST write phase over the full configured
+  memory address space.
+- The earlier conclusion should be refined: Vivado appears to pass early DQS and
+  write/read calibration well enough to begin BIST, while OpenXC7 remains stuck
+  much earlier around =MPR_READ/COLLECT_DQS/ANALYZE_DQS=.
+- Placement comparison did not find a structural byte-lane generation problem.
+  The remaining OpenXC7-specific suspect is still implementation of the early
+  DQS/MPR sample path, not BIST.
+
+Next measured action:
+
+Build a deliberately short BIST or calibration-only variant for Vivado and
+OpenXC7. For Vivado, this should confirm whether the design reaches
+=DONE_CALIBRATE= when the BIST write/read sweep is shortened. For OpenXC7, it
+will not mask the early failure if the design still cannot pass =ANALYZE_DQS=.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
