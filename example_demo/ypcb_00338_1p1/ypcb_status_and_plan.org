@@ -2,6 +2,10 @@
 Make UberDDR3 work for YPCB-00338-1P1
 
 * Current status
+
+** experiment/change commit discipline
+Each measurement experiment or instrumentation change should be committed separately before running the hardware transaction. The commit boundary is part of the measurement record: it lets a bitstream, OpenOCD decoder, and observed JTAG output be tied back to one exact diff.
+
 work happens in branch ypcb.
 nix develop
 cd examples_demo/ypcb_00338_1p1
@@ -22,15 +26,292 @@ Expected good final state:
                => clocks locked, but DDR3 calibration/BIST did not reach done
 
 011
-	       
-* Plan
-** TODO Try to pass timing
+** how to program and measure
+The HS3 lock must cover the whole attributable hardware transaction, not just
+=openFPGALoader=. Use one locked shell that programs the bitstream and then reads
+the result before releasing the lock.
 
-- Build the YPCB target with the OpenXC7 clock profile.
-- Inspect timing failures and determine whether they are real design issues,
-  placement/routing artifacts, or tool/database limitations.
-- If timing passes, program the board and run BIST.
-- Record whether passing timing is sufficient for BIST to pass.
+Example:
+
+=flock /tmp/ypcb-hs3-210299BF3824.lock bash -lc 'openFPGALoader -c digilent_hs3 --ftdi-serial 210299BF3824 --bitstream ypcb_00338_1p1_ddr3_openxc7.bit && openocd -c "set FTDI_SERIAL 210299BF3824" -c "set YPCB_DEBUG_SAMPLES 8" -c "set YPCB_DEBUG_DELAY_MS 250" -s /home/roland/openocd-code/tcl -f openocd_ypcb_debug.tcl'=
+* Plan
+** TODO_NEXT Debug ANALYZE_DQS calibration stall with JTAG.
+- State "TODO_NEXT"  from              [2026-05-19 Tue 23:35]
+
+Current hardware readback:
+
+- =pll_locked= is 1.
+- =calib_complete= is 0.
+- =state= is 4, where state 4 is =ANALYZE_DQS=.
+
+This means YPCB is not failing BIST yet. It is stuck during early MPR/DQS read
+calibration, before normal memory testing starts.
+
+Use the USER1 JTAG/BSCAN debug register as the authoritative debug path because
+the YPCB LiteX platform has no known serial pin. Keep LEDs unchanged.
+
+Expose and decode:
+
+- =state_calibrate=
+- =lane=
+- =dqs_store[31:0]=
+- =dqs_start_index=
+- =dqs_start_index_stored=
+- =dqs_start_index_repeat=
+- current lane =i_phy_iserdes_dqs[lane*8 +: 8]=
+
+Update =openocd_ypcb_debug.tcl= to print the new fields.
+
+Rebuild and test:
+
+- Run =make openxc7=.
+- Confirm route still passes =--freq 83.333=.
+- Program with:
+
+  =flock /tmp/ypcb-hs3-210299BF3824.lock openFPGALoader -c digilent_hs3 --ftdi-serial 210299BF3824 --bitstream ypcb_00338_1p1_ddr3_openxc7.bit=
+
+- Read multiple JTAG samples with the OpenOCD script.
+
+Interpretation:
+
+- =dqs_store= all zero or all one means DQS capture is dead, or polarity/IO/ISERDES is wrong.
+- =dqs_store= changes but lacks =010101...= means read phase, bitslip, or MPR timing is suspect.
+- The pattern exists but the state retries means stability/repeat logic or =dqs_start_index= mismatch.
+- Only one lane failing points at lane pinout, DQS/DQ byte ordering, or per-lane delay.
+
+Assumptions:
+
+- The immediate goal is diagnosis, not a permanent user-facing debug interface.
+- Seed sweep stays deferred until =dqs_store= shows what kind of failure this is.
+- Similar-board comparison should focus on this calibration phase, not full BIST behavior yet.
+
+Measurement ladder:
+
+1. Confirm DDR3 is entering MPR read mode by instrumenting command/address during
+   =MPR_READ= if DQS remains absent.
+2. Measure DQS at the internal PHY boundary before assuming a controller bug.
+3. Expose all byte-lane ISERDES DQS samples at once to separate no-DQS-anywhere
+   from wrong-lane mapping.
+4. Add per-lane event counters for nonzero and changing DQS samples during
+   =COLLECT_DQS= so the diagnosis is based on repeated samples, not one instant.
+5. If internal DQS is still zero, use an external scope/LA on CK, lane DQS, and
+   command pins to distinguish a board/DDR command issue from a PHY capture issue.
+
+Implemented instrumentation pass:
+
+- USER1 JTAG is widened to 256 bits.
+- The low 64 bits keep the existing status/magic/state payload.
+- Bits =[127:64]= keep the current-lane DQS calibration page.
+- Bits =[191:128]= expose all-lane =i_phy_iserdes_dqs[63:0]= snapshots.
+- Bits =[255:192]= expose per-lane 4-bit saturating counters:
+  - lower 32 bits: nonzero DQS samples during =COLLECT_DQS= or =ANALYZE_DQS=
+  - upper 32 bits: changed DQS samples during =COLLECT_DQS= or =ANALYZE_DQS=
+
+2026-05-20 instrumented hardware result:
+
+- =make openxc7= completed and routed =i_controller_clk= at 92.64 MHz, passing
+  the 83.333 MHz target.
+- Programming the generated =ypcb_00338_1p1_ddr3_openxc7.bit= succeeded.
+- Repeated USER1 samples after programming were stable:
+  - =pll_locked=1
+  - =calib_complete=0
+  - low debug state read back as =state=0 in this capture
+  - current-lane page: =dqs_current=0xff, =dqs_store=0x00000000=
+  - all-lane PHY DQS snapshot: =all_lane_dqs=0x00ff00ff0000ffff=
+  - =dqs_nonzero_nibbles=0x00000000=
+  - =dqs_transition_nibbles=0x00000000=
+
+Interpretation of this run:
+
+- The PHY-boundary DQS snapshot is not all zero. That argues against a simple
+  "no DQS anywhere" failure.
+- The event counters remained zero because they only count while
+  =state_calibrate == COLLECT_DQS= and =delay_before_read_data == 0=. Either the
+  readback missed that window, the state machine reset/restarted before the
+  sample, or the gating is too narrow for post-mortem measurement.
+- Next instrumentation should latch state visits and first/last DQS values
+  across =COLLECT_DQS= and =ANALYZE_DQS=, instead of relying only on live state
+  and narrowly gated counters.
+
+2026-05-20 broadened-counter hardware result:
+
+The counter gate was broadened to count during both =COLLECT_DQS= and
+=ANALYZE_DQS=. This also passed route timing: post-route =i_controller_clk= was
+89.98 MHz against the 83.333 MHz target.
+
+Repeated USER1 samples after programming the broadened probe showed:
+
+- =pll_locked=1
+- =calib_complete=0
+- live states cycling through =state=3 (=COLLECT_DQS=), =state=4
+  (=ANALYZE_DQS=), and =state=2= (=MPR_READ=)
+- =dqs_lane=0
+- =dqs_current=0xff=
+- =dqs_store=0xffffffff=
+- =dqs_start_index= moving, sampled at values 13, 17, 23, 27, 36, 37, 39
+- =dqs_start_index_stored=39
+- =all_lane_dqs=0x00ff00ff0000ffff=
+- =dqs_nonzero_nibbles=0xfffff0ff=
+- =dqs_transition_nibbles=0xfffff00f=
+
+Updated interpretation:
+
+- DQS is not absent at the internal PHY boundary. Several byte lanes are active
+  and transitioning during the DQS analysis loop.
+- Lane 0 is the active calibration lane in this run, and it is saturated high
+  (=0xff=). The controller stores all ones in =dqs_store=, so it will never find
+  the expected =0101010100= window.
+- The byte-lane activity pattern is uneven: nibbles in the all-lane counters show
+  inactive lanes as well as active lanes. That keeps lane mapping/pinout/polarity
+  on the suspect list, but the immediate measured failure is not a missing read
+  strobe; it is an all-high DQS sample pattern for the selected lane.
+- Next measurement should expose the raw positive/negative DQS path or ISERDES
+  bit order/polarity around lane 0, and should also expose MPR DQ data for lane
+  0 at the same sample point.
+
+Next probe implementation:
+
+- USER1 JTAG is widened again to 384 bits.
+- Bits =[319:256]= expose lane 0 MPR DQ data from the same =COLLECT_DQS= sample
+  point as the lane 0 DQS capture.
+- Bits =[383:320]= expose lane 0 DQS at that sample point plus its reversed,
+  inverted, and inverted-reversed forms, and a saturating =COLLECT_DQS= sample
+  counter.
+- Hardware readback must use the locked transaction above so the programmed
+  bitstream and OpenOCD samples are attributable to the same run.
+
+2026-05-20 lane 0 DQS/MPR hardware result:
+
+This run used one locked transaction:
+
+1. Acquire =/tmp/ypcb-hs3-210299BF3824.lock=.
+2. Program =ypcb_00338_1p1_ddr3_openxc7.bit=.
+3. Run the OpenOCD USER1 readback.
+4. Release the lock.
+
+The 384-bit probe passed post-route timing: =i_controller_clk= was 93.82 MHz
+against the 83.333 MHz target. Repeated samples showed:
+
+- =pll_locked=1
+- =calib_complete=0
+- live states cycling through =state=2= (=MPR_READ=) and =state=4=
+  (=ANALYZE_DQS=)
+- live selected =dqs_lane=4 in this run
+- selected-lane =dqs_current=0xff= and =dqs_store=0xffffffff=
+- lane 0 same-cycle =COLLECT_DQS= sample count saturated at 255
+- lane 0 DQS transforms:
+  - =lane0_dqs_collect=0xff
+  - =lane0_dqs_rev=0xff
+  - =lane0_dqs_inv=0x00
+  - =lane0_dqs_inv_rev=0x00
+- lane 0 MPR DQ data from the same =COLLECT_DQS= sample:
+  =lane0_mpr_dq=0xffffffffffffffff=
+- all-lane DQS snapshot remained =all_lane_dqs=0x00ff00ff0000ffff=
+- activity counters were =dqs_nonzero_nibbles=0xff0fffff= and
+  =dqs_transition_nibbles=0xff00ffff=
+
+Updated interpretation:
+
+- Lane 0 is not just seeing bad DQS phase. Its MPR DQ sample is also all ones at
+  the same capture point. Reversing DQS bit order does not reveal a hidden
+  alternating pattern because the sampled byte is saturated.
+- Since the live selected calibration lane was 4 while the fixed lane 0 page was
+  all ones, the next probe should capture MPR DQ for the selected calibration
+  lane, or all lanes, not only fixed lane 0.
+- The all-lane DQS snapshot still shows an uneven lane pattern. That keeps
+  lane mapping, byte-lane ordering, DQS polarity, and PHY input interpretation
+  ahead of random timing or seed changes.
+
+
+2026-05-20 selected-lane DQS/MPR hardware result:
+
+The fixed lane 0 page was changed to capture the selected calibration lane at
+the =COLLECT_DQS= sample point. The page now records:
+
+- =selected_collect_lane=
+- =selected_mpr_dq=
+- =selected_dqs_collect=
+- reversed, inverted, and inverted-reversed selected-lane DQS
+- saturated selected-lane collect sample count
+
+The selected-lane probe passed post-route timing: =i_controller_clk= was
+86.85 MHz against the 83.333 MHz target. The hardware run used one locked
+program-and-read transaction. Repeated samples showed:
+
+- =pll_locked=1
+- =calib_complete=0
+- live states cycling through =state=2= (=MPR_READ=), =state=3=
+  (=COLLECT_DQS=), and =state=4= (=ANALYZE_DQS=)
+- selected =dqs_lane=6= and =selected_collect_lane=6=
+- selected-lane =dqs_current=0xff= and =dqs_store=0xffffffff=
+- selected-lane DQS transforms:
+  - =selected_dqs_collect=0xff
+  - =selected_dqs_rev=0xff
+  - =selected_dqs_inv=0x00
+  - =selected_dqs_inv_rev=0x00
+- selected-lane MPR DQ data from the same =COLLECT_DQS= sample:
+  =selected_mpr_dq=0xffffffffffffffff=
+- selected collect sample count saturated at 255
+- most all-lane snapshots were =all_lane_dqs=0x00ff00ff0000ffff=
+- one live =COLLECT_DQS= sample showed =all_lane_dqs=0x00ff2aaa2a2a2a2a=
+- counters were =dqs_nonzero_nibbles=0x0fffffff= and
+  =dqs_transition_nibbles=0x0fffffff=
+
+Updated interpretation:
+
+- The failing selected calibration lane is lane 6 in this run, and lane 6 has
+  both DQS and MPR DQ saturated high at the same capture point. Bit reversal or
+  polarity inversion alone does not produce the expected alternating DQS
+  window.
+- The =0x00ff2aaa2a2a2a2a= all-lane DQS snapshot is important: several lower
+  lanes show an alternating-looking =0x2a= pattern while lane 6 remains =0xff=
+  and lane 7 appears =0x00=. That argues against a global absence of MPR/DQS and
+  toward byte-lane mapping, pinout, lane ordering, or per-lane PHY input
+  interpretation.
+- Next measurement should capture all-lane MPR DQ in the same format as the
+  all-lane DQS snapshot, or compare the lane order against the board XDC and the
+  similar-board working target.
+
+
+Hypotheses and tests:
+
+1. Global MPR/DQS absence.
+   - Prediction: all lanes should be all zero or all one, with no alternating
+     looking lane anywhere.
+   - Test result so far: mostly false. The live all-lane DQS sample
+     =0x00ff2aaa2a2a2a2a= contains alternating-looking lower lanes.
+
+2. DQS bit order or DQS polarity only.
+   - Prediction: reversing or inverting the selected-lane DQS byte should reveal
+     the expected =010101...= relationship.
+   - Test result so far: false for selected lane 6. The selected DQS byte is
+     =0xff=, reversed is still =0xff=, and inverted views are =0x00=.
+
+3. Selected calibration lane is not the lane carrying valid MPR/DQS.
+   - Prediction: all-lane MPR/DQ or DQS snapshots show valid-looking activity on
+     lanes other than the selected failing lane.
+   - Current evidence: supported by DQS. Lower lanes showed =0x2a= while selected
+     lane 6 stayed =0xff=.
+   - Next test implemented: USER1 widened to 448 bits with bits =[447:384]=
+     holding all-lane MPR DQ burst0 from the same =COLLECT_DQS= sample. If lower
+     lanes also show non-=0xff= MPR data while lane 6 is =0xff=, lane mapping or
+     lane ordering becomes the primary suspect. If all lanes are =0xff=, the
+     problem is more likely MPR read data capture/common DQ behavior rather than
+     lane selection alone.
+
+4. XDC byte-lane grouping or physical pinout mismatch.
+   - Prediction: the board XDC's =ddr3_dq[8n+:8]= group does not correspond to
+     =ddr3_dqs[n]=, or the board schematic/net names order byte lanes differently
+     than the core expects.
+   - Static test in progress: compare YPCB XDC byte groups and DQS pins against
+     the core assumption that lane =n= is =ddr3_dq[8n+:8]= with =ddr3_dqs[n]=.
+
+5. Per-lane PHY input interpretation issue.
+   - Prediction: XDC grouping is coherent, but specific lanes still sample
+     saturated values while neighboring lanes show plausible MPR/DQS.
+   - Test after all-lane MPR: expose or compare raw PHY input before ISERDES /
+     IDELAY for the bad lane, or try a controlled lane remap probe rather than a
+     timing seed sweep.
 ** TODO Sweep seeds
 
 - Run multiple =nextpnr-xilinx= seeds for the YPCB target.
@@ -38,7 +319,6 @@ Expected good final state:
   for each seed.
 - If any seed passes timing, generate its bitstream, program the board, and run
   BIST.
-
 ** TODO Compare similar boards
 
 - Generate bitstreams for similar Kintex-7 DDR3 demo boards.
@@ -48,6 +328,15 @@ Expected good final state:
 - Look for placements or constraints that explain why one board succeeds or
   fails relative to another.
 
+** DONE Try to pass timing
+CLOSED: [2026-05-19 Tue 23:35]
+- State "DONE"       from "TODO"       [2026-05-19 Tue 23:35]
+- Build the YPCB target with the OpenXC7 clock profile.
+- Inspect timing failures and determine whether they are real design issues,
+  placement/routing artifacts, or tool/database limitations.
+- If timing passes, program the board and run BIST.
+- Record whether passing timing is sufficient for BIST to pass.
+It passes timing, but not BIST.
 ** DONE Make it so that minimum freq is a gate
 CLOSED: [2026-05-19 Tue 23:32]
 - State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 23:32]
@@ -90,6 +379,171 @@ CLOSED: [2026-05-19 Tue 22:14]
 CLOSED: [2026-05-19 Tue 22:05]
 - State "DONE"       from "TODO_NEXT"  [2026-05-19 Tue 22:05]
 - State "TODO_NEXT"  from              [2026-05-19 Tue 18:38]
+** 2026-05-20 selected/all-lane MPR hardware result:
+
+The next probe changed the fixed lane 0 MPR page into a selected-lane page and
+added one all-lane MPR burst-0 sample from the same =COLLECT_DQS= sample point.
+USER1 JTAG is now 448 bits:
+
+- Bits =[447:384]=: all-lane MPR DQ burst 0.
+- Bits =[383:320]=: selected-lane DQS sample plus reversed/inverted variants.
+- Bits =[319:256]=: selected-lane MPR DQ across bursts 0..7.
+- Older DQS counter, all-lane DQS, current-lane, and status pages remain.
+
+This build passed post-route timing: =i_controller_clk= was 92.47 MHz against
+the 83.333 MHz target. The hardware run used one locked transaction:
+
+1. Acquire =/tmp/ypcb-hs3-210299BF3824.lock=.
+2. Program =ypcb_00338_1p1_ddr3_openxc7.bit=.
+3. Run the OpenOCD USER1 readback.
+4. Release the lock.
+
+The first post-program sample caught =state=3= (=COLLECT_DQS=):
+
+- =pll_locked=1
+- =calib_complete=0
+- selected =dqs_lane=4=
+- =selected_collect_lane=4=
+- =selected_dqs_collect=0xff=
+- =selected_dqs_rev=0xff=
+- =selected_dqs_inv=0x00=
+- =selected_dqs_inv_rev=0x00=
+- =selected_mpr_dq=0xffffffffffffffff=
+- =all_lane_mpr_burst0=0xffffffffffffffff=
+- =all_lane_dqs=0x00ff00ff0000ffff=
+- =dqs_store=0xf954ffff=
+- =dqs_start_index=16=
+- =dqs_start_index_stored=16=
+- =dqs_start_index_repeat=1=
+
+Later samples showed the controller reset/restart path with =state=0=,
+=all_lane_dqs=0x00ff00ff0000ffff=, and zeroed latched MPR pages. Therefore the
+first sample is the useful calibration-window measurement from this run.
+
+Hypotheses and tests:
+
+1. Global DQS absence.
+
+   Test: expose all-lane =i_phy_iserdes_dqs[63:0]= and per-lane activity
+   counters during =COLLECT_DQS=/=ANALYZE_DQS=.
+
+   Result: rejected. Multiple runs saw nonzero all-lane DQS snapshots, including
+   =0x00ff2aaa2a2a2a2a= and =0x00ff00ff0000ffff=. The lower-lane =0x2a= pattern
+   shows MPR/DQS activity is not globally absent at the PHY boundary.
+
+2. The problem is only fixed lane 0.
+
+   Test: move the detailed DQS/MPR capture from fixed lane 0 to the active
+   selected calibration lane.
+
+   Result: rejected as a complete explanation. Fixed lane 0 previously captured
+   =lane0_dqs_collect=0xff= and =lane0_mpr_dq=0xffffffffffffffff=. The selected
+   lane run captured lane 4 with the same saturated result:
+   =selected_dqs_collect=0xff= and =selected_mpr_dq=0xffffffffffffffff=.
+
+3. Simple DQS polarity or bit-order reversal.
+
+   Test: publish selected-lane DQS as raw, reversed, inverted, and
+   inverted-reversed bytes.
+
+   Result: not sufficient. For selected lane 4 the raw/reversed forms were both
+   =0xff= and inverted forms were both =0x00=. For a saturated byte, reversal
+   cannot recover the expected alternating DQS window. This does not rule out a
+   deeper ISERDES phase/bit-order issue on lanes that show =0x2a=, but it rules
+   out a trivial polarity or bit-order fix for the selected saturated lane.
+
+4. MPR/DQ data is present on some lanes but the controller is analyzing the
+   wrong byte lane.
+
+   Test: add same-cycle selected-lane MPR DQ and all-lane burst-0 MPR DQ at the
+   =COLLECT_DQS= sample point.
+
+   Result: still suspect, but this run did not find a good MPR byte. The selected
+   lane and all-lane burst-0 MPR pages were both all ones:
+   =selected_mpr_dq=0xffffffffffffffff= and
+   =all_lane_mpr_burst0=0xffffffffffffffff=. This points away from "only lane 0
+   is wrong" and toward lane ordering, input interpretation, or the exact MPR
+   sample timing. The current all-lane MPR page is only burst 0; it does not yet
+   prove every burst on every lane is saturated.
+
+5. XDC byte-lane grouping or physical pinout mismatch.
+
+   Test: statically inspect the YPCB XDC lane grouping against the controller's
+   byte-lane convention =ddr3_dq[8*n +: 8]= with =ddr3_dqs_p/n[n]=.
+
+   Result: still open. The XDC is grouped in byte ranges that look physically
+   coherent with the matching DQS pairs:
+
+   - lane 0: DQ[0..7] near DQS0 AK16/AK17.
+   - lane 1: DQ[8..15] near DQS1 AM17/AM18.
+   - lane 2: DQ[16..23] near DQS2 AP21/AP22.
+   - lane 3: DQ[24..31] near DQS3 AH20/AJ20.
+   - lane 4: DQ[32..39] near DQS4 AK33/AL33.
+   - lane 5: DQ[40..47] near DQS5 AG33/AH33.
+   - lane 6: DQ[48..55] near DQS6 AE34/AF34.
+   - lane 7: DQ[56..63] near DQS7 AE27/AE28.
+
+   This makes an obvious range-level XDC error less likely, but it is not a
+   schematic-level proof. A swapped byte-lane order, swapped DQS pair, or
+   board-specific memory byte ordering can still produce exactly this kind of
+   "some lanes have activity, selected lane saturates" result.
+
+6. PHY/controller input interpretation mismatch.
+
+   Test: statically inspect the PHY-to-controller packing.
+
+   Result: still open and now high priority. The PHY maps DQ ISERDES =Q1..Q8= to
+   burst slots 7 down to 0, while DQS maps =Q1..Q8= to lane bits 7 down to 0.
+   The controller consumes selected DQS as
+   =i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8]= and selected MPR DQ as
+   =i_phy_iserdes_data[((DQ_BITS*LANES)*burst + 8*lane) +: 8]=. The conventions
+   are internally consistent by inspection, but the measured lower-lane =0x2a=
+   pattern means the next useful test is an all-lane, all-burst MPR capture or a
+   lane-selectable capture that can walk lanes 0..7 and compare DQS/MPR at the
+   same sample point.
+
+Current conclusion:
+
+The useful measurement is no longer "try random timing fixes". DQS exists on
+some lanes, selected lanes can saturate high, and all-lane MPR burst 0 also
+captured all ones in the selected-lane run. The next measured probe should keep
+using JTAG and should capture either all lanes across all eight MPR bursts, or
+provide a JTAG-selected lane index so lanes 0..7 can be sampled one at a time
+with DQS raw/reversed/inverted and MPR DQ from the same cycle.
+
+** 2026-05-20 all-lane/all-burst MPR probe:
+
+The remaining high-value suspects are byte-lane ordering/pinout and
+PHY/controller input interpretation. The next measured probe therefore captures
+all lanes across all eight MPR bursts at the same =COLLECT_DQS= sample point as
+the selected-lane DQS page.
+
+Implementation:
+
+- Add controller debug page =o_debug8[511:0]=.
+- Latch =i_phy_iserdes_data[511:0]= when
+  =state_calibrate == COLLECT_DQS && delay_before_read_data == 0=.
+- Widen YPCB USER1 JTAG from 448 bits to 960 bits.
+- Decode the new page in =openocd_ypcb_debug.tcl= as all-lane MPR bursts 7..0.
+- Keep the previous selected-lane DQS, selected-lane MPR, all-lane DQS, and DQS
+  counter pages unchanged.
+
+Expected interpretation:
+
+- If every burst/lane is all ones, focus on MPR read timing, DQ input biasing, or
+  PHY sampling around the MPR read window.
+- If some lanes show an alternating or MPR-like byte while the selected lane is
+  saturated, focus on byte-lane ordering, DQS-to-DQ grouping, or board pinout.
+- If only some bursts show useful values, focus on ISERDES burst ordering,
+  bitslip/read-pipe interpretation, or sample-cycle selection.
+- If the all-burst page disagrees with the existing selected-lane page, debug the
+  instrumentation indexing before changing DDR3 behavior.
+
+Execution invariant:
+
+Use one lock for the whole hardware transaction: acquire lock, program bitstream,
+read JTAG samples, release lock.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

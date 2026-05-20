@@ -157,8 +157,13 @@ module ddr3_controller #(
         (* mark_debug = "true" *) output wire o_calib_complete,
         // Debug port
         output	wire	[31:0]	o_debug1,
-//        output	wire	[31:0]	o_debug2,
-//        output	wire	[31:0]	o_debug3
+        output	reg	[63:0]	o_debug2 = 64'd0,
+        output	reg	[63:0]	o_debug3 = 64'd0,
+        output	reg	[63:0]	o_debug4 = 64'd0,
+        output	reg	[63:0]	o_debug5 = 64'd0,
+        output	reg	[63:0]	o_debug6 = 64'd0,
+        output	reg	[63:0]	o_debug7 = 64'd0,
+        output	reg	[DQ_BITS*LANES*8-1:0]	o_debug8 = {DQ_BITS*LANES*8{1'b0}},
         // User enabled self-refresh
         input wire i_user_self_refresh,
         // Display debug messages via UART
@@ -3854,9 +3859,101 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
     // Logic connected to debug port
 //    wire debug_trigger;
+    integer debug_lane_index;
+    reg[LANES*8-1:0] debug_dqs_prev = 0;
+    reg[31:0] debug_dqs_nonzero_count = 32'd0;
+    reg[31:0] debug_dqs_transition_count = 32'd0;
+    reg[7:0] debug_collect_sample_count = 8'd0;
+    reg[2:0] debug_collect_lane = 3'd0;
+    reg[7:0] debug_selected_dqs_collect = 8'd0;
+    reg[63:0] debug_selected_mpr_dq_collect = 64'd0;
+    reg[63:0] debug_all_lane_mpr_burst0_collect = 64'd0;
+    reg[DQ_BITS*LANES*8-1:0] debug_all_lane_mpr_collect = {DQ_BITS*LANES*8{1'b0}};
+    wire[7:0] debug_selected_dqs_reversed = {debug_selected_dqs_collect[0], debug_selected_dqs_collect[1], debug_selected_dqs_collect[2], debug_selected_dqs_collect[3], debug_selected_dqs_collect[4], debug_selected_dqs_collect[5], debug_selected_dqs_collect[6], debug_selected_dqs_collect[7]};
+    wire[2:0] debug_lane = lane;
+    wire[5:0] debug_dqs_start_index = dqs_start_index;
+    wire[5:0] debug_dqs_start_index_stored = dqs_start_index_stored;
+    wire[3:0] debug_dqs_start_index_repeat = dqs_start_index_repeat;
+
     assign o_debug1 = {27'd0, state_calibrate[4:0]};
-//    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
-//    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
+
+    always @(posedge i_controller_clk) begin
+        if (sync_rst_controller) begin
+            o_debug2 <= 64'd0;
+            o_debug3 <= 64'd0;
+            o_debug4 <= 64'd0;
+            o_debug5 <= 64'd0;
+            o_debug6 <= 64'd0;
+            o_debug7 <= 64'd0;
+            o_debug8 <= {DQ_BITS*LANES*8{1'b0}};
+            debug_dqs_prev <= 0;
+            debug_dqs_nonzero_count <= 32'd0;
+            debug_dqs_transition_count <= 32'd0;
+            debug_collect_sample_count <= 8'd0;
+            debug_collect_lane <= 3'd0;
+            debug_selected_dqs_collect <= 8'd0;
+            debug_selected_mpr_dq_collect <= 64'd0;
+            debug_all_lane_mpr_burst0_collect <= 64'd0;
+            debug_all_lane_mpr_collect <= {DQ_BITS*LANES*8{1'b0}};
+        end else begin
+            o_debug2 <= {
+                dqs_store[31:0],
+                i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8],
+                debug_lane,
+                debug_dqs_start_index,
+                debug_dqs_start_index_stored,
+                debug_dqs_start_index_repeat,
+                state_calibrate[4:0]
+            };
+
+            o_debug3 <= 64'd0;
+            if (state_calibrate == COLLECT_DQS && delay_before_read_data == 0) begin
+                debug_collect_lane <= lane;
+                debug_selected_dqs_collect <= i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8];
+                debug_all_lane_mpr_burst0_collect <= i_phy_iserdes_data[((DQ_BITS*LANES)*0) +: (DQ_BITS*LANES)];
+                debug_all_lane_mpr_collect <= i_phy_iserdes_data;
+                debug_selected_mpr_dq_collect <= {
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*7 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*6 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*5 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*4 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*3 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8]
+                };
+                if (debug_collect_sample_count != 8'hff) begin
+                    debug_collect_sample_count <= debug_collect_sample_count + 1'b1;
+                end
+            end
+
+            for (debug_lane_index = 0; debug_lane_index < LANES && debug_lane_index < 8; debug_lane_index = debug_lane_index + 1) begin
+                o_debug3[debug_lane_index*8 +: 8] <= i_phy_iserdes_dqs[debug_lane_index*8 +: 8];
+                if (state_calibrate == COLLECT_DQS || state_calibrate == ANALYZE_DQS) begin
+                    if (i_phy_iserdes_dqs[debug_lane_index*8 +: 8] != 8'd0 && debug_dqs_nonzero_count[debug_lane_index*4 +: 4] != 4'hf) begin
+                        debug_dqs_nonzero_count[debug_lane_index*4 +: 4] <= debug_dqs_nonzero_count[debug_lane_index*4 +: 4] + 1'b1;
+                    end
+                    if (i_phy_iserdes_dqs[debug_lane_index*8 +: 8] != debug_dqs_prev[debug_lane_index*8 +: 8] && debug_dqs_transition_count[debug_lane_index*4 +: 4] != 4'hf) begin
+                        debug_dqs_transition_count[debug_lane_index*4 +: 4] <= debug_dqs_transition_count[debug_lane_index*4 +: 4] + 1'b1;
+                    end
+                end
+            end
+            debug_dqs_prev <= i_phy_iserdes_dqs;
+            o_debug4 <= {debug_dqs_transition_count, debug_dqs_nonzero_count};
+            o_debug5 <= debug_selected_mpr_dq_collect;
+            o_debug6 <= {
+                21'd0,
+                debug_collect_lane,
+                debug_collect_sample_count,
+                ~debug_selected_dqs_reversed,
+                ~debug_selected_dqs_collect,
+                debug_selected_dqs_reversed,
+                debug_selected_dqs_collect
+            };
+            o_debug7 <= debug_all_lane_mpr_burst0_collect;
+            o_debug8 <= debug_all_lane_mpr_collect;
+        end
+    end
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
     /*********************************************************************************************************************************************/
 

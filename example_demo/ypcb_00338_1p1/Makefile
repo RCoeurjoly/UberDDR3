@@ -2,7 +2,7 @@ PROJECT = ypcb_00338_1p1_ddr3
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 CHIPDB  = ${KINTEX7_CHIPDB}
-ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v  ../../rtl/ddr3_phy.v  ../../rtl/ddr3_top.v  uart_rx.v  uart_tx.v clk_wiz.v
+ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v  ../../rtl/ddr3_phy.v  ../../rtl/ddr3_top.v  uart_rx.v  uart_tx.v clk_wiz.v jtag_debug_bscan.v
 
 #############################################################################################
 NEXTPNR_XILINX_DIR ?= /snap/openxc7/current/opt/nextpnr-xilinx

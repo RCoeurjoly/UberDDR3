@@ -55,7 +55,17 @@
      wire calib_complete;
      wire bist_done;
      wire[31:0] o_debug1;
+     wire[63:0] o_debug2;
+     wire[63:0] o_debug3;
+     wire[63:0] o_debug4;
+     wire[63:0] o_debug5;
+     wire[63:0] o_debug6;
+     wire[63:0] o_debug7;
+     wire[511:0] o_debug8;
      wire[8-1:0] ddr3_dm;
+     wire jtag_debug_selected;
+     wire[959:0] jtag_debug_data;
+     reg[31:0] debug_state_seen = 32'd0;
      // o_debug1 taps on value of state_calibrate (can be traced inside ddr3_controller module)
      assign bist_done = calib_complete && (o_debug1[4:0] == 23);
      assign led[0] = bist_done;
@@ -64,6 +74,14 @@
 
     wire sys_clk; // 50MHz
     assign sys_clk = clk50;
+
+    always @(posedge i_controller_clk) begin
+        if (!rst_n || !clk_locked) begin
+            debug_state_seen <= 32'd0;
+        end else begin
+            debug_state_seen[o_debug1[4:0]] <= 1'b1;
+        end
+    end
 
     clk_wiz clk_wiz_inst
     (
@@ -151,8 +169,51 @@
             .o_ddr3_odt(ddr3_odt), // on-die termination
             .o_calib_complete(calib_complete),
             .o_debug1(o_debug1),
+            .o_debug2(o_debug2),
+            .o_debug3(o_debug3),
+            .o_debug4(o_debug4),
+            .o_debug5(o_debug5),
+            .o_debug6(o_debug6),
+            .o_debug7(o_debug7),
+            .o_debug8(o_debug8),
             .i_user_self_refresh(0),
             .uart_tx()
         );
+
+    assign jtag_debug_data = {
+        o_debug8,
+        o_debug7,
+        o_debug6,
+        o_debug5,
+        o_debug4,
+        o_debug3,
+        o_debug2,
+        16'hd3b5,
+        rst_n,
+        clk_locked,
+        calib_complete,
+        jtag_debug_selected,
+        debug_state_seen[23],
+        debug_state_seen[22],
+        debug_state_seen[24],
+        debug_state_seen[12],
+        debug_state_seen[11],
+        debug_state_seen[10],
+        debug_state_seen[9],
+        debug_state_seen[17],
+        debug_state_seen[18],
+        debug_state_seen[19],
+        debug_state_seen[20],
+        debug_state_seen[21],
+        o_debug1
+    };
+
+    jtag_debug_bscan #(
+        .WIDTH(960),
+        .JTAG_CHAIN(1)
+    ) jtag_debug_inst (
+        .debug_data(jtag_debug_data),
+        .selected(jtag_debug_selected)
+    );
 
 endmodule
