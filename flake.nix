@@ -5,13 +5,15 @@
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.follows = "toolchain-nix/nixpkgs";
     toolchain-nix.url = "github:openXC7/toolchain-nix";
+    toolchain-nix-2025-03-21.url = "github:openXC7/toolchain-nix/f358781e5c21a59ab9c8c10f03beb81d8f8e468a";
   };
 
-  outputs = { flake-utils, nixpkgs, toolchain-nix, ... }:
+  outputs = { flake-utils, nixpkgs, toolchain-nix, toolchain-nix-2025-03-21, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
         openxc7 = toolchain-nix.packages.${system};
+        openxc7Mar2025 = toolchain-nix-2025-03-21.packages.${system};
         historicalNextpnrXilinx = openxc7.nextpnr-xilinx.overrideAttrs (old: {
           pname = "nextpnr-xilinx-b9f013d";
           src = pkgs.fetchFromGitHub {
@@ -41,6 +43,7 @@ DBEOF
         '';
         prjxrayDb = mkPrjxrayDb openxc7.nextpnr-xilinx;
         historicalPrjxrayDb = mkPrjxrayDb historicalNextpnrXilinx;
+        mar2025PrjxrayDb = mkPrjxrayDb openxc7Mar2025.nextpnr-xilinx;
         withNextpnr = nextpnr: db: old: {
           shellHook = (old.shellHook or "") + ''
             export PATH=${nextpnr}/bin:$PATH
@@ -54,6 +57,8 @@ DBEOF
         packages.historical-nextpnr-xilinx = historicalNextpnrXilinx;
         devShells.default = toolchain-nix.devShell.${system}.overrideAttrs
           (withNextpnr openxc7.nextpnr-xilinx prjxrayDb);
+        devShells.openxc7-2025-03-21 = toolchain-nix-2025-03-21.devShell.${system}.overrideAttrs
+          (withNextpnr openxc7Mar2025.nextpnr-xilinx mar2025PrjxrayDb);
         devShells.openxc7-b9f013d = toolchain-nix.devShell.${system}.overrideAttrs
           (withNextpnr historicalNextpnrXilinx historicalPrjxrayDb);
       });

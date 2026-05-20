@@ -36,7 +36,40 @@
         "type": "github"
       }
     },
+    "flake-utils_3": {
+      "inputs": {
+        "systems": "systems_3"
+      },
+      "locked": {
+        "lastModified": 1710146030,
+        "narHash": "sha256-SZ5L6eA7HJ/nmkzGG7/ISclqe6oZdOZTNoesiInkXPQ=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "b1d9ab70662946ef0850d488da1c9019f3a9752a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
+      "locked": {
+        "lastModified": 1725634671,
+        "narHash": "sha256-v3rIhsJBOMLR8e/RNWxr828tB+WywYIoajrZKFM+0Gg=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "574d1eac1c200690e27b8eb4e24887f8df7ac27c",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "ref": "nixos-unstable",
+        "type": "indirect"
+      }
+    },
+    "nixpkgs_2": {
       "locked": {
         "lastModified": 1725634671,
         "narHash": "sha256-v3rIhsJBOMLR8e/RNWxr828tB+WywYIoajrZKFM+0Gg=",
@@ -58,7 +91,8 @@
           "toolchain-nix",
           "nixpkgs"
         ],
-        "toolchain-nix": "toolchain-nix"
+        "toolchain-nix": "toolchain-nix",
+        "toolchain-nix-2025-03-21": "toolchain-nix-2025-03-21"
       }
     },
     "systems": {
@@ -91,6 +125,21 @@
         "type": "github"
       }
     },
+    "systems_3": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
+        "type": "github"
+      }
+    },
     "toolchain-nix": {
       "inputs": {
         "flake-utils": "flake-utils_2",
@@ -107,6 +156,26 @@
       "original": {
         "owner": "openXC7",
         "repo": "toolchain-nix",
+        "type": "github"
+      }
+    },
+    "toolchain-nix-2025-03-21": {
+      "inputs": {
+        "flake-utils": "flake-utils_3",
+        "nixpkgs": "nixpkgs_2"
+      },
+      "locked": {
+        "lastModified": 1741992845,
+        "narHash": "sha256-KwFHIGKzY5SdXPbhXj9LcHRlj2MPHVrmam8QECzWysY=",
+        "owner": "openXC7",
+        "repo": "toolchain-nix",
+        "rev": "f358781e5c21a59ab9c8c10f03beb81d8f8e468a",
+        "type": "github"
+      },
+      "original": {
+        "owner": "openXC7",
+        "repo": "toolchain-nix",
+        "rev": "f358781e5c21a59ab9c8c10f03beb81d8f8e468a",
         "type": "github"
       }
     }

@@ -1558,6 +1558,57 @@ Interpretation after execution:
   blocker worth reducing and fixing because Angelo expects ODELAY for robust
   8-lane Kintex-7 operation.
 
+** 2026-05-20 March 2025 OpenXC7 toolchain pin experiment:
+
+Context from Angelo and the March 21, 2025 Open IP Hub post:
+
+- The historical OpenXC7 workflow was to enter the full Nix toolchain with
+  =nix develop github:openXC7/toolchain-nix= and then run =make=.
+- Therefore the historical comparison should pin the whole =toolchain-nix=
+  flake as of that date, not only override =nextpnr-xilinx= inside today's
+  toolchain.
+- The latest =toolchain-nix= commit at the end of March 21, 2025 was
+  =f358781e5c21a59ab9c8c10f03beb81d8f8e468a=, committed on March 15, 2025.
+
+Implementation:
+
+- Added flake input =toolchain-nix-2025-03-21= pinned to
+  =github:openXC7/toolchain-nix/f358781e5c21a59ab9c8c10f03beb81d8f8e468a=.
+- Added dev shell =.#openxc7-2025-03-21= that uses that full historical
+  package set and the YPCB Kintex-7 PRJXRAY DB patch.
+- Verified the shell reports:
+  - =nextpnr-xilinx= version =3374e5a=.
+  - =yosys= version =0.44=.
+- Added explicit YPCB build define =YPCB_ODELAY_SUPPORTED= and target
+  =openxc7_calib_only_odelay= so the ODELAY path can be tested directly.
+
+Execution result:
+
+- Current full toolchain ODELAY build still fails during nextpnr pack with:
+  =ERROR: ODELAYE2 'ddr3_top.ddr3_phy_inst.genblk4.ODELAYE2_clk' has DATAOUT connected to unsupported cell type IOB33M_OUTBUF=.
+- Full March 21, 2025 =toolchain-nix= build fails with the same error on the
+  same target. Raw log:
+  =/tmp/ypcb_toolchain_2025_03_21_odelay_build.log=.
+
+Interpretation:
+
+- Pinning the whole =toolchain-nix= flake to the March 21, 2025 blog-date
+  environment is the correct historical test, but it does not make the YPCB
+  ODELAY path pack.
+- This does not contradict the blog yet: the blog demonstrated known boards and
+  examples, including Kintex-7 boards, but YPCB has its own x64 pinout/top-level
+  and our current RTL/debug target.
+- The ODELAY pack failure is now reproduced across both today's full toolchain
+  and the March 2025 full toolchain. The next regression search should either:
+  - compare the exact blog example board that used x64 Kintex-7, especially
+    =alinx_ax7325b=, under the March 2025 shell; or
+  - reduce the YPCB ODELAY failure into a minimal ODELAYE2-to-IOBUF/OBUF pack
+    test and bisect =nextpnr-xilinx= around older DDR3-working commits.
+- Calibration remains distinct from BIST: =DONE_CALIBRATE= means the controller
+  found a usable PHY timing point; BIST passing means real memory transactions
+  over address/data patterns succeeded. The 2-lane OpenXC7 result proves
+  calibration completion only, not full DDR3 driver correctness.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
