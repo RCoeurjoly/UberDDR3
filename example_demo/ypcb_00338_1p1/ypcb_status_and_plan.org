@@ -1408,6 +1408,67 @@ Interpretation criteria:
 - OpenXC7 passes lane 0 and fails lane 1 means the failure point is specifically
   the transition into lane 1, not the global MPR/DQS setup.
 
+
+Execution result:
+
+- Instrumentation commit: =e00cdd6=, followed by latch ownership fix
+  =339b200=.
+- OpenXC7 rebuild with the fixed probe passed post-route timing:
+  =i_controller_clk= max frequency 88.15 MHz against the 83.333 MHz target.
+- Vivado rebuild with the same fixed probe passed timing:
+  =WNS=0.912 ns=, =TNS=0.000=, =WHS=0.084 ns=.
+- Both bitstreams were programmed and sampled with one lock covering program plus
+  80 JTAG samples.
+
+Vivado oracle result:
+
+- 80/80 samples had =calib_complete=1= and =state=23= (=DONE_CALIBRATE=).
+- =dqs_summary=0x8989898989898989= in all samples.
+- Decoded summary:
+  =lane_dqs_summary={l0:p1/f0/i9 l1:p1/f0/i9 l2:p1/f0/i9 l3:p1/f0/i9 l4:p1/f0/i9 l5:p1/f0/i9 l6:p1/f0/i9 l7:p1/f0/i9}=.
+- This proves Vivado can pass all logical lanes on this board with this RTL, and
+  the pass index is uniform at =9= for every lane.
+
+OpenXC7 result:
+
+- 80/80 samples had =calib_complete=0=.
+- State distribution was 61 samples in =state=0=, 6 in =MPR_READ=, 4 in
+  =COLLECT_DQS=, 8 in =ANALYZE_DQS=, and 1 in =CALIBRATE_DQS=.
+- The run no longer stayed only on lane 1. It progressed through several lanes
+  before falling back to =state=0=.
+- Observed per-lane summaries included:
+  - =l0:p1/f0/i17=, then =l1:p1/f0/i17=, then =l2:p1/f0/i17=.
+  - =l3:p0/f1/i39= in one path, indicating end-of-window failure on lane 3.
+  - Later paths showed lanes 0..4 passing and =l5:p0/f1/i39=.
+  - One sample reached all lanes passing with lane 7 at index 18:
+    =l0:p1/f0/i17 l1:p1/f0/i17 l2:p1/f0/i17 l3:p1/f0/i17 l4:p1/f0/i17 l5:p1/f0/i17 l6:p1/f0/i17 l7:p1/f0/i18=.
+- Representative exact-sample OpenXC7 lane data when lane 3 failed showed:
+  - =lane_collects={l0:0x2a l1:0x2a l2:0x2a l3:0x50 l4:0xaa l5:0xaa l6:0xaa l7:0xaa}=.
+  - =lane_mpr_dq={l0:0xff00ff00ff00ff00 l1:0xff00ff00ff00ff00 l2:0xff00ff00ff00ff00 l3:0x00ff00ff00ffffff l4:0x00ff00ff00ff00ff l5:0x00ff00ff00ff00ff l6:0x00ff00ff00ff00ff l7:0x00ff00ff00ff00ff}=.
+
+Updated interpretation:
+
+- The earlier fixed-lane conclusion was too narrow. OpenXC7 can sometimes pass
+  lane 1; it is not permanently all-high in the fixed-probe run.
+- The decisive difference is now quantitative: Vivado passes every lane at DQS
+  index 9, while OpenXC7 finds lane pass indices around 17/18 and sometimes
+  fails later lanes at index 39. That points to an open-flow timing/phase
+  semantic difference, not a simple single-lane pinout failure.
+- OpenXC7 falling back to =state=0= after partial or even apparent all-lane DQS
+  progress means the next measurement should track the reset/restart cause and
+  the transition immediately after DQS calibration, not only the DQS pattern
+  detector.
+
+Next measured action:
+
+- Add a sticky reset/restart reason page and the last state before reset. In
+  particular, distinguish =reset_from_calibrate=, =reset_from_test=,
+  instruction-address restart, and any transition out of =CALIBRATE_DQS= toward
+  later read/data calibration states.
+- Compare OpenXC7's DQS target/pass index math against Vivado's all-lane index
+  =9=. A focused experiment can force or offset the open-flow DQS target/index
+  only after the reset cause is known; doing that first would be a random fix.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
