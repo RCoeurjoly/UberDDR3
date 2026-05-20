@@ -2635,6 +2635,7 @@ module ddr3_controller #(
                              // high initial_dqs is the time when the IDELAY of dqs and dq is not yet calibrated so we zero this starting now
                             initial_dqs <= 0; 
                             dqs_start_index_repeat <= 0;
+                            debug_lane_dqs_summary[lane*8 +: 8] <= {2'b10, dqs_start_index};
                             state_calibrate <= CALIBRATE_DQS;
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
@@ -2659,6 +2660,7 @@ module ddr3_controller #(
                         if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
+                            debug_lane_dqs_summary[lane*8 +: 8] <= {2'b01, dqs_start_index};
                             state_calibrate <= MPR_READ;
                             delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
                             `ifdef UART_DEBUG_READ_LEVEL
@@ -3864,6 +3866,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     reg[LANES*8-1:0] debug_dqs_prev = 0;
     reg[31:0] debug_dqs_nonzero_count = 32'd0;
     reg[31:0] debug_dqs_transition_count = 32'd0;
+    reg[LANES*8-1:0] debug_lane_dqs_summary = {LANES*8{1'b0}};
     reg[7:0] debug_collect_sample_count = 8'd0;
     reg[2:0] debug_collect_lane = 3'd0;
     reg[7:0] debug_selected_dqs_collect = 8'd0;
@@ -3911,6 +3914,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             debug_dqs_prev <= 0;
             debug_dqs_nonzero_count <= 32'd0;
             debug_dqs_transition_count <= 32'd0;
+            debug_lane_dqs_summary <= {LANES*8{1'b0}};
             debug_collect_sample_count <= 8'd0;
             debug_collect_lane <= 3'd0;
             debug_selected_dqs_collect <= 8'd0;
@@ -3962,7 +3966,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             end
             debug_dqs_prev <= i_phy_iserdes_dqs;
             o_debug3 <= debug_all_lane_dqs_collect;
-            o_debug4 <= {debug_dqs_transition_count, debug_dqs_nonzero_count};
+            o_debug4 <= debug_lane_dqs_summary;
             o_debug5 <= debug_selected_mpr_dq_collect;
             o_debug6 <= {
                 21'd0,

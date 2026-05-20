@@ -1379,6 +1379,35 @@ Next measured action:
   signature, whether OpenXC7 passes lane 0 then dies at lane 1, and whether lane
   order seen by the controller differs from the physical byte-lane order.
 
+
+** 2026-05-20 per-lane DQS pass/fail summary probe:
+
+Goal: preserve each lane's DQS calibration outcome after Vivado advances to
+=DONE_CALIBRATE=, so the oracle comparison is not limited to the final lane's
+live =dqs_store=.
+
+Plan documented before execution:
+
+- Keep the calibration algorithm unchanged.
+- Replace the older debug activity-counter page with a persistent 8-byte lane
+  summary page.
+- Encode each byte as:
+  - bit 7: =ANALYZE_DQS= accepted the expected =01_01_01_01_00= pattern after
+    repeat filtering for that lane.
+  - bit 6: =ANALYZE_DQS= reached the end of the DQS search window for that lane.
+  - bits 5:0: the =dqs_start_index= associated with the pass or end-of-window
+    event.
+- Decode the summary for both Vivado and OpenXC7.
+
+Interpretation criteria:
+
+- Vivado pass bit set for lane 1 while OpenXC7 fail bit is set for lane 1 means
+  lane 1 is the real OpenXC7 divergence.
+- Vivado has no lane 1 pass but still calibrates means the controller's logical
+  lane order or lane advancement differs from the fixed-lane assumption.
+- OpenXC7 passes lane 0 and fails lane 1 means the failure point is specifically
+  the transition into lane 1, not the global MPR/DQS setup.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

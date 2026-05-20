@@ -47,7 +47,7 @@ proc read_ypcb_debug {} {
     #   [447:384] all-lane MPR DQ burst0 from the same COLLECT_DQS sample
     #   [383:320] selected-lane DQS polarity/bit-order page from COLLECT_DQS
     #   [319:256] selected-lane MPR DQ data from the same COLLECT_DQS sample
-    #   [255:192] per-lane DQS activity counters
+    #   [255:192] per-lane DQS summary bytes: bit7 pass, bit6 fail, bits5:0 index
     #   [191:128] all-lane ISERDES DQS latched at COLLECT_DQS
     #   [127:64]  current-lane DQS calibration debug page
     #   [63:48]   magic 0xd3b5
@@ -73,7 +73,7 @@ proc read_ypcb_debug {} {
     set bist_data_low $selected_mpr_dq
     set bist_req_page [expr 0x[string range $raw 144 159]]
     set bist_addr_sel_page $all_lane_mpr_burst0
-    set dqs_counters [expr 0x[string range $raw 176 191]]
+    set dqs_summary [expr 0x[string range $raw 176 191]]
     set dqs_snapshot [expr 0x[string range $raw 192 207]]
     set dqs_debug [expr 0x[string range $raw 208 223]]
     set value [expr 0x[string range $raw 224 239]]
@@ -104,8 +104,17 @@ proc read_ypcb_debug {} {
     set dqs_lane [expr {($dqs_debug >> 21) & 0x7}]
     set dqs_current [expr {($dqs_debug >> 24) & 0xff}]
     set dqs_store [expr {($dqs_debug >> 32) & 0xffffffff}]
-    set dqs_nonzero [expr {$dqs_counters & 0xffffffff}]
-    set dqs_transition [expr {($dqs_counters >> 32) & 0xffffffff}]
+    set lane_dqs_summary_text ""
+    for {set debug_summary_lane 0} {$debug_summary_lane < 8} {incr debug_summary_lane} {
+        set lane_dqs_summary_byte [expr {($dqs_summary >> ($debug_summary_lane * 8)) & 0xff}]
+        set lane_dqs_pass [expr {($lane_dqs_summary_byte >> 7) & 1}]
+        set lane_dqs_fail [expr {($lane_dqs_summary_byte >> 6) & 1}]
+        set lane_dqs_index [expr {$lane_dqs_summary_byte & 0x3f}]
+        append lane_dqs_summary_text [format "l%d:p%d/f%d/i%d" $debug_summary_lane $lane_dqs_pass $lane_dqs_fail $lane_dqs_index]
+        if {$debug_summary_lane < 7} {
+            append lane_dqs_summary_text " "
+        }
+    }
     set lane1_collect_dqs [expr {($dqs_snapshot >> 8) & 0xff}]
     set lane1_mpr_dq_hex [lane_mpr_dq_hex $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex 1]
     set lane1_mpr_dq [expr 0x${lane1_mpr_dq_hex}]
@@ -127,7 +136,7 @@ proc read_ypcb_debug {} {
     set selected_dqs_inv_reversed [expr {($selected_dqs_page >> 24) & 0xff}]
     set selected_collect_samples [expr {($selected_dqs_page >> 32) & 0xff}]
     set selected_collect_lane [expr {($selected_dqs_page >> 40) & 0x7}]
-    set dqs_text [format " dqs_debug=0x%016x dqs_state=%d dqs_lane=%d dqs_current=0x%02x dqs_store=0x%08x dqs_start_index=%d dqs_start_index_stored=%d dqs_start_index_repeat=%d all_lane_dqs_collect=0x%016x lane_collects={%s} lane1_collect_dqs=0x%02x dqs_nonzero_nibbles=0x%08x dqs_transition_nibbles=0x%08x selected_collect_lane=%d all_lane_mpr_bursts={b7:%s b6:%s b5:%s b4:%s b3:%s b2:%s b1:%s b0:%s} all_lane_mpr_burst0=0x%016x lane_mpr_dq={%s} lane1_mpr_dq=0x%016x selected_mpr_dq=0x%016x selected_dqs_collect=0x%02x selected_dqs_rev=0x%02x selected_dqs_inv=0x%02x selected_dqs_inv_rev=0x%02x selected_collect_samples=%d"         $dqs_debug $dqs_state $dqs_lane $dqs_current $dqs_store $dqs_start_index $dqs_start_index_stored $dqs_start_index_repeat         $dqs_snapshot $lane_collect_text $lane1_collect_dqs $dqs_nonzero $dqs_transition $selected_collect_lane $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex $all_lane_mpr_burst0 $lane_mpr_text $lane1_mpr_dq $selected_mpr_dq $selected_dqs_collect $selected_dqs_reversed $selected_dqs_inverted $selected_dqs_inv_reversed $selected_collect_samples]
+    set dqs_text [format " dqs_debug=0x%016x dqs_state=%d dqs_lane=%d dqs_current=0x%02x dqs_store=0x%08x dqs_start_index=%d dqs_start_index_stored=%d dqs_start_index_repeat=%d all_lane_dqs_collect=0x%016x lane_collects={%s} lane1_collect_dqs=0x%02x dqs_summary=0x%016x lane_dqs_summary={%s} selected_collect_lane=%d all_lane_mpr_bursts={b7:%s b6:%s b5:%s b4:%s b3:%s b2:%s b1:%s b0:%s} all_lane_mpr_burst0=0x%016x lane_mpr_dq={%s} lane1_mpr_dq=0x%016x selected_mpr_dq=0x%016x selected_dqs_collect=0x%02x selected_dqs_rev=0x%02x selected_dqs_inv=0x%02x selected_dqs_inv_rev=0x%02x selected_collect_samples=%d"         $dqs_debug $dqs_state $dqs_lane $dqs_current $dqs_store $dqs_start_index $dqs_start_index_stored $dqs_start_index_repeat         $dqs_snapshot $lane_collect_text $lane1_collect_dqs $dqs_summary $lane_dqs_summary_text $selected_collect_lane $all_mpr_b7_hex $all_mpr_b6_hex $all_mpr_b5_hex $all_mpr_b4_hex $all_mpr_b3_hex $all_mpr_b2_hex $all_mpr_b1_hex $all_mpr_b0_hex $all_lane_mpr_burst0 $lane_mpr_text $lane1_mpr_dq $selected_mpr_dq $selected_dqs_collect $selected_dqs_reversed $selected_dqs_inverted $selected_dqs_inv_reversed $selected_collect_samples]
     if {$state >= 17 && $state <= 23} {
         set calib_stb [expr {($debug1 >> 5) & 1}]
         set o_wb_stall_calib [expr {($debug1 >> 6) & 1}]
