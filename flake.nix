@@ -45,7 +45,7 @@ DBEOF
         historicalPrjxrayDb = mkPrjxrayDb historicalNextpnrXilinx;
         mar2025PrjxrayDb = mkPrjxrayDb openxc7Mar2025.nextpnr-xilinx;
         withNextpnr = nextpnr: db: old: {
-          shellHook = (old.shellHook or "") + ''
+          shellHook = (old.shellHook or "") + "\n" + ''
             export PATH=${nextpnr}/bin:$PATH
             export NEXTPNR_XILINX_DIR=${nextpnr}
             export NEXTPNR_XILINX_PYTHON_DIR=${nextpnr}/share/nextpnr/python
