@@ -1666,6 +1666,62 @@ Commit discipline:
 - Commit each measured result separately so every bitstream and JTAG log can be
   tied to a precise source revision.
 
+
+** 2026-05-20 one-lane no-DM tiny-BIST success:
+
+Measured setup:
+
+- Source setup commit before this experiment: =139251c Add YPCB one-lane tiny BIST targets=.
+- Active minimum target: =BYTE_LANES=1=, =DQ_BITS=8=, controller =83.333 MHz=, DDR3 =333.333 MHz=, =BIST_MODE=1=, =BIST_LIMIT_BITS=4=.
+- Hardware transaction discipline was the required atomic form: acquire =/tmp/ypcb-hs3-210299BF3824.lock=, program bitstream, sample JTAG, release lock.
+
+Baseline measurements before the no-DM change:
+
+- =openxc7_calib_only_1lane= built and routed at =111.54 MHz= max for =i_controller_clk=, passing the =83.333 MHz= target.
+- The one-lane calibration-only bitstream reached =DONE_CALIBRATE= in =80/80= JTAG samples:
+  - =calib_complete=1=
+  - =state=23=
+  - =lane_dqs_summary={l0:p1/f0/i17 ...}=
+  - =bist_flags={mode:0 initial_done:1 final_done:1 ...}=
+- =openxc7_tiny_bist_1lane= built and routed at =118.84 MHz=, but did not complete before the no-DM change:
+  - =calib_complete=0= in =80/80= samples
+  - mostly restarted at =state=0=
+  - sticky =seen= flags showed it had reached BIST write/read phases before reset/restart
+- =openxc7_tiny_bist_2lanes= also built and routed, but failed the same way. That made the failure unlikely to be a one-lane-only structural problem.
+
+No-DM hypothesis:
+
+- The YPCB UberDDR3 wrapper had an internal =ddr3_dm= wire but no top-level =ddr3_dm= port and no =ddr3_dm= constraints in =ypcb_00338_1p1_ddr3.xdc=.
+- The local Vivado/MIG YPCB oracle has the DDR3 DM port disabled: the generated XML shows =DDR3_USE_DM_PORT= false, and the generated PHY ties =ddr_dm= to zero.
+- UberDDR3's default BIST starts with a byte-mask test in =BURST_WRITE= when =TDQS == 0= and =ECC_ENABLE == 0=.
+- Therefore the previous tiny-BIST failure was a bad test for this board wrapper: it was testing a DM feature that this YPCB setup does not expose.
+
+Implementation:
+
+- Added =BIST_TEST_DATAMASK= to =ddr3_controller= and =ddr3_top=.
+- Default remains =1=, preserving existing behavior for boards with real DM pins.
+- YPCB sets =YPCB_BIST_TEST_DATAMASK=0= so the BIST uses all-byte writes and measures DQ/DQS read/write correctness instead of an absent DM feature.
+
+No-DM hardware result:
+
+- Built =openxc7_tiny_bist_1lane= with the no-DM BIST setting.
+- Route passed timing: =i_controller_clk= max frequency =118.13 MHz=, PASS at =83.333 MHz=.
+- Programmed and sampled with one lock into =/tmp/ypcb_openxc7_tiny_bist_1lane_no_dm_jtag.log=.
+- Summary over =80= samples:
+  - =calib_complete=1= in =80/80=
+  - =state=23= (=DONE_CALIBRATE=) in =80/80=
+  - =final_done:1= in =80/80=
+  - =wrong_low=0x00= in =80/80=
+  - =seen={done:1 finish:1 ... burst_write:1 burst_read:1 random_write:1 random_read:1 alternate:1}= in =80/80=
+  - lane 0 DQS remained stable at =p1/f0/i17=
+
+Conclusion:
+
+- The minimum target now works: one x8 lane at DDR3 =333.333 MHz= passes calibration and a tiny no-DM BIST on hardware.
+- This is stronger than calibration-only: it proves actual write/read BIST traffic over the active byte lane, within the deliberately tiny address window.
+- The previous tiny-BIST failure is addressed, not ignored: it was caused by the BIST byte-mask subtest being incompatible with the YPCB no-DM wrapper/oracle.
+- Scaling to more lanes remains out of scope for the current goal. The next work item, if needed later, is to decide whether to keep YPCB as an explicit no-DM board configuration or recover/verify real DM pins from authoritative board data.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

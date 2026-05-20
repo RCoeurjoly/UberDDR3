@@ -78,6 +78,7 @@
      localparam integer YPCB_DQ_WIDTH = 8 * YPCB_BYTE_LANES;
      localparam integer YPCB_WB_DATA_WIDTH = 8 * YPCB_DQ_WIDTH;
      localparam integer YPCB_WB_SEL_WIDTH = YPCB_WB_DATA_WIDTH / 8;
+     localparam[0:0] YPCB_BIST_TEST_DATAMASK = 1'b0;
      wire jtag_debug_selected;
      wire[959:0] jtag_debug_data;
      reg[31:0] debug_state_seen = 32'd0;
@@ -144,6 +145,7 @@
         .WB_ERROR(0), // set to 1 to support Wishbone error (asserts at ECC double bit error)
         .BIST_MODE(YPCB_BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
         .BIST_LIMIT_BITS(YPCB_BIST_LIMIT_BITS),
+        .BIST_TEST_DATAMASK(YPCB_BIST_TEST_DATAMASK),
         .SPEED_BIN(1), // 0 = Use top-level parameters , 1 = DDR3-1066 (7-7-7) , 2 = DR3-1333 (9-9-9) , 3 = DDR3-1600 (11-11-11)
         .SDRAM_CAPACITY(4)
         ) ddr3_top
