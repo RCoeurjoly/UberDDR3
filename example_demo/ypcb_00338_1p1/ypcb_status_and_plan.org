@@ -544,6 +544,41 @@ Execution invariant:
 Use one lock for the whole hardware transaction: acquire lock, program bitstream,
 read JTAG samples, release lock.
 
+Measured result for commit =70c3ca1=:
+
+- =make openxc7= passed post-route timing: =i_controller_clk= was 89.90 MHz
+  against the 83.333 MHz target.
+- The hardware run used one locked transaction: acquire lock, program bitstream,
+  read eight JTAG samples, release lock.
+- The useful sample caught =state=4= (=ANALYZE_DQS=) with selected lane 1:
+  - =pll_locked=1
+  - =calib_complete=0
+  - =dqs_lane=1=
+  - =selected_collect_lane=1=
+  - =selected_dqs_collect=0xff=
+  - =selected_mpr_dq=0xffffffffffffffff=
+  - all-lane MPR bursts:
+    =b7=ffffffffffffffff b6=ffffffffffffffff b5=ffffffffffffffff b4=ffffffffffffffff=
+    =b3=ffffffffffffffff b2=ffffffffffffffff b1=ffffffffffffffff b0=ffffffffffffffff=
+  - =all_lane_mpr_burst0=0xffffffffffffffff=
+  - =all_lane_dqs=0x00ff00ff0000ffff=
+  - =dqs_store=0xf2a9ffff=
+  - =dqs_start_index=4=
+  - =dqs_start_index_stored=17=
+  - =dqs_start_index_repeat=1=
+
+Interpretation:
+
+- This run did not find a valid MPR byte on any lane or burst at the current
+  capture point. The whole 512-bit MPR/DQ sample was all ones while the all-lane
+  DQS snapshot remained nonzero/uneven.
+- That weakens the simple "selected lane is wrong but another lane has good MPR
+  data" hypothesis for this exact sample point.
+- The next measured split is between MPR read/sample timing and PHY input
+  interpretation: capture the same all-lane/all-burst MPR page at several
+  adjacent controller cycles around =delay_before_read_data == 0=, or add a
+  small time-indexed ring buffer for the MPR/DQS sample window.
+
 * Targets
 
 | Board             | Part              | Notes                                     |
