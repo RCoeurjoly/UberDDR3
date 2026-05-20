@@ -1469,6 +1469,43 @@ Next measured action:
   =9=. A focused experiment can force or offset the open-flow DQS target/index
   only after the reset cause is known; doing that first would be a random fix.
 
+
+** 2026-05-20 Angelo guidance: ODELAY and reduced byte-lane experiment:
+
+Angelo's new guidance changes the experiment priority:
+
+- On Xilinx/Kintex-7, UberDDR3 is expected to run at or above about 83.333 MHz
+  controller clock with =DLL_OFF=0=.
+- For Kintex-7 HP banks, =ODELAY_SUPPORTED= should normally be enabled. Running
+  without ODELAY is not the intended Xilinx PHY configuration; Angelo has not
+  validated 8 byte lanes without ODELAYE2 on hardware.
+- Angelo has also seen recent OpenXC7 fail the ODELAYE2 packing path, even if an
+  older OpenXC7 once worked for some boards.
+- Suggested measured debug direction: reduce from 8 byte lanes to 2 byte lanes.
+  This should reduce placement/timing pressure and tests whether the no-ODELAY
+  path can calibrate consistently in a smaller configuration.
+
+Plan documented before execution:
+
+- Keep the existing 8-lane target intact.
+- Add a compile-time =YPCB_TWO_LANES= mode using only logical byte lanes 0 and 1
+  while leaving the physical top-level DDR3 connector unchanged.
+- Add =openxc7_calib_only_2lanes= and =vivado_calib_only_2lanes= targets.
+- Keep =ODELAY_SUPPORTED=0= for this specific 2-lane test, because the measured
+  question is whether reducing lane count makes the current OpenXC7-buildable
+  no-ODELAY path calibrate.
+- Continue treating =ODELAY_SUPPORTED=1= packing as the separate open-flow
+  blocker that likely needs an OpenXC7/nextpnr fix.
+
+Interpretation criteria:
+
+- If 2 lanes calibrate in OpenXC7, the 8-lane failure is probably a scale/timing
+  margin issue in the no-ODELAY path, not a fundamental command/MPR failure.
+- If 2 lanes still fail while Vivado 2-lane calibrates, the open-flow phase or
+  input-capture semantics remain suspect even at reduced lane count.
+- If both fail, revisit the two-lane mapping/top-level slicing before drawing a
+  DDR conclusion.
+
 * Targets
 
 | Board             | Part              | Notes                                     |

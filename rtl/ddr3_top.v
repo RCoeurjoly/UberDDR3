@@ -218,6 +218,7 @@ ddr3_top #(
     wire[DQ_BITS*BYTE_LANES*8-1:0] iserdes_data;
     wire[BYTE_LANES*8-1:0] iserdes_dqs;
     wire[BYTE_LANES*8-1:0] iserdes_bitslip_reference;
+    wire[DQ_BITS*BYTE_LANES*8-1:0] debug8_controller;
     wire idelayctrl_rdy;
     wire[4:0] odelay_data_cntvaluein, odelay_dqs_cntvaluein;
     wire[4:0] idelay_data_cntvaluein, idelay_dqs_cntvaluein;
@@ -339,11 +340,14 @@ ddr3_top #(
             .o_debug5(o_debug5),
             .o_debug6(o_debug6),
             .o_debug7(o_debug7),
-            .o_debug8(o_debug8),
+            .o_debug8(debug8_controller),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)
         );
+
+    assign o_debug8 = {{(512-(DQ_BITS*BYTE_LANES*8)){1'b0}}, debug8_controller};
+
     `ifndef LATTICE_ECP5_PHY // XILINX PHY
         ddr3_phy #(
                 .ROW_BITS(ROW_BITS), //width of row address

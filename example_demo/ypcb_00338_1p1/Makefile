@@ -33,12 +33,15 @@ XDC ?= ${PROJECT}.xdc
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
-.PHONY: openxc7_calib_only openxc7_short_bist
+.PHONY: openxc7_calib_only openxc7_short_bist openxc7_calib_only_2lanes
 openxc7_calib_only:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY"
 
 openxc7_short_bist:
 	$(MAKE) openxc7 PROJECT=${PROJECT}_short_bist TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_SHORT_BIST"
+
+openxc7_calib_only_2lanes:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only_2lanes TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY -D YPCB_TWO_LANES"
 
 .PHONY: program
 program: ${PROJECT}_openxc7.bit
@@ -77,7 +80,7 @@ VIVADO_BIT := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.bit
 LOGFILE := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.log
 
 # Build design
-.PHONY: vivado vivado_calib_only vivado_short_bist
+.PHONY: vivado vivado_calib_only vivado_short_bist vivado_calib_only_2lanes
 vivado: ${VIVADO_BIT}
 
 vivado_calib_only:
@@ -85,6 +88,9 @@ vivado_calib_only:
 
 vivado_short_bist:
 	$(MAKE) vivado VIVADO_SUFFIX=vivado_short_bist VIVADO_VERILOG_DEFINES="YPCB_SHORT_BIST"
+
+vivado_calib_only_2lanes:
+	$(MAKE) vivado VIVADO_SUFFIX=vivado_calib_only_2lanes VIVADO_VERILOG_DEFINES="YPCB_CALIB_ONLY YPCB_TWO_LANES"
 
 ${BUILDDIR}:
 	mkdir -m 777 -p ${BUILDDIR} && chown -R nobody ${BUILDDIR} | true

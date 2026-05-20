@@ -63,6 +63,14 @@
      wire[63:0] o_debug7;
      wire[511:0] o_debug8;
      wire[8-1:0] ddr3_dm;
+`ifdef YPCB_TWO_LANES
+     localparam integer YPCB_BYTE_LANES = 2;
+`else
+     localparam integer YPCB_BYTE_LANES = 8;
+`endif
+     localparam integer YPCB_DQ_WIDTH = 8 * YPCB_BYTE_LANES;
+     localparam integer YPCB_WB_DATA_WIDTH = 8 * YPCB_DQ_WIDTH;
+     localparam integer YPCB_WB_SEL_WIDTH = YPCB_WB_DATA_WIDTH / 8;
      wire jtag_debug_selected;
      wire[959:0] jtag_debug_data;
      reg[31:0] debug_state_seen = 32'd0;
@@ -114,7 +122,7 @@
         .ROW_BITS(15), //width of row address
         .COL_BITS(10), //width of column address
         .BA_BITS(3), //width of bank address
-        .BYTE_LANES(8), //number of DDR3 modules to be controlled
+        .BYTE_LANES(YPCB_BYTE_LANES), //number of DDR3 byte lanes to be controlled
         .AUX_WIDTH(4), //width of aux line (must be >= 4)
         .WB2_ADDR_BITS(32), //width of 2nd wishbone address bus
         .WB2_DATA_BITS(32), //width of 2nd wishbone data bus
@@ -141,8 +149,8 @@
             .i_wb_stb(0), //request a transfer
             .i_wb_we(0), //write-enable (1 = write, 0 = read)
             .i_wb_addr(25'b0), //burst-addressable {row,bank,col}
-            .i_wb_data(512'b0), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
-            .i_wb_sel({64{1'b1}}), //byte strobe for write (1 = write the byte)
+            .i_wb_data({YPCB_WB_DATA_WIDTH{1'b0}}), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
+            .i_wb_sel({YPCB_WB_SEL_WIDTH{1'b1}}), //byte strobe for write (1 = write the byte)
             .i_aux(4'b0), //for AXI-interface compatibility (given upon strobe)
             // Wishbone outputs
             .o_wb_stall(), //1 = busy, cannot accept requests
@@ -173,10 +181,10 @@
             .o_ddr3_we_n(ddr3_we_n), // WE#
             .o_ddr3_addr(ddr3_addr),
             .o_ddr3_ba_addr(ddr3_ba),
-            .io_ddr3_dq(ddr3_dq),
-            .io_ddr3_dqs(ddr3_dqs_p),
-            .io_ddr3_dqs_n(ddr3_dqs_n),
-            .o_ddr3_dm(ddr3_dm),
+            .io_ddr3_dq(ddr3_dq[YPCB_DQ_WIDTH-1:0]),
+            .io_ddr3_dqs(ddr3_dqs_p[YPCB_BYTE_LANES-1:0]),
+            .io_ddr3_dqs_n(ddr3_dqs_n[YPCB_BYTE_LANES-1:0]),
+            .o_ddr3_dm(ddr3_dm[YPCB_BYTE_LANES-1:0]),
             .o_ddr3_odt(ddr3_odt), // on-die termination
             .o_calib_complete(calib_complete),
             .o_debug1(o_debug1),
