@@ -111,11 +111,19 @@ proc read_ypcb_debug {} {
         set req_write_addr [expr {($bist_req_page >> 14) & 0x1ffffff}]
         set req_read_addr [expr {($bist_req_page >> 39) & 0x1ffffff}]
         set req_calib_addr [expr {$bist_addr_sel_page & 0x1ffffff}]
+        set bist_flags [expr {($bist_addr_sel_page >> 25) & 0x7f}]
         set req_calib_sel_low [expr {($bist_addr_sel_page >> 32) & 0xffffffff}]
-        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s bist_write_addr_low=0x%02x correct_low=0x%02x wrong_low=0x%02x calib_stb=%d o_wb_stall_calib=%d req_stall=%d o_wb_ack_uncalibrated=%d reset_from_test=%d bist_req={we:%d aux:0x%x write_byte:%d write_addr:0x%07x read_addr:0x%07x calib_addr:0x%07x sel_low:0x%08x data_low:0x%016x} seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
+        set bist_mode [expr {($bist_flags >> 5) & 0x3}]
+        set initial_done [expr {($bist_flags >> 4) & 1}]
+        set final_done [expr {($bist_flags >> 3) & 1}]
+        set reset_from_calibrate [expr {($bist_flags >> 2) & 1}]
+        set debug_reset_from_test [expr {($bist_flags >> 1) & 1}]
+        set short_bist [expr {$bist_flags & 1}]
+        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s bist_write_addr_low=0x%02x correct_low=0x%02x wrong_low=0x%02x calib_stb=%d o_wb_stall_calib=%d req_stall=%d o_wb_ack_uncalibrated=%d reset_from_test=%d bist_flags={mode:%d initial_done:%d final_done:%d reset_from_calibrate:%d reset_from_test:%d short:%d} bist_req={we:%d aux:0x%x write_byte:%d write_addr:0x%07x read_addr:0x%07x calib_addr:0x%07x sel_low:0x%08x data_low:0x%016x} seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
             $raw $magic $sys_rstn $pll_locked $calib_complete $user1_selected $debug1 $state \
             $dqs_text \
             $write_addr_low $correct_low $wrong_low $calib_stb $o_wb_stall_calib $req_stall $o_wb_ack_uncalibrated $reset_from_test \
+            $bist_mode $initial_done $final_done $reset_from_calibrate $debug_reset_from_test $short_bist \
             $req_calib_we $req_calib_aux $req_write_byte $req_write_addr $req_read_addr $req_calib_addr $req_calib_sel_low $bist_data_low \
             $done_seen $finish_seen $analyze_low_seen $read_data_seen $issue_read_seen $issue_write2_seen $issue_write1_seen \
             $burst_write_seen $burst_read_seen $random_write_seen $random_read_seen $alternate_seen]
@@ -123,16 +131,23 @@ proc read_ypcb_debug {} {
         set pattern_match [expr {($debug1 >> 6) & 1}]
         set lane_read_early [expr {($debug1 >> 7) & 1}]
         set lane_write_late [expr {($debug1 >> 8) & 1}]
-        set shift_read_pipe [expr {($debug1 >> 9) & 0x3}]
-        set bitslip_counter [expr {($debug1 >> 11) & 0x7}]
-        set lane [expr {($debug1 >> 14) & 0x7}]
-        set read_lane_byte0 [expr {($debug1 >> 17) & 0xff}]
-        set data_start_index [expr {($debug1 >> 25) & 0x7f}]
+        set debug_reset_from_test [expr {($debug1 >> 20) & 1}]
+        set reset_from_calibrate [expr {($debug1 >> 21) & 1}]
+        set final_done [expr {($debug1 >> 22) & 1}]
+        set initial_done [expr {($debug1 >> 23) & 1}]
+        set bist_mode [expr {($debug1 >> 24) & 0x3}]
+        set bist_limit_bits [expr {($debug1 >> 26) & 0x3f}]
+        set shift_read_pipe 0
+        set bitslip_counter 0
+        set lane $dqs_lane
+        set read_lane_byte0 0
+        set data_start_index $dqs_start_index
 
-        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s lane=%d bitslip=%d shift_read_pipe=%d data_start_index=%d lane_write_late=%d lane_read_early=%d pattern_match=%d read_ack_seen=%d read_lane_byte0=0x%02x seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
+        echo [format "ypcb_debug raw=0x%s magic=0x%04x sys_rstn=%d pll_locked=%d calib_complete=%d user1_selected=%d debug1=0x%08x state=%d%s lane=%d bitslip=%d shift_read_pipe=%d data_start_index=%d lane_write_late=%d lane_read_early=%d pattern_match=%d read_ack_seen=%d read_lane_byte0=0x%02x calib_flags={mode:%d limit_bits:%d initial_done:%d final_done:%d reset_from_calibrate:%d reset_from_test:%d} seen={done:%d finish:%d analyze_low:%d read_data:%d issue_read:%d issue_write2:%d issue_write1:%d burst_write:%d burst_read:%d random_write:%d random_read:%d alternate:%d}" \
             $raw $magic $sys_rstn $pll_locked $calib_complete $user1_selected $debug1 $state \
             $dqs_text \
             $lane $bitslip_counter $shift_read_pipe $data_start_index $lane_write_late $lane_read_early $pattern_match $read_ack_seen $read_lane_byte0 \
+            $bist_mode $bist_limit_bits $initial_done $final_done $reset_from_calibrate $debug_reset_from_test \
             $done_seen $finish_seen $analyze_low_seen $read_data_seen $issue_read_seen $issue_write2_seen $issue_write1_seen \
             $burst_write_seen $burst_read_seen $random_write_seen $random_read_seen $alternate_seen]
     }

@@ -33,12 +33,19 @@ XDC ?= ${PROJECT}.xdc
 .PHONY: openxc7
 openxc7: ${PROJECT}_openxc7.bit
 
+.PHONY: openxc7_calib_only openxc7_short_bist
+openxc7_calib_only:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_calib_only TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_CALIB_ONLY"
+
+openxc7_short_bist:
+	$(MAKE) openxc7 PROJECT=${PROJECT}_short_bist TOP_MODULE=${TOP_MODULE} TOP_VERILOG=${TOP_VERILOG} XDC=${XDC} VERILOG_DEFINES="-D YPCB_SHORT_BIST"
+
 .PHONY: program
 program: ${PROJECT}_openxc7.bit
 	openFPGALoader ${JTAG_LINK} --bitstream $<
 
 ${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
-	yosys -p "synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json" $< ${ADDITIONAL_SOURCES}
+	yosys -p "read_verilog ${VERILOG_DEFINES} $< ${ADDITIONAL_SOURCES}; synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json"
 
 # The chip database only needs to be generated once
 # that is why we don't clean it with make clean
@@ -62,18 +69,28 @@ ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 # Generated from https://github.com/FPGAOL-CE/caas-wizard
 #
 BUILDDIR := ${CURDIR}/build
+VIVADO_SUFFIX ?= vivado
+VIVADO_VERILOG_DEFINES ?=
+VIVADO_TCL := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.tcl
+VIVADO_BIT := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.bit
 
-LOGFILE := ${BUILDDIR}/top.log
+LOGFILE := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.log
 
 # Build design
-.PHONY: vivado
-vivado: ${BUILDDIR}/${PROJECT}_vivado.bit
+.PHONY: vivado vivado_calib_only vivado_short_bist
+vivado: ${VIVADO_BIT}
+
+vivado_calib_only:
+	$(MAKE) vivado VIVADO_SUFFIX=vivado_calib_only VIVADO_VERILOG_DEFINES="YPCB_CALIB_ONLY"
+
+vivado_short_bist:
+	$(MAKE) vivado VIVADO_SUFFIX=vivado_short_bist VIVADO_VERILOG_DEFINES="YPCB_SHORT_BIST"
 
 ${BUILDDIR}:
 	mkdir -m 777 -p ${BUILDDIR} && chown -R nobody ${BUILDDIR} | true
 
 .ONESHELL:
-${BUILDDIR}/vivado.tcl: ${BUILDDIR}
+${VIVADO_TCL}: ${BUILDDIR}
 	cat << EOF > $@
 	# vivado.tcl generated for FPGAOL-CE/caas-wizard
 	# can be launched from any directory
@@ -81,6 +98,7 @@ ${BUILDDIR}/vivado.tcl: ${BUILDDIR}
 	create_project -part ${PART} -force v_proj
 	set_property target_language Verilog [current_project]
 	cd ..
+	if { "${VIVADO_VERILOG_DEFINES}" ne "" } { set_property verilog_define {${VIVADO_VERILOG_DEFINES}} [current_fileset] }
 	read_verilog [glob ${PROJECT}.v ${ADDITIONAL_SOURCES}]
 	read_xdc [glob  $(wildcard ${PROJECT}.xdc) ]
 	cd build
@@ -89,29 +107,29 @@ ${BUILDDIR}/vivado.tcl: ${BUILDDIR}
 	place_design
 	phys_opt_design
 	route_design
-	write_checkpoint -force ${PROJECT}_vivado_routed.dcp
-	report_utilization -file ${PROJECT}_vivado_util.rpt
-	report_timing_summary -file ${PROJECT}_vivado_timing.rpt
-	report_clock_utilization -file ${PROJECT}_vivado_clock_util.rpt
-	report_io -file ${PROJECT}_vivado_io.rpt
+	write_checkpoint -force ${PROJECT}_${VIVADO_SUFFIX}_routed.dcp
+	report_utilization -file ${PROJECT}_${VIVADO_SUFFIX}_util.rpt
+	report_timing_summary -file ${PROJECT}_${VIVADO_SUFFIX}_timing.rpt
+	report_clock_utilization -file ${PROJECT}_${VIVADO_SUFFIX}_clock_util.rpt
+	report_io -file ${PROJECT}_${VIVADO_SUFFIX}_io.rpt
 	set ddr_cells [get_cells -hierarchical -filter {REF_NAME =~ ISERDESE2 || REF_NAME =~ OSERDESE2 || REF_NAME =~ IDELAYE2 || REF_NAME =~ ODELAYE2 || REF_NAME =~ IDELAYCTRL || REF_NAME =~ IOBUF || REF_NAME =~ IOBUFDS || REF_NAME =~ PLLE2_ADV || REF_NAME =~ BUFG}]
-	set fp [open ${PROJECT}_vivado_ddr_cells.tsv w]
+	set fp [open ${PROJECT}_${VIVADO_SUFFIX}_ddr_cells.tsv w]
 	puts \$$fp "name\tref_name\tsite\tbel\tloc"
 	foreach c [lsort \$$ddr_cells] {
 	    puts \$$fp [format "%s\t%s\t%s\t%s\t%s" \$$c [get_property REF_NAME \$$c] [get_property SITE \$$c] [get_property BEL \$$c] [get_property LOC \$$c]]
 	}
 	close \$$fp
-	write_bitstream -verbose -force ${PROJECT}_vivado.bit
+	write_bitstream -verbose -force ${PROJECT}_${VIVADO_SUFFIX}.bit
 	# report_utilization -file util.rpt
 	# report_timing_summary -file timing.rpt
 	EOF
 
-${BUILDDIR}/${PROJECT}_vivado.bit: ${BUILDDIR}/vivado.tcl
+${VIVADO_BIT}: ${VIVADO_TCL}
 	cd ${BUILDDIR} && vivado -mode batch -source $< > ${LOGFILE} 2>&1
 
 .PHONY: program_vivado
 program_vivado:
-	openFPGALoader ${JTAG_LINK} --bitstream ${BUILDDIR}/${PROJECT}_vivado.bit
+	openFPGALoader ${JTAG_LINK} --bitstream ${VIVADO_BIT}
 
 
 #############################################################################################

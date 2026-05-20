@@ -66,6 +66,16 @@
      wire jtag_debug_selected;
      wire[959:0] jtag_debug_data;
      reg[31:0] debug_state_seen = 32'd0;
+`ifdef YPCB_CALIB_ONLY
+     localparam[1:0] YPCB_BIST_MODE = 2'd0;
+     localparam integer YPCB_BIST_LIMIT_BITS = 0;
+`elsif YPCB_SHORT_BIST
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 8;
+`else
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 0;
+`endif
      // o_debug1 taps on value of state_calibrate (can be traced inside ddr3_controller module)
      assign bist_done = calib_complete && (o_debug1[4:0] == 23);
      assign led[0] = bist_done;
@@ -114,7 +124,8 @@
         .SECOND_WISHBONE(0), //set to 1 if 2nd wishbone is needed
         .ECC_ENABLE(0), // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )
         .WB_ERROR(0), // set to 1 to support Wishbone error (asserts at ECC double bit error)
-        .BIST_MODE(1), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+        .BIST_MODE(YPCB_BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+        .BIST_LIMIT_BITS(YPCB_BIST_LIMIT_BITS),
         .SPEED_BIN(1), // 0 = Use top-level parameters , 1 = DDR3-1066 (7-7-7) , 2 = DR3-1333 (9-9-9) , 3 = DDR3-1600 (11-11-11)
         .SDRAM_CAPACITY(4)
         ) ddr3_top

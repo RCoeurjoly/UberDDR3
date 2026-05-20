@@ -87,6 +87,7 @@ module ddr3_controller #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 2, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter integer BIST_LIMIT_BITS = 0, // 0 = full address space; otherwise limit BIST counters to this many low address bits
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )  (only change when you know what you are doing)
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)  (only change when you know what you are doing)
     parameter[2:0] RTT_NOM = 3'b011, //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
@@ -357,7 +358,7 @@ module ddr3_controller #(
     //plus 10 controller clocks for possible bus latency and the delay for receiving feedback DQ from IOBUF -> IDELAY -> ISERDES
     localparam ECC_INFORMATION_BITS = (ECC_ENABLE == 2)? max_information_bits(wb_data_bits) : max_information_bits(wb_data_bits/8);
     // Smaller wb_addr_bits for simulation so BIST will end faster
-    localparam wb_addr_bits_sim = MICRON_SIM? 8 : wb_addr_bits; 
+    localparam wb_addr_bits_sim = MICRON_SIM ? 8 : ((BIST_LIMIT_BITS == 0) ? wb_addr_bits : BIST_LIMIT_BITS);
     
     /*********************************************************************************************************************************************/
    
@@ -3883,7 +3884,16 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         o_wb_stall_calib,
         calib_stb,
         state_calibrate[4:0]
-    } : {27'd0, state_calibrate[4:0]};
+    } : {
+        BIST_LIMIT_BITS[5:0],
+        BIST_MODE[1:0],
+        initial_calibration_done,
+        final_calibration_done,
+        reset_from_calibrate,
+        reset_from_test,
+        15'd0,
+        state_calibrate[4:0]
+    };
 
     always @(posedge i_controller_clk) begin
         if (sync_rst_controller) begin
@@ -3970,7 +3980,16 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                     o_wb_stall_calib,
                     o_wb_ack_uncalibrated
                 };
-                o_debug7 <= {calib_sel[31:0], 7'd0, calib_addr[24:0]};
+                o_debug7 <= {
+                    calib_sel[31:0],
+                    BIST_MODE[1:0],
+                    initial_calibration_done,
+                    final_calibration_done,
+                    reset_from_calibrate,
+                    reset_from_test,
+                    (BIST_LIMIT_BITS != 0),
+                    calib_addr[24:0]
+                };
             end else begin
                 o_debug7 <= debug_all_lane_mpr_burst0_collect;
             end
