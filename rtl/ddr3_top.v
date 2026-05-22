@@ -53,6 +53,7 @@ module ddr3_top #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock (< 125MHz)
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 1, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter integer BIST_LIMIT_BITS = 0, // 0 = full address space; otherwise limit BIST counters to this many low address bits
     parameter[0:0] BIST_TEST_DATAMASK = 1, // 1 = include per-byte DM writes in BIST, 0 = all-byte writes only
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC ) 
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms) (only change when you know what you are doing)
@@ -119,8 +120,13 @@ module ddr3_top #(
         output wire o_calib_complete,
         // Debug outputs
         output wire[31:0] o_debug1,
-//        output wire[31:0] o_debug2,
-//        output wire[31:0] o_debug3,
+        output wire[63:0] o_debug2,
+        output wire[63:0] o_debug3,
+        output wire[63:0] o_debug4,
+        output wire[63:0] o_debug5,
+        output wire[63:0] o_debug6,
+        output wire[63:0] o_debug7,
+        output wire[511:0] o_debug8,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_n
         // 
@@ -213,6 +219,7 @@ ddr3_top #(
     wire[DQ_BITS*BYTE_LANES*8-1:0] iserdes_data;
     wire[BYTE_LANES*8-1:0] iserdes_dqs;
     wire[BYTE_LANES*8-1:0] iserdes_bitslip_reference;
+    wire[DQ_BITS*BYTE_LANES*8-1:0] debug8_controller;
     wire idelayctrl_rdy;
     wire[4:0] odelay_data_cntvaluein, odelay_dqs_cntvaluein;
     wire[4:0] idelay_data_cntvaluein, idelay_dqs_cntvaluein;
@@ -264,7 +271,8 @@ ddr3_top #(
             .DLL_OFF(DLL_OFF), // 1 = DLL off for low frequency ddr3 clock (< 125MHz)
             .WB_ERROR(WB_ERROR), // set to 1 to support Wishbone error (asserts at ECC double bit error)
             .BIST_MODE(BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
-            .BIST_TEST_DATAMASK(BIST_TEST_DATAMASK), // 1 = include per-byte DM writes in BIST, 0 = all-byte writes only
+            .BIST_LIMIT_BITS(BIST_LIMIT_BITS),
+            .BIST_TEST_DATAMASK(BIST_TEST_DATAMASK),
             .DIC(DIC), //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)
             .RTT_NOM(RTT_NOM), //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
             .DUAL_RANK_DIMM(DUAL_RANK_DIMM), // enable dual rank DIMM (1 =  enable, 0 = disable)
@@ -328,12 +336,20 @@ ddr3_top #(
             .o_calib_complete(o_calib_complete),
             // Debug outputs
             .o_debug1(o_debug1),
-//            .o_debug2(o_debug2),
-//            .o_debug3(o_debug3)
+            .o_debug2(o_debug2),
+            .o_debug3(o_debug3),
+            .o_debug4(o_debug4),
+            .o_debug5(o_debug5),
+            .o_debug6(o_debug6),
+            .o_debug7(o_debug7),
+            .o_debug8(debug8_controller),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)
         );
+
+    assign o_debug8 = {{(512-(DQ_BITS*BYTE_LANES*8)){1'b0}}, debug8_controller};
+
     `ifndef LATTICE_ECP5_PHY // XILINX PHY
         ddr3_phy #(
                 .ROW_BITS(ROW_BITS), //width of row address

@@ -1,129 +1,225 @@
-`default_nettype none
-`timescale 1ps / 1ps
+////////////////////////////////////////////////////////////////////////////////
+//
+// Filename: ypcb_00338_1p1_ddr3.v
+// Project: UberDDR3 - An Open Source DDR3 Controller
+//
+// Purpose: Example demo of UberDDR3 for YPCB 00338 1.1 (xc7k480tffg1156-2).
+//          Mechanism:
+//          - led[2] lights up once the clock wizard is locked
+//          - led[0] lights up once UberDDR3 is done calibrating and BIST reaches DONE
+//          - led[1] lights up while BIST is not done
+//
+////////////////////////////////////////////////////////////////////////////////
+//
+// Copyright (C) 2023-2025  Angelo Jacobo
+//
+//     This program is free software: you can redistribute it and/or modify
+//     it under the terms of the GNU General Public License as published by
+//     the Free Software Foundation, either version 3 of the License, or
+//     (at your option) any later version.
+//
+//     This program is distributed in the hope that it will be useful,
+//     but WITHOUT ANY WARRANTY; without even the implied warranty of
+//     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//     GNU General Public License for more details.
+//
+//     You should have received a copy of the GNU General Public License
+//     along with this program.  If not, see <https://www.gnu.org/licenses/>.
+//
+////////////////////////////////////////////////////////////////////////////////
 
-module ypcb_00338_1p1_ddr3 (
-    input  wire        clk50,
-    input  wire        rst_n,
+`timescale 1ns / 1ps
 
-    output wire [0:0]  ddr3_ck_p,
-    output wire [0:0]  ddr3_ck_n,
-    output wire        ddr3_reset_n,
-    output wire [0:0]  ddr3_cke,
-    output wire [0:0]  ddr3_cs_n,
-    output wire        ddr3_ras_n,
-    output wire        ddr3_cas_n,
-    output wire        ddr3_we_n,
-    output wire [14:0] ddr3_addr,
-    output wire [2:0]  ddr3_ba,
-    inout  wire [63:0] ddr3_dq,
-    inout  wire [7:0]  ddr3_dqs_p,
-    inout  wire [7:0]  ddr3_dqs_n,
-    output wire [0:0]  ddr3_odt,
+   module ypcb_00338_1p1_ddr3
+	(
+        input wire clk50,
+        input wire rst_n,
+        // DDR3 I/O Interface
+        output wire[0:0] ddr3_ck_p, ddr3_ck_n,
+        output wire ddr3_reset_n,
+        output wire[0:0] ddr3_cke,
+        output wire[0:0] ddr3_cs_n,
+        output wire ddr3_ras_n,
+        output wire ddr3_cas_n,
+        output wire ddr3_we_n,
+        output wire[15-1:0] ddr3_addr,
+        output wire[3-1:0] ddr3_ba,
+        inout wire[64-1:0] ddr3_dq,
+        inout wire[8-1:0] ddr3_dqs_p, ddr3_dqs_n,
+        output wire[0:0] ddr3_odt,
+        //Debug LEDs
+        output wire[2:0] led
+    );
+     wire i_controller_clk, i_ddr3_clk, i_ref_clk, i_ddr3_clk_90;
+     wire clk_locked;
+     wire calib_complete;
+     wire bist_done;
+     wire[31:0] o_debug1;
+     wire[63:0] o_debug2;
+     wire[63:0] o_debug3;
+     wire[63:0] o_debug4;
+     wire[63:0] o_debug5;
+     wire[63:0] o_debug6;
+     wire[63:0] o_debug7;
+     wire[511:0] o_debug8;
+     wire[959:0] jtag_debug_data;
+     wire jtag_debug_selected;
+     wire[8-1:0] ddr3_dm;
+     localparam integer BYTE_LANES = 2;
+`ifdef YPCB_ODELAY_SUPPORTED
+     localparam integer YPCB_ODELAY_SUPPORTED_VALUE = 1;
+`else
+     localparam integer YPCB_ODELAY_SUPPORTED_VALUE = 0;
+`endif
+     localparam integer YPCB_DQ_WIDTH = 8 * BYTE_LANES;
+     localparam integer YPCB_WB_DATA_WIDTH = 8 * YPCB_DQ_WIDTH;
+     localparam integer YPCB_WB_SEL_WIDTH = YPCB_WB_DATA_WIDTH / 8;
+     localparam[0:0] YPCB_BIST_TEST_DATAMASK = 1'b0;
+`ifdef YPCB_CALIB_ONLY
+     localparam[1:0] YPCB_BIST_MODE = 2'd0;
+     localparam integer YPCB_BIST_LIMIT_BITS = 0;
+`elsif YPCB_TINY_BIST
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 4;
+`elsif YPCB_SHORT_BIST
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 8;
+`elsif YPCB_BIST_LIMIT8
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 8;
+`elsif YPCB_BIST_LIMIT12
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 12;
+`elsif YPCB_BIST_LIMIT16
+     localparam[1:0] YPCB_BIST_MODE = 2'd1;
+     localparam integer YPCB_BIST_LIMIT_BITS = 16;
+`else
+     localparam[1:0] YPCB_BIST_MODE = 2'd2;
+     localparam integer YPCB_BIST_LIMIT_BITS = 0;
+`endif
+     // o_debug1 taps on value of state_calibrate (can be traced inside ddr3_controller module)
+     assign bist_done = calib_complete && (o_debug1[4:0] == 23);
+     assign led[0] = bist_done;
+     assign led[1] = !bist_done;
+     assign led[2] = clk_locked;
 
-    output wire [2:0]  led
-);
-    localparam integer BYTE_LANES = 1;
-    localparam integer WB_ADDR_BITS = 15 + 10 + 3 - 3;
-    localparam integer WB_DATA_BITS = 8 * BYTE_LANES * 8;
-    localparam integer WB_SEL_BITS = WB_DATA_BITS / 8;
+     // This BSCAN anchor stabilizes the YPCB 1-lane OpenXC7 implementation.
+     // Board testing showed that routing o_debug8[63:0] to bits [511:448]
+     // makes full BIST pass; removing it or moving the slice makes BIST fail.
+     assign jtag_debug_data = {
+         448'd0,
+         o_debug8[63:0],
+         448'd0
+     };
 
-    wire controller_clk;
-    wire ddr3_clk;
-    wire ref_clk;
-    wire ddr3_clk_90;
-    wire clk_locked;
-    wire calib_complete;
-    wire [31:0] debug1;
-    wire uart_tx_unused;
-    wire [BYTE_LANES-1:0] ddr3_dm_unused;
+     jtag_debug_bscan #(
+         .WIDTH(960),
+         .JTAG_CHAIN(1)
+     ) jtag_debug (
+         .debug_data(jtag_debug_data),
+         .selected(jtag_debug_selected)
+     );
 
-    wire bist_done = calib_complete && (debug1[4:0] == 5'd23);
+    wire sys_clk; // 50MHz
+    assign sys_clk = clk50;
 
-    assign led[0] = bist_done;
-    assign led[1] = !bist_done;
-    assign led[2] = clk_locked;
-
-    clk_wiz clk_wiz_inst (
-        .clk_in1(clk50),
-        .clk_out1(controller_clk),
-        .clk_out2(ddr3_clk),
-        .clk_out3(ref_clk),
-        .clk_out4(ddr3_clk_90),
-        .reset(!rst_n),
-        .locked(clk_locked)
+    clk_wiz clk_wiz_inst
+    (
+    // Clock out ports
+    .clk_out1(i_controller_clk), //83.333 Mhz
+    .clk_out2(i_ddr3_clk), // 333.333 MHz
+    .clk_out3(i_ref_clk), // 200 MHz
+    .clk_out4(i_ddr3_clk_90), // 333.333 MHz with 90 degree shift
+    // Status and control signals
+    .reset(!rst_n),
+    .locked(clk_locked),
+    // Clock in ports
+    .clk_in1(sys_clk)
     );
 
+    // DDR3 Controller
     ddr3_top #(
-        .CONTROLLER_CLK_PERIOD(12_000),
-        .DDR3_CLK_PERIOD(3_000),
-        .ROW_BITS(15),
-        .COL_BITS(10),
-        .BA_BITS(3),
-        .BYTE_LANES(BYTE_LANES),
-        .AUX_WIDTH(4),
-        .WB2_ADDR_BITS(32),
-        .WB2_DATA_BITS(32),
+        .CONTROLLER_CLK_PERIOD(12_000), //ps, clock period of the controller interface
+        .DDR3_CLK_PERIOD(3_000), //ps, clock period of the DDR3 RAM device (must be 1/4 of the CONTROLLER_CLK_PERIOD)
+        .ROW_BITS(15), //width of row address
+        .COL_BITS(10), //width of column address
+        .BA_BITS(3), //width of bank address
+        .BYTE_LANES(BYTE_LANES), //number of DDR3 byte lanes to be controlled
+        .AUX_WIDTH(4), //width of aux line (must be >= 4)
+        .WB2_ADDR_BITS(32), //width of 2nd wishbone address bus
+        .WB2_DATA_BITS(32), //width of 2nd wishbone data bus
         .DUAL_RANK_DIMM(0),
-        .MICRON_SIM(0),
-        .ODELAY_SUPPORTED(0),
-        .SECOND_WISHBONE(0),
-        .DLL_OFF(0),
-        .WB_ERROR(0),
-        .BIST_MODE(1),
-        .BIST_TEST_DATAMASK(0),
-        .ECC_ENABLE(0),
-        .SPEED_BIN(1),
+        .MICRON_SIM(0), //enable faster simulation for micron ddr3 model (shorten POWER_ON_RESET_HIGH and INITIAL_CKE_LOW)
+        .ODELAY_SUPPORTED(YPCB_ODELAY_SUPPORTED_VALUE), //set to 1 when ODELAYE2 is supported
+        .SECOND_WISHBONE(0), //set to 1 if 2nd wishbone is needed
+        .ECC_ENABLE(0), // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )
+        .WB_ERROR(0), // set to 1 to support Wishbone error (asserts at ECC double bit error)
+        .BIST_MODE(YPCB_BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+        .BIST_LIMIT_BITS(YPCB_BIST_LIMIT_BITS),
+        .BIST_TEST_DATAMASK(YPCB_BIST_TEST_DATAMASK),
+        .SPEED_BIN(1), // 0 = Use top-level parameters , 1 = DDR3-1066 (7-7-7) , 2 = DR3-1333 (9-9-9) , 3 = DDR3-1600 (11-11-11)
         .SDRAM_CAPACITY(4)
-    ) ddr3_top_inst (
-        .i_controller_clk(controller_clk),
-        .i_ddr3_clk(ddr3_clk),
-        .i_ref_clk(ref_clk),
-        .i_ddr3_clk_90(ddr3_clk_90),
-        .i_rst_n(rst_n && clk_locked),
+        ) ddr3_top
+        (
+            //clock and reset
+            .i_controller_clk(i_controller_clk),
+            .i_ddr3_clk(i_ddr3_clk), //i_controller_clk has period of CONTROLLER_CLK_PERIOD, i_ddr3_clk has period of DDR3_CLK_PERIOD
+            .i_ref_clk(i_ref_clk),
+            .i_ddr3_clk_90(i_ddr3_clk_90),
+            .i_rst_n(rst_n && clk_locked),
+            // Wishbone inputs
+            .i_wb_cyc(1), //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
+            .i_wb_stb(0), //request a transfer
+            .i_wb_we(0), //write-enable (1 = write, 0 = read)
+            .i_wb_addr(25'b0), //burst-addressable {row,bank,col}
+            .i_wb_data({YPCB_WB_DATA_WIDTH{1'b0}}), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
+            .i_wb_sel({YPCB_WB_SEL_WIDTH{1'b1}}), //byte strobe for write (1 = write the byte)
+            .i_aux(4'b0), //for AXI-interface compatibility (given upon strobe)
+            // Wishbone outputs
+            .o_wb_stall(), //1 = busy, cannot accept requests
+            .o_wb_ack(), //1 = read/write request has completed
+            .o_wb_err(),
+            .o_wb_data(), //read data, for a 4:1 controller data width is 8 times the number of pins on the device
+            .o_aux(),
+            // Wishbone 2 (PHY) inputs
+            .i_wb2_cyc(0), //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
+            .i_wb2_stb(0), //request a transfer
+            .i_wb2_we(0), //write-enable (1 = write, 0 = read)
+            .i_wb2_addr(32'b0), //burst-addressable {row,bank,col}
+            .i_wb2_data(32'b0), //write data, for a 4:1 controller data width is 8 times the number of pins on the device
+            .i_wb2_sel(4'b0), //byte strobe for write (1 = write the byte)
+            // Wishbone 2 (Controller) outputs
+            .o_wb2_stall(), //1 = busy, cannot accept requests
+            .o_wb2_ack(), //1 = read/write request has completed
+            .o_wb2_data(), //read data, for a 4:1 controller data width is 8 times the number of pins on the device
+            // PHY Interface (to be added later)
+            // DDR3 I/O Interface
+            .o_ddr3_clk_p(ddr3_ck_p),
+            .o_ddr3_clk_n(ddr3_ck_n),
+            .o_ddr3_reset_n(ddr3_reset_n),
+            .o_ddr3_cke(ddr3_cke), // CKE
+            .o_ddr3_cs_n(ddr3_cs_n), // chip select signal (controls rank 1 only)
+            .o_ddr3_ras_n(ddr3_ras_n), // RAS#
+            .o_ddr3_cas_n(ddr3_cas_n), // CAS#
+            .o_ddr3_we_n(ddr3_we_n), // WE#
+            .o_ddr3_addr(ddr3_addr),
+            .o_ddr3_ba_addr(ddr3_ba),
+            .io_ddr3_dq(ddr3_dq[YPCB_DQ_WIDTH-1:0]),
+            .io_ddr3_dqs(ddr3_dqs_p[BYTE_LANES-1:0]),
+            .io_ddr3_dqs_n(ddr3_dqs_n[BYTE_LANES-1:0]),
+            .o_ddr3_dm(ddr3_dm[BYTE_LANES-1:0]),
+            .o_ddr3_odt(ddr3_odt), // on-die termination
+            .o_calib_complete(calib_complete),
+            .o_debug1(o_debug1),
+            .o_debug2(o_debug2),
+            .o_debug3(o_debug3),
+            .o_debug4(o_debug4),
+            .o_debug5(o_debug5),
+            .o_debug6(o_debug6),
+            .o_debug7(o_debug7),
+            .o_debug8(o_debug8),
+            .i_user_self_refresh(0),
+            .uart_tx()
+        );
 
-        .i_wb_cyc(1'b1),
-        .i_wb_stb(1'b0),
-        .i_wb_we(1'b0),
-        .i_wb_addr({WB_ADDR_BITS{1'b0}}),
-        .i_wb_data({WB_DATA_BITS{1'b0}}),
-        .i_wb_sel({WB_SEL_BITS{1'b1}}),
-        .i_aux(4'b0),
-        .o_wb_stall(),
-        .o_wb_ack(),
-        .o_wb_err(),
-        .o_wb_data(),
-        .o_aux(),
-
-        .i_wb2_cyc(1'b0),
-        .i_wb2_stb(1'b0),
-        .i_wb2_we(1'b0),
-        .i_wb2_addr(32'b0),
-        .i_wb2_data(32'b0),
-        .i_wb2_sel(4'b0),
-        .o_wb2_stall(),
-        .o_wb2_ack(),
-        .o_wb2_data(),
-
-        .o_ddr3_clk_p(ddr3_ck_p),
-        .o_ddr3_clk_n(ddr3_ck_n),
-        .o_ddr3_reset_n(ddr3_reset_n),
-        .o_ddr3_cke(ddr3_cke),
-        .o_ddr3_cs_n(ddr3_cs_n),
-        .o_ddr3_ras_n(ddr3_ras_n),
-        .o_ddr3_cas_n(ddr3_cas_n),
-        .o_ddr3_we_n(ddr3_we_n),
-        .o_ddr3_addr(ddr3_addr),
-        .o_ddr3_ba_addr(ddr3_ba),
-        .io_ddr3_dq(ddr3_dq[7:0]),
-        .io_ddr3_dqs(ddr3_dqs_p[0:0]),
-        .io_ddr3_dqs_n(ddr3_dqs_n[0:0]),
-        .o_ddr3_dm(ddr3_dm_unused),
-        .o_ddr3_odt(ddr3_odt),
-        .o_calib_complete(calib_complete),
-        .o_debug1(debug1),
-        .i_user_self_refresh(1'b0),
-        .uart_tx(uart_tx_unused)
-    );
 endmodule
-
-`default_nettype wire

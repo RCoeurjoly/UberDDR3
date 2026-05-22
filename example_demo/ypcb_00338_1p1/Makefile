@@ -2,7 +2,7 @@ PROJECT = ypcb_00338_1p1_ddr3
 FAMILY = kintex7
 PART = xc7k480tffg1156-2
 CHIPDB  = ${KINTEX7_CHIPDB}
-ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v ../../rtl/ddr3_phy.v ../../rtl/ddr3_top.v clk_wiz.v
+ADDITIONAL_SOURCES = ../../rtl/ddr3_controller.v ../../rtl/ddr3_phy.v ../../rtl/ddr3_top.v clk_wiz.v uart_rx.v uart_tx.v jtag_debug_bscan.v
 
 NEXTPNR_XILINX_DIR ?= /snap/openxc7/current/opt/nextpnr-xilinx
 NEXTPNR_XILINX_PYTHON_DIR ?= ${NEXTPNR_XILINX_DIR}/python
@@ -38,7 +38,7 @@ program: ${PROJECT}_openxc7.bit
 	openFPGALoader ${JTAG_LINK} --bitstream $<
 
 ${PROJECT}.json: ${TOP_VERILOG} ${ADDITIONAL_SOURCES} Makefile
-	yosys -p "read_verilog $< ${ADDITIONAL_SOURCES}; synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; write_json ${PROJECT}.json"
+	yosys -p "read_verilog ${VERILOG_DEFINES} $< ${ADDITIONAL_SOURCES}; synth_xilinx -flatten -abc9 ${SYNTH_OPTS} -arch xc7 -top ${TOP_MODULE}; delete t:\$$scopeinfo; write_json ${PROJECT}.json"
 
 # The chip database only needs to be generated once
 # that is why we don't clean it with make clean
@@ -56,6 +56,77 @@ ${PROJECT}.frames: ${PROJECT}.fasm
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
 
+
+#############################################################################################
+# SPDX-License-Identifier: MIT
+# Generated from https://github.com/FPGAOL-CE/caas-wizard
+#
+BUILDDIR := ${CURDIR}/build
+VIVADO_SUFFIX ?= vivado
+VIVADO_VERILOG_DEFINES ?=
+VIVADO_TCL := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.tcl
+VIVADO_BIT := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.bit
+
+LOGFILE := ${BUILDDIR}/${PROJECT}_${VIVADO_SUFFIX}.log
+
+# Build design
+.PHONY: vivado vivado_calib_only vivado_short_bist
+vivado: ${VIVADO_BIT}
+
+vivado_calib_only:
+	$(MAKE) vivado VIVADO_SUFFIX=vivado_calib_only VIVADO_VERILOG_DEFINES="YPCB_CALIB_ONLY"
+
+vivado_short_bist:
+	$(MAKE) vivado VIVADO_SUFFIX=vivado_short_bist VIVADO_VERILOG_DEFINES="YPCB_SHORT_BIST"
+
+${BUILDDIR}:
+	mkdir -m 777 -p ${BUILDDIR} && chown -R nobody ${BUILDDIR} | true
+
+.ONESHELL:
+${VIVADO_TCL}: ${BUILDDIR}
+	cat << EOF > $@
+	# vivado.tcl generated for FPGAOL-CE/caas-wizard
+	# can be launched from any directory
+	cd ${BUILDDIR}
+	create_project -part ${PART} -force v_proj
+	set_property target_language Verilog [current_project]
+	cd ..
+	if { "${VIVADO_VERILOG_DEFINES}" ne "" } { set_property verilog_define {${VIVADO_VERILOG_DEFINES}} [current_fileset] }
+	read_verilog [glob ${PROJECT}.v ${ADDITIONAL_SOURCES}]
+	read_xdc [glob  $(wildcard ${PROJECT}.xdc) ]
+	cd build
+	synth_design -top ${PROJECT}
+	opt_design
+	place_design
+	phys_opt_design
+	route_design
+	write_checkpoint -force ${PROJECT}_${VIVADO_SUFFIX}_routed.dcp
+	report_utilization -file ${PROJECT}_${VIVADO_SUFFIX}_util.rpt
+	report_timing_summary -file ${PROJECT}_${VIVADO_SUFFIX}_timing.rpt
+	report_clock_utilization -file ${PROJECT}_${VIVADO_SUFFIX}_clock_util.rpt
+	report_io -file ${PROJECT}_${VIVADO_SUFFIX}_io.rpt
+	set ddr_cells [get_cells -hierarchical -filter {REF_NAME =~ ISERDESE2 || REF_NAME =~ OSERDESE2 || REF_NAME =~ IDELAYE2 || REF_NAME =~ ODELAYE2 || REF_NAME =~ IDELAYCTRL || REF_NAME =~ IOBUF || REF_NAME =~ IOBUFDS || REF_NAME =~ PLLE2_ADV || REF_NAME =~ BUFG}]
+	set fp [open ${PROJECT}_${VIVADO_SUFFIX}_ddr_cells.tsv w]
+	puts \$$fp "name\tref_name\tsite\tbel\tloc"
+	foreach c [lsort \$$ddr_cells] {
+	    puts \$$fp [format "%s\t%s\t%s\t%s\t%s" \$$c [get_property REF_NAME \$$c] [get_property SITE \$$c] [get_property BEL \$$c] [get_property LOC \$$c]]
+	}
+	close \$$fp
+	write_bitstream -verbose -force ${PROJECT}_${VIVADO_SUFFIX}.bit
+	# report_utilization -file util.rpt
+	# report_timing_summary -file timing.rpt
+	EOF
+
+${VIVADO_BIT}: ${VIVADO_TCL}
+	cd ${BUILDDIR} && vivado -mode batch -source $< > ${LOGFILE} 2>&1
+
+.PHONY: program_vivado
+program_vivado:
+	openFPGALoader ${JTAG_LINK} --bitstream ${VIVADO_BIT}
+
+
+#############################################################################################
+
 .PHONY: clean
 clean:
 	rm -f *.bit
@@ -64,3 +135,4 @@ clean:
 	rm -f *.json
 	rm -f *.bin
 	rm -f *.bba
+	rm -rf ${BUILDDIR}

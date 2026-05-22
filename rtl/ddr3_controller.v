@@ -87,6 +87,7 @@ module ddr3_controller #(
                    DLL_OFF = 0, // 1 = DLL off for low frequency ddr3 clock
                    WB_ERROR = 0, // set to 1 to support Wishbone error (asserts at ECC double bit error)
     parameter[1:0] BIST_MODE = 2, // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
+    parameter integer BIST_LIMIT_BITS = 0, // 0 = full address space; otherwise limit BIST counters to this many low address bits
     parameter[0:0] BIST_TEST_DATAMASK = 1, // 1 = include per-byte DM writes in BIST, 0 = all-byte writes only
     parameter[1:0] ECC_ENABLE = 0, // set to 1 or 2 to add ECC (1 = Side-band ECC per burst, 2 = Side-band ECC per 8 bursts , 3 = Inline ECC )  (only change when you know what you are doing)
     parameter[1:0] DIC = 2'b00, //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)  (only change when you know what you are doing)
@@ -158,8 +159,13 @@ module ddr3_controller #(
         (* mark_debug = "true" *) output wire o_calib_complete,
         // Debug port
         output	wire	[31:0]	o_debug1,
-//        output	wire	[31:0]	o_debug2,
-//        output	wire	[31:0]	o_debug3
+        output	reg	[63:0]	o_debug2 = 64'd0,
+        output	reg	[63:0]	o_debug3 = 64'd0,
+        output	reg	[63:0]	o_debug4 = 64'd0,
+        output	reg	[63:0]	o_debug5 = 64'd0,
+        output	reg	[63:0]	o_debug6 = 64'd0,
+        output	reg	[63:0]	o_debug7 = 64'd0,
+        output	reg	[DQ_BITS*LANES*8-1:0]	o_debug8 = {DQ_BITS*LANES*8{1'b0}},
         // User enabled self-refresh
         input wire i_user_self_refresh,
         // Display debug messages via UART
@@ -353,7 +359,7 @@ module ddr3_controller #(
     //plus 10 controller clocks for possible bus latency and the delay for receiving feedback DQ from IOBUF -> IDELAY -> ISERDES
     localparam ECC_INFORMATION_BITS = (ECC_ENABLE == 2)? max_information_bits(wb_data_bits) : max_information_bits(wb_data_bits/8);
     // Smaller wb_addr_bits for simulation so BIST will end faster
-    localparam wb_addr_bits_sim = MICRON_SIM? 8 : wb_addr_bits; 
+    localparam wb_addr_bits_sim = MICRON_SIM ? 8 : ((BIST_LIMIT_BITS == 0) ? wb_addr_bits : BIST_LIMIT_BITS);
     
     /*********************************************************************************************************************************************/
    
@@ -549,6 +555,7 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
+    reg[LANES*8-1:0] debug_lane_dqs_summary = {LANES*8{1'b0}};
     reg[3:0] train_delay;
     reg[3:0] delay_before_read_data = 0;
     reg[$clog2(DELAY_BEFORE_WRITE_LEVEL_FEEDBACK):0] delay_before_write_level_feedback = 0;
@@ -2423,7 +2430,8 @@ module ddr3_controller #(
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
             dqs_start_index_stored <= 0;
-            dqs_start_index_repeat <= 0;        
+            dqs_start_index_repeat <= 0;
+            debug_lane_dqs_summary <= {LANES*8{1'b0}};
             delay_before_write_level_feedback <= 0;
             delay_before_read_data <= 0;
             read_lane_data <= 0;
@@ -2630,6 +2638,7 @@ module ddr3_controller #(
                              // high initial_dqs is the time when the IDELAY of dqs and dq is not yet calibrated so we zero this starting now
                             initial_dqs <= 0; 
                             dqs_start_index_repeat <= 0;
+                            debug_lane_dqs_summary[lane*8 +: 8] <= {2'b10, dqs_start_index};
                             state_calibrate <= CALIBRATE_DQS;
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
@@ -2654,6 +2663,7 @@ module ddr3_controller #(
                         if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
+                            debug_lane_dqs_summary[lane*8 +: 8] <= {2'b01, dqs_start_index};
                             state_calibrate <= MPR_READ;
                             delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
                             `ifdef UART_DEBUG_READ_LEVEL
@@ -3855,9 +3865,147 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
     // Logic connected to debug port
 //    wire debug_trigger;
-    assign o_debug1 = {27'd0, state_calibrate[4:0]};
-//    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
-//    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
+    integer debug_lane_index;
+    reg[LANES*8-1:0] debug_dqs_prev = 0;
+    reg[31:0] debug_dqs_nonzero_count = 32'd0;
+    reg[31:0] debug_dqs_transition_count = 32'd0;
+    reg[7:0] debug_collect_sample_count = 8'd0;
+    reg[2:0] debug_collect_lane = 3'd0;
+    reg[7:0] debug_selected_dqs_collect = 8'd0;
+    reg[LANES*8-1:0] debug_all_lane_dqs_collect = {LANES*8{1'b0}};
+    reg[63:0] debug_selected_mpr_dq_collect = 64'd0;
+    reg[63:0] debug_all_lane_mpr_burst0_collect = 64'd0;
+    reg[DQ_BITS*LANES*8-1:0] debug_all_lane_mpr_collect = {DQ_BITS*LANES*8{1'b0}};
+    wire[7:0] debug_selected_dqs_reversed = {debug_selected_dqs_collect[0], debug_selected_dqs_collect[1], debug_selected_dqs_collect[2], debug_selected_dqs_collect[3], debug_selected_dqs_collect[4], debug_selected_dqs_collect[5], debug_selected_dqs_collect[6], debug_selected_dqs_collect[7]};
+    wire[2:0] debug_lane = lane;
+    wire[5:0] debug_dqs_start_index = dqs_start_index;
+    wire[5:0] debug_dqs_start_index_stored = dqs_start_index_stored;
+    wire[3:0] debug_dqs_start_index_repeat = dqs_start_index_repeat;
+    wire[24:0] debug_read_test_address_counter = read_test_address_counter;
+    wire[24:0] debug_write_test_address_counter = write_test_address_counter;
+    wire[24:0] debug_calib_addr = calib_addr;
+
+    assign o_debug1 = (state_calibrate >= BURST_WRITE && state_calibrate <= DONE_CALIBRATE) ? {
+        wrong_data[7:0],
+        correct_data[7:0],
+        write_test_address_counter[7:0],
+        reset_from_test,
+        o_wb_stall_calib,
+        calib_stb,
+        state_calibrate[4:0]
+    } : {
+        BIST_LIMIT_BITS[5:0],
+        BIST_MODE[1:0],
+        initial_calibration_done,
+        final_calibration_done,
+        reset_from_calibrate,
+        reset_from_test,
+        15'd0,
+        state_calibrate[4:0]
+    };
+
+    always @(posedge i_controller_clk) begin
+        if (sync_rst_controller) begin
+            o_debug2 <= 64'd0;
+            o_debug3 <= 64'd0;
+            o_debug4 <= 64'd0;
+            o_debug5 <= 64'd0;
+            o_debug6 <= 64'd0;
+            o_debug7 <= 64'd0;
+            o_debug8 <= {DQ_BITS*LANES*8{1'b0}};
+            debug_dqs_prev <= 0;
+            debug_dqs_nonzero_count <= 32'd0;
+            debug_dqs_transition_count <= 32'd0;
+            debug_collect_sample_count <= 8'd0;
+            debug_collect_lane <= 3'd0;
+            debug_selected_dqs_collect <= 8'd0;
+            debug_all_lane_dqs_collect <= {LANES*8{1'b0}};
+            debug_selected_mpr_dq_collect <= 64'd0;
+            debug_all_lane_mpr_burst0_collect <= 64'd0;
+            debug_all_lane_mpr_collect <= {DQ_BITS*LANES*8{1'b0}};
+        end else begin
+            o_debug2 <= {
+                dqs_store[31:0],
+                i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8],
+                debug_lane,
+                debug_dqs_start_index,
+                debug_dqs_start_index_stored,
+                debug_dqs_start_index_repeat,
+                state_calibrate[4:0]
+            };
+
+            if (state_calibrate == COLLECT_DQS && delay_before_read_data == 0) begin
+                debug_collect_lane <= lane;
+                debug_selected_dqs_collect <= i_phy_iserdes_dqs[serdes_ratio*2*lane +: 8];
+                debug_all_lane_dqs_collect <= i_phy_iserdes_dqs;
+                debug_all_lane_mpr_burst0_collect <= i_phy_iserdes_data[((DQ_BITS*LANES)*0) +: (DQ_BITS*LANES)];
+                debug_all_lane_mpr_collect <= i_phy_iserdes_data;
+                debug_selected_mpr_dq_collect <= {
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*7 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*6 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*5 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*4 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*3 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],
+                    i_phy_iserdes_data[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8]
+                };
+                if (debug_collect_sample_count != 8'hff) begin
+                    debug_collect_sample_count <= debug_collect_sample_count + 1'b1;
+                end
+            end
+
+            for (debug_lane_index = 0; debug_lane_index < LANES && debug_lane_index < 8; debug_lane_index = debug_lane_index + 1) begin
+                if (state_calibrate == COLLECT_DQS || state_calibrate == ANALYZE_DQS) begin
+                    if (i_phy_iserdes_dqs[debug_lane_index*8 +: 8] != 8'd0 && debug_dqs_nonzero_count[debug_lane_index*4 +: 4] != 4'hf) begin
+                        debug_dqs_nonzero_count[debug_lane_index*4 +: 4] <= debug_dqs_nonzero_count[debug_lane_index*4 +: 4] + 1'b1;
+                    end
+                    if (i_phy_iserdes_dqs[debug_lane_index*8 +: 8] != debug_dqs_prev[debug_lane_index*8 +: 8] && debug_dqs_transition_count[debug_lane_index*4 +: 4] != 4'hf) begin
+                        debug_dqs_transition_count[debug_lane_index*4 +: 4] <= debug_dqs_transition_count[debug_lane_index*4 +: 4] + 1'b1;
+                    end
+                end
+            end
+            debug_dqs_prev <= i_phy_iserdes_dqs;
+            o_debug3 <= debug_all_lane_dqs_collect;
+            o_debug4 <= debug_lane_dqs_summary;
+            o_debug5 <= debug_selected_mpr_dq_collect;
+            o_debug6 <= {
+                21'd0,
+                debug_collect_lane,
+                debug_collect_sample_count,
+                ~debug_selected_dqs_reversed,
+                ~debug_selected_dqs_collect,
+                debug_selected_dqs_reversed,
+                debug_selected_dqs_collect
+            };
+            if (state_calibrate >= BURST_WRITE && state_calibrate <= DONE_CALIBRATE) begin
+                o_debug5 <= calib_data[63:0];
+                o_debug6 <= {
+                    debug_read_test_address_counter,
+                    debug_write_test_address_counter,
+                    write_by_byte_counter[5:0],
+                    calib_aux[3:0],
+                    calib_we,
+                    calib_stb,
+                    o_wb_stall_calib,
+                    o_wb_ack_uncalibrated
+                };
+                o_debug7 <= {
+                    calib_sel[31:0],
+                    BIST_MODE[1:0],
+                    initial_calibration_done,
+                    final_calibration_done,
+                    reset_from_calibrate,
+                    reset_from_test,
+                    (BIST_LIMIT_BITS != 0),
+                    debug_calib_addr
+                };
+            end else begin
+                o_debug7 <= debug_all_lane_mpr_burst0_collect;
+            end
+            o_debug8 <= debug_all_lane_mpr_collect;
+        end
+    end
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
     /*********************************************************************************************************************************************/
 
