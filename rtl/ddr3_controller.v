@@ -104,66 +104,66 @@ module ddr3_controller #(
     parameter[0:0] ECC_TEST = 0
     ) 
     (
-        input wire i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
-        input wire i_rst_n, //200MHz input clock
+        input wire				i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
+        input wire				i_rst_n,	  //200MHz input clock
         // Wishbone inputs
-        input wire i_wb_cyc, //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
-        input wire i_wb_stb, //request a transfer
-        input wire i_wb_we, //write-enable (1 = write, 0 = read)
-        input wire[wb_addr_bits - 1:0] i_wb_addr, //burst-addressable {row,bank,col} 
-        input wire[wb_data_bits - 1:0] i_wb_data, //write data, for a 4:1 controller data width is 8 times the number of pins on the device
-        input wire[wb_sel_bits - 1:0] i_wb_sel, //byte strobe for write (1 = write the byte)
-        input wire[AUX_WIDTH - 1:0]  i_aux, //for AXI-interface compatibility (given upon strobe)
+        input wire				i_wb_cyc,	  //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
+        input wire				i_wb_stb,	  //request a transfer
+        input wire				i_wb_we,	  //write-enable (1 = write, 0 = read)
+        input wire [wb_addr_bits - 1:0]		i_wb_addr,	  //burst-addressable {row,bank,col} 
+        input wire [wb_data_bits - 1:0]		i_wb_data,	  //write data, for a 4:1 controller data width is 8 times the number of pins on the device
+        input wire [wb_sel_bits - 1:0]		i_wb_sel,	  //byte strobe for write (1 = write the byte)
+        input wire [AUX_WIDTH - 1:0]		i_aux,		  //for AXI-interface compatibility (given upon strobe)
         // Wishbone outputs
-        output reg o_wb_stall, //1 = busy, cannot accept requests
-        output wire o_wb_ack, //1 = read/write request has completed
-        output wire o_wb_err, //1 = Error due to ECC double bit error (fixed to 0 if WB_ERROR = 0)
-        output reg[wb_data_bits - 1:0] o_wb_data, //read data, for a 4:1 controller data width is 8 times the number of pins on the device
-        output reg[AUX_WIDTH - 1:0] o_aux, //for AXI-interface compatibility (returned upon ack)
+        output reg				o_wb_stall,	  //1 = busy, cannot accept requests
+        output wire				o_wb_ack,	  //1 = read/write request has completed
+        output wire				o_wb_err,	  //1 = Error due to ECC double bit error (fixed to 0 if WB_ERROR = 0)
+        output reg [wb_data_bits - 1:0]		o_wb_data,	  //read data, for a 4:1 controller data width is 8 times the number of pins on the device
+        output reg [AUX_WIDTH - 1:0]		o_aux,		  //for AXI-interface compatibility (returned upon ack)
         //
         // Wishbone 2 (PHY) inputs
         /* verilator lint_off UNUSEDSIGNAL */
-        input wire i_wb2_cyc, //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
-        input wire i_wb2_stb, //request a transfer
-        input wire i_wb2_we, //write-enable (1 = write, 0 = read)
-        input wire[WB2_ADDR_BITS - 1:0] i_wb2_addr, //memory-mapped register to be accessed 
-        input wire[wb2_sel_bits - 1:0] i_wb2_sel, //byte strobe for write (1 = write the byte)
-        input wire[WB2_DATA_BITS - 1:0] i_wb2_data, //write data
+        input wire				i_wb2_cyc,	  //bus cycle active (1 = normal operation, 0 = all ongoing transaction are to be cancelled)
+        input wire				i_wb2_stb,	  //request a transfer
+        input wire				i_wb2_we,	  //write-enable (1 = write, 0 = read)
+        input wire [WB2_ADDR_BITS - 1:0]	i_wb2_addr,	  //memory-mapped register to be accessed 
+        input wire [wb2_sel_bits - 1:0]		i_wb2_sel,	  //byte strobe for write (1 = write the byte)
+        input wire [WB2_DATA_BITS - 1:0]	i_wb2_data,	  //write data
         /* verilator lint_on UNUSEDSIGNAL */
         // Wishbone 2 (Controller) outputs
-        output reg o_wb2_stall, //1 = busy, cannot accept requests
-        output reg o_wb2_ack, //1 = read/write request has completed
-        output reg[WB2_DATA_BITS - 1:0] o_wb2_data, //read data
+        output reg				o_wb2_stall,	  //1 = busy, cannot accept requests
+        output reg				o_wb2_ack,	  //1 = read/write request has completed
+        output reg [WB2_DATA_BITS - 1:0]	o_wb2_data,	  //read data
         //
         // PHY interface
-        input wire[DQ_BITS*LANES*8 - 1:0] i_phy_iserdes_data,
-        input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_dqs,
-        input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_bitslip_reference,
-        input wire i_phy_idelayctrl_rdy,
-        output reg[cmd_len*serdes_ratio-1:0] o_phy_cmd,
-        output reg o_phy_dqs_tri_control, o_phy_dq_tri_control,
-        output wire o_phy_toggle_dqs,
-        output reg[wb_data_bits-1:0] o_phy_data,
-        output reg[wb_sel_bits-1:0] o_phy_dm, 
-        output wire[4:0] o_phy_odelay_data_cntvaluein, o_phy_odelay_dqs_cntvaluein,
-        output wire[4:0] o_phy_idelay_data_cntvaluein, 
-        output wire[4:0] o_phy_idelay_dqs_cntvaluein,
-        output reg[LANES-1:0] o_phy_odelay_data_ld, o_phy_odelay_dqs_ld,
-        output reg[LANES-1:0] o_phy_idelay_data_ld, 
-        output reg[LANES-1:0] o_phy_idelay_dqs_ld,
-        output reg[LANES-1:0] o_phy_bitslip,
-        output reg o_phy_write_leveling_calib,
-        output wire o_phy_reset,
+        input wire [DQ_BITS*LANES*8 - 1:0]	i_phy_iserdes_data,
+        input wire [LANES*serdes_ratio*2 - 1:0]	i_phy_iserdes_dqs,
+        input wire [LANES*serdes_ratio*2 - 1:0]	i_phy_iserdes_bitslip_reference,
+        input wire				i_phy_idelayctrl_rdy,
+        output reg [cmd_len*serdes_ratio-1:0]	o_phy_cmd,
+        output reg				o_phy_dqs_tri_control, o_phy_dq_tri_control,
+        output wire				o_phy_toggle_dqs,
+        output reg [wb_data_bits-1:0]		o_phy_data,
+        output reg [wb_sel_bits-1:0]		o_phy_dm, 
+        output wire [4:0]			o_phy_odelay_data_cntvaluein, o_phy_odelay_dqs_cntvaluein,
+        output wire [4:0]			o_phy_idelay_data_cntvaluein, 
+        output wire [4:0]			o_phy_idelay_dqs_cntvaluein,
+        output reg [LANES-1:0]			o_phy_odelay_data_ld, o_phy_odelay_dqs_ld,
+        output reg [LANES-1:0]			o_phy_idelay_data_ld, 
+        output reg [LANES-1:0]			o_phy_idelay_dqs_ld,
+        output reg [LANES-1:0]			o_phy_bitslip,
+        output reg				o_phy_write_leveling_calib,
+        output wire				o_phy_reset,
         // Done Calibration pin
-        (* mark_debug = "true" *) output wire o_calib_complete,
+        (* mark_debug = "true" *) output wire	o_calib_complete,
         // Debug port
-        output	wire	[31:0]	o_debug1,
-//        output	wire	[31:0]	o_debug2,
-//        output	wire	[31:0]	o_debug3
+        output wire [31:0]			o_debug1,
+        output wire [63:0]			o_debug8,
+     
         // User enabled self-refresh
-        input wire i_user_self_refresh,
+        input wire				i_user_self_refresh,
         // Display debug messages via UART
-        output wire uart_tx
+        output wire				uart_tx
     );
 
     
@@ -3855,9 +3855,8 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
     // Logic connected to debug port
 //    wire debug_trigger;
-    assign o_debug1 = {27'd0, state_calibrate[4:0]};
-//    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
-//    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};
+   assign o_debug1 = {27'd0, state_calibrate[4:0]};
+   assign o_debug8 = {wrong_read_data, correct_read_data};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
     /*********************************************************************************************************************************************/
 

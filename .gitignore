@@ -15,6 +15,7 @@ example_demo/build_logs*
 *.frames
 *.bin
 *.json
+!example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_bel_locks.json
 *.bba
 *toolchain-nix*
 testbench/ddr3_dimm_micron_sim_behav.wcfg

@@ -25,6 +25,11 @@ TOP_VERILOG ?= ${TOP}.v
 PNR_DEBUG ?= # --verbose --debug
 PNR_ARGS ?=
 PNR_FREQ_MHZ ?= 83.333
+BEL_LOCKS_JSON ?= constraints/ypcb_00338_1p1_ddr3_bel_locks.json
+BEL_LOCKS_PRE_PLACE ?= ${PROJECT}_bel_locks_pre_place.py
+BEL_LOCKS_ALLOW_MISSING ?= 0
+UNLOCKED_PLACED_JSON ?= ${PROJECT}.placed.unlocked.json
+PNR_PRE_PLACE_ARGS = $(if $(wildcard ${BEL_LOCKS_JSON}),--pre-place ${BEL_LOCKS_PRE_PLACE},)
 
 JTAG_LINK ?= -c digilent_hs3
 
@@ -47,14 +52,33 @@ ${CHIPDB}/${DBPART}.bin:
 	bbasm -l ${DBPART}.bba ${CHIPDB}/${DBPART}.bin
 	rm -f ${DBPART}.bba
 
-${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
-	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ --freq ${PNR_FREQ_MHZ} ${PNR_ARGS} ${PNR_DEBUG}
+${BEL_LOCKS_PRE_PLACE}: ${BEL_LOCKS_JSON} scripts/generate_nextpnr_pre_place_bel_locks.py
+	python3 scripts/generate_nextpnr_pre_place_bel_locks.py --locks-json ${BEL_LOCKS_JSON} --out-py $@ $(if $(filter 1,$(BEL_LOCKS_ALLOW_MISSING)),--allow-missing,)
+
+${PROJECT}.fasm: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC} $(if $(wildcard ${BEL_LOCKS_JSON}),${BEL_LOCKS_PRE_PLACE},)
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --fasm $@ --freq ${PNR_FREQ_MHZ} ${PNR_PRE_PLACE_ARGS} ${PNR_ARGS} ${PNR_DEBUG}
+
+${PROJECT}.placed.json: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC} $(if $(wildcard ${BEL_LOCKS_JSON}),${BEL_LOCKS_PRE_PLACE},)
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --write $@ --freq ${PNR_FREQ_MHZ} ${PNR_PRE_PLACE_ARGS} ${PNR_ARGS} ${PNR_DEBUG}
+
+${UNLOCKED_PLACED_JSON}: ${PROJECT}.json ${CHIPDB}/${DBPART}.bin ${XDC}
+	nextpnr-xilinx --chipdb ${CHIPDB}/${DBPART}.bin --xdc ${XDC} --json ${PROJECT}.json --write $@ --freq ${PNR_FREQ_MHZ} ${PNR_ARGS} ${PNR_DEBUG}
+
+.PHONY: extract-bel-locks
+extract-bel-locks: ${UNLOCKED_PLACED_JSON}
+	python3 scripts/extract_nextpnr_bel_locks.py \
+		--placed-json ${UNLOCKED_PLACED_JSON} \
+		--out-json ${BEL_LOCKS_JSON} \
+		--include-cell-prefix ddr3_phy=ddr3_top_inst.ddr3_phy_inst. \
+		--include-cell-prefix ddr3_controller=ddr3_top_inst.ddr3_controller_inst. \
+		--include-typed-attr-substring ddr3_controller=SLICE_FFX:src:../../rtl/ddr3_controller.v
 
 ${PROJECT}.frames: ${PROJECT}.fasm
 	fasm2frames --part ${PART} --db-root ${PRJXRAY_DB_DIR}/${FAMILY} $< > $@
 
 ${PROJECT}_openxc7.bit: ${PROJECT}.frames
 	xc7frames2bit --part_file ${PRJXRAY_DB_DIR}/${FAMILY}/${PART}/part.yaml --part_name ${PART} --frm_file $< --output_file $@
+
 
 .PHONY: clean
 clean:
@@ -64,3 +88,4 @@ clean:
 	rm -f *.json
 	rm -f *.bin
 	rm -f *.bba
+	rm -f *_bel_locks_pre_place.py
