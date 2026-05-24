@@ -206,15 +206,15 @@ META
           in { inherit pnr fasmDrv frames bitstream; };
 
         baseline = mkCandidate { suffix = "baseline"; };
-        resetReleaseLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_locks.json";
-        seed1ResetDqsIdelayLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_seed1_reset_dqs_idelay_locks.json";
+        robustLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_locks.json";
         seedCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
-        resetReleaseLutSeed2LockCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        robustCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
           mkCandidate {
-            suffix = "seed-${seed}-reset-release-lut-seed2-lock";
+            suffix = "seed-${seed}-robust";
             seed = lib.toInt seed;
-            lockFile = if seed == "1" then seed1ResetDqsIdelayLock else resetReleaseLock;
+            lockFile = robustLock;
+            pnrArgs = "--no-tmdriv";
           });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
@@ -222,12 +222,12 @@ META
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
-        resetReleaseLutSeed2LockBitstreams = lib.mapAttrs' (seed: candidate:
-          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-reset-release-lut-seed2-lock" candidate.bitstream) resetReleaseLutSeed2LockCandidates;
-        resetReleaseLutSeed2LockPnrs = lib.mapAttrs' (seed: candidate:
-          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-reset-release-lut-seed2-lock" candidate.pnr) resetReleaseLutSeed2LockCandidates;
-        resetReleaseLutSeed2LockFasms = lib.mapAttrs' (seed: candidate:
-          lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}-reset-release-lut-seed2-lock" candidate.fasmDrv) resetReleaseLutSeed2LockCandidates;
+        robustBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-robust" candidate.bitstream) robustCandidates;
+        robustPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-robust" candidate.pnr) robustCandidates;
+        robustFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}-robust" candidate.fasmDrv) robustCandidates;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -250,8 +250,8 @@ META
           ypcb-ddr3-bitstream-baseline = baseline.bitstream;
           default = baseline.bitstream;
         } // seedBitstreams // seedPnrs // seedFasms
-          // resetReleaseLutSeed2LockBitstreams
-          // resetReleaseLutSeed2LockPnrs
-          // resetReleaseLutSeed2LockFasms;
+          // robustBitstreams
+          // robustPnrs
+          // robustFasms;
       });
 }

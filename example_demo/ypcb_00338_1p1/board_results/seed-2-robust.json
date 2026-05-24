@@ -1,7 +1,7 @@
 {
   "attempts": 63,
-  "bitstream": "/nix/store/z3576h52pqkv129ppj55zdg9qih31ffb-ypcb-ddr3-bitstream-seed-4-reset-release-lut-seed2-lock/ypcb_00338_1p1_ddr3_openxc7.bit",
-  "bitstream_sha256": "9db7f8d31d8566a48bb2cc1114f5614f8315bd087523e280a808531ab0bc8e1e",
+  "bitstream": "/nix/store/8fqkw1bmclzn83017p5svg3ijzm1ncl7-ypcb-ddr3-bitstream-seed-2-robust/ypcb_00338_1p1_ddr3_openxc7.bit",
+  "bitstream_sha256": "f6fcdb4cadd2e4dace01ad508ecce6e4c91b2fb6aede7c9b6c144dc9f7f5770d",
   "fail_reasons": [],
   "fields": {
     "bist_counts": 100663295,
@@ -17,7 +17,7 @@
     "version": 1,
     "wrong_read_data": 0
   },
-  "finished_at": "2026-05-24T09:41:25.721642+00:00",
+  "finished_at": "2026-05-24T21:48:29.661805+00:00",
   "jtag": {
     "backend": "ftdi-mpsse",
     "bits": 960,
@@ -37,11 +37,11 @@
       "-c",
       "digilent_hs3",
       "--bitstream",
-      "/nix/store/z3576h52pqkv129ppj55zdg9qih31ffb-ypcb-ddr3-bitstream-seed-4-reset-release-lut-seed2-lock/ypcb_00338_1p1_ddr3_openxc7.bit"
+      "/nix/store/8fqkw1bmclzn83017p5svg3ijzm1ncl7-ypcb-ddr3-bitstream-seed-2-robust/ypcb_00338_1p1_ddr3_openxc7.bit"
     ],
     "output": "empty\nJtag frequency : requested 6.00MHz    -> real 6.00MHz   \nOpen file DONE\nParse file DONE\nload program\n\nLoad SRAM: [==                                                ] 3.00%\n\nLoad SRAM: [====                                              ] 7.00%\n\nLoad SRAM: [======                                            ] 11.00%\n\nLoad SRAM: [========                                          ] 15.00%\n\nLoad SRAM: [==========                                        ] 19.00%\n\nLoad SRAM: [============                                      ] 23.00%\n\nLoad SRAM: [==============                                    ] 27.00%\n\nLoad SRAM: [================                                  ] 31.00%\n\nLoad SRAM: [==================                                ] 35.00%\n\nLoad SRAM: [====================                              ] 39.00%\n\nLoad SRAM: [======================                            ] 43.00%\n\nLoad SRAM: [========================                          ] 47.00%\n\nLoad SRAM: [==========================                        ] 51.00%\n\nLoad SRAM: [============================                      ] 55.00%\n\nLoad SRAM: [==============================                    ] 59.00%\n\nLoad SRAM: [================================                  ] 63.00%\n\nLoad SRAM: [==================================                ] 67.00%\n\nLoad SRAM: [====================================              ] 71.00%\n\nLoad SRAM: [======================================            ] 75.00%\n\nLoad SRAM: [========================================          ] 79.00%\n\nLoad SRAM: [==========================================        ] 83.00%\n\nLoad SRAM: [============================================      ] 87.00%\n\nLoad SRAM: [==============================================    ] 91.00%\n\nLoad SRAM: [================================================  ] 95.00%\n\nLoad SRAM: [==================================================] 99.00%\n\nLoad SRAM: [==================================================] 100.00%\n\nDone\nShift IR 35\nir: 1 isc_done 1 isc_ena 0 init 1 done 1\n",
     "returncode": 0
   },
   "raw_hex": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005ffffff000000000000000000000000000000000000000000000000000000000000000000000000000000000000000013344524400000017000000f",
-  "started_at": "2026-05-24T09:40:50.535943+00:00"
+  "started_at": "2026-05-24T21:47:54.503717+00:00"
 }
