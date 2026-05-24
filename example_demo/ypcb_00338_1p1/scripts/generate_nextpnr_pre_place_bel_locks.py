@@ -39,16 +39,27 @@ for lock in LOCKS:
         missing.append(lock)
         continue
     cell = ctx.cells[name]
-    existing_bel = cell.attrs["BEL"] if "BEL" in cell.attrs else None
-    if existing_bel is not None and str(existing_bel) != bel:
+    existing_bel = str(cell.bel)
+    if existing_bel in ("", "None"):
+        existing_bel = None
+    if existing_bel is not None and existing_bel != bel:
         conflicts.append({{
             "cell": name,
             "type": lock.get("type", ""),
-            "old_bel": str(existing_bel),
+            "old_bel": existing_bel,
             "new_bel": bel,
         }})
         continue
-    cell.setAttr("BEL", bel)
+    if existing_bel is None and not ctx.checkBelAvail(bel):
+        conflicts.append({{
+            "cell": name,
+            "type": lock.get("type", ""),
+            "old_bel": "occupied",
+            "new_bel": bel,
+        }})
+        continue
+    if existing_bel is None:
+        ctx.bindBel(bel, cell, STRENGTH_USER)
     applied += 1
 
 if conflicts:

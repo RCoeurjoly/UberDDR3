@@ -1,0 +1,68 @@
+{
+  "format": "uberddr3.nextpnr-bel-locks.v1",
+  "lock_count": 8,
+  "locks": [
+    {
+      "bel": "SLICE_X0Y113/A6LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[0]$LUT$1142",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/A5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[0]$LUT$1144",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/B5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[1]$LUT$1146",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/C5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[2]$LUT$1148",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X1Y80/C5LUT",
+      "cell": "$abc$179448$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[0]",
+      "scope": "dqs_idelay_calibration_control",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y81/B6LUT",
+      "cell": "$abc$179448$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[1]",
+      "scope": "dqs_idelay_calibration_control",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y81/A5LUT",
+      "cell": "$abc$179448$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
+      "scope": "dqs_idelay_calibration_control",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y81/C6LUT",
+      "cell": "$abc$179448$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[4]",
+      "scope": "dqs_idelay_calibration_control",
+      "type": "SLICE_LUTX"
+    }
+  ],
+  "scope_counts": {
+    "reset_release": 4,
+    "dqs_idelay_calibration_control": 4
+  },
+  "skipped_missing_bel": [],
+  "skipped_missing_bel_count": 0,
+  "source_placed_json": "/nix/store/5ircq9ca4ynn8kyyvl66p92b5z1bh1fr-ypcb-ddr3-nextpnr-json-seed-2/ypcb_00338_1p1_ddr3.placed.json",
+  "additional_sources": {
+    "dqs_idelay_calibration_control": "/nix/store/3csnsjnq9nznbsyrybjy13kkmi36schi-ypcb-ddr3-nextpnr-json-seed-1-placer-budgets-reset-release-lut-seed2-lock/ypcb_00338_1p1_ddr3.placed.json"
+  },
+  "notes": "Seed 1 diagnostic lock set. The four DQS IDELAY count-value LUTs are the only calibration-control LUTs that differ between failing seed 1 and passing seed 1 with placer budgets; do not apply globally because they regress seed 2.",
+  "type_counts": {
+    "SLICE_LUTX": 8
+  }
+}

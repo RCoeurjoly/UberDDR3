@@ -35,6 +35,7 @@ module ypcb_00338_1p1_ddr3 (
     wire calib_complete;
     wire [31:0] debug1;
     wire [63:0] debug8;
+    wire [63:0] bist_counts;
     wire [959:0] jtag_debug_payload;
     wire jtag_debug_selected;
     wire uart_tx_unused;
@@ -125,13 +126,14 @@ module ypcb_00338_1p1_ddr3 (
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
         .o_debug8(debug8),
+        .o_bist_counts(bist_counts),
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
     );
 
     assign jtag_debug_payload = {
         448'd0,
-        debug8,
+        bist_counts,
         348'd0,
         8'h01,
         32'h33445244,

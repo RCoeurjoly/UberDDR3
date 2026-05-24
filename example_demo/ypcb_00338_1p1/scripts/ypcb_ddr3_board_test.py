@@ -289,7 +289,8 @@ def field(payload, offset, width):
 
 def decode_payload(payload, bit_count):
     debug1 = field(payload, 28, 32)
-    debug8 = field(payload, 448, 64)
+    bist_counts = field(payload, 448, 64)
+    debug8 = bist_counts
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -300,8 +301,9 @@ def decode_payload(payload, bit_count):
         "magic": field(payload, 60, 32),
         "version": field(payload, 92, 8),
         "debug8": debug8,
-        "correct_read_data": field(debug8, 0, 32),
-        "wrong_read_data": field(debug8, 32, 32),
+        "bist_counts": bist_counts,
+        "correct_read_data": field(bist_counts, 0, 32),
+        "wrong_read_data": field(bist_counts, 32, 32),
         "bist_mode": BIST_MODE,
     }
     reasons = []

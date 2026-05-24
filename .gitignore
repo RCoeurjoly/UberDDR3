@@ -15,6 +15,10 @@ example_demo/build_logs*
 *.frames
 *.bin
 *.json
+!example_demo/ypcb_00338_1p1/board_results/
+!example_demo/ypcb_00338_1p1/board_results/seed-1-reset-release-lut-seed2-lock.json
+!example_demo/ypcb_00338_1p1/constraints/
+!example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_lut_seed2_locks.json
 *.bba
 *toolchain-nix*
 testbench/ddr3_dimm_micron_sim_behav.wcfg
