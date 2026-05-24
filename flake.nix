@@ -209,10 +209,20 @@ META
           in { inherit pnr fasmDrv frames bitstream; };
 
         baseline = mkCandidate { suffix = "baseline"; };
+        resetReleaseLutSeed2Lock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_lut_seed2_locks.json";
+        seed1ResetReleaseLutSeed2Lock = mkCandidate {
+          suffix = "seed-1-reset-release-lut-seed2-lock";
+          seed = 1;
+          lockFile = resetReleaseLutSeed2Lock;
+        };
         seedCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
+        seedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
+        seedFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -233,7 +243,10 @@ META
           ypcb-ddr3-frames-baseline = baseline.frames;
           ypcb-ddr3-bitstream = baseline.bitstream;
           ypcb-ddr3-bitstream-baseline = baseline.bitstream;
+          ypcb-ddr3-nextpnr-json-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.pnr;
+          ypcb-ddr3-fasm-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.fasmDrv;
+          ypcb-ddr3-bitstream-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.bitstream;
           default = baseline.bitstream;
-        } // seedBitstreams;
+        } // seedBitstreams // seedPnrs // seedFasms;
       });
 }
