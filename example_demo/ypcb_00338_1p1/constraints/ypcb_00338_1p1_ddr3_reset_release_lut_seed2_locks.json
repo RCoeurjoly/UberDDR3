@@ -1,0 +1,39 @@
+{
+  "format": "uberddr3.nextpnr-bel-locks.v1",
+  "lock_count": 4,
+  "locks": [
+    {
+      "bel": "SLICE_X0Y113/A6LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[0]$LUT$1142",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/A5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[0]$LUT$1144",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/B5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[1]$LUT$1146",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X0Y113/C5LUT",
+      "cell": "ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[2]$LUT$1148",
+      "scope": "reset_release",
+      "type": "SLICE_LUTX"
+    }
+  ],
+  "scope_counts": {
+    "reset_release": 4
+  },
+  "skipped_missing_bel": [],
+  "skipped_missing_bel_count": 0,
+  "source_placed_json": "/nix/store/5ircq9ca4ynn8kyyvl66p92b5z1bh1fr-ypcb-ddr3-nextpnr-json-seed-2/ypcb_00338_1p1_ddr3.placed.json",
+  "type_counts": {
+    "SLICE_LUTX": 4
+  }
+}
