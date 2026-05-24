@@ -119,6 +119,7 @@ module ddr3_top #(
         output wire o_calib_complete,
         // Debug outputs
         output wire[31:0] o_debug1,
+        output wire[63:0] o_debug8,
 //        output wire[31:0] o_debug2,
 //        output wire[31:0] o_debug3,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
@@ -328,6 +329,7 @@ ddr3_top #(
             .o_calib_complete(o_calib_complete),
             // Debug outputs
             .o_debug1(o_debug1),
+            .o_debug8(o_debug8),
 //            .o_debug2(o_debug2),
 //            .o_debug3(o_debug3)
             // User enabled self-refresh

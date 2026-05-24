@@ -22,7 +22,7 @@ module ypcb_00338_1p1_ddr3 (
 
     output wire [2:0]  led
 );
-    localparam integer BYTE_LANES = 1;
+    localparam integer BYTE_LANES = 2;
     localparam integer WB_ADDR_BITS = 15 + 10 + 3 - 3;
     localparam integer WB_DATA_BITS = 8 * BYTE_LANES * 8;
     localparam integer WB_SEL_BITS = WB_DATA_BITS / 8;
@@ -34,6 +34,9 @@ module ypcb_00338_1p1_ddr3 (
     wire clk_locked;
     wire calib_complete;
     wire [31:0] debug1;
+    wire [63:0] debug8;
+    wire [959:0] jtag_debug_payload;
+    wire jtag_debug_selected;
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
 
@@ -69,8 +72,8 @@ module ypcb_00338_1p1_ddr3 (
         .SECOND_WISHBONE(0),
         .DLL_OFF(0),
         .WB_ERROR(0),
-        .BIST_MODE(1),
-        .BIST_TEST_DATAMASK(0),
+        .BIST_MODE(2'd2),
+        .BIST_TEST_DATAMASK(1'b0),
         .ECC_ENABLE(0),
         .SPEED_BIN(1),
         .SDRAM_CAPACITY(4)
@@ -114,16 +117,42 @@ module ypcb_00338_1p1_ddr3 (
         .o_ddr3_we_n(ddr3_we_n),
         .o_ddr3_addr(ddr3_addr),
         .o_ddr3_ba_addr(ddr3_ba),
-        .io_ddr3_dq(ddr3_dq[7:0]),
-        .io_ddr3_dqs(ddr3_dqs_p[0:0]),
-        .io_ddr3_dqs_n(ddr3_dqs_n[0:0]),
+        .io_ddr3_dq(ddr3_dq[(8*BYTE_LANES)-1:0]),
+        .io_ddr3_dqs(ddr3_dqs_p[BYTE_LANES-1:0]),
+        .io_ddr3_dqs_n(ddr3_dqs_n[BYTE_LANES-1:0]),
         .o_ddr3_dm(ddr3_dm_unused),
         .o_ddr3_odt(ddr3_odt),
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
+        .o_debug8(debug8),
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
     );
+
+    assign jtag_debug_payload = {
+        448'd0,
+        debug8,
+        348'd0,
+        8'h01,
+        32'h33445244,
+        debug1,
+        24'd0,
+        calib_complete,
+        bist_done,
+        clk_locked,
+        rst_n
+    };
+
+    jtag_debug_bscan #(
+        .WIDTH(960),
+        .JTAG_CHAIN(1)
+    ) jtag_debug_bscan_inst (
+        .debug_data(jtag_debug_payload),
+        .selected(jtag_debug_selected)
+    );
+
+    wire unused_jtag_debug_selected = jtag_debug_selected;
+
 endmodule
 
 `default_nettype wire
