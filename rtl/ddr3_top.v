@@ -119,8 +119,7 @@ module ddr3_top #(
         output wire o_calib_complete,
         // Debug outputs
         output wire[31:0] o_debug1,
-//        output wire[31:0] o_debug2,
-//        output wire[31:0] o_debug3,
+        output wire[63:0] o_debug8,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_n
         // 
@@ -264,7 +263,7 @@ ddr3_top #(
             .DLL_OFF(DLL_OFF), // 1 = DLL off for low frequency ddr3 clock (< 125MHz)
             .WB_ERROR(WB_ERROR), // set to 1 to support Wishbone error (asserts at ECC double bit error)
             .BIST_MODE(BIST_MODE), // 0 = No BIST, 1 = run through all address space ONCE , 2 = run through all address space for every test (burst w/r, random w/r, alternating r/w)
-            .BIST_TEST_DATAMASK(BIST_TEST_DATAMASK), // 1 = include per-byte DM writes in BIST, 0 = all-byte writes only
+            .BIST_TEST_DATAMASK(BIST_TEST_DATAMASK),
             .DIC(DIC), //Output Driver Impedance Control (2'b00 = RZQ/6, 2'b01 = RZQ/7, RZQ = 240ohms)
             .RTT_NOM(RTT_NOM), //RTT Nominal (3'b000 = disabled, 3'b001 = RZQ/4, 3'b010 = RZQ/2 , 3'b011 = RZQ/6, RZQ = 240ohms)
             .DUAL_RANK_DIMM(DUAL_RANK_DIMM), // enable dual rank DIMM (1 =  enable, 0 = disable)
@@ -328,8 +327,7 @@ ddr3_top #(
             .o_calib_complete(o_calib_complete),
             // Debug outputs
             .o_debug1(o_debug1),
-//            .o_debug2(o_debug2),
-//            .o_debug3(o_debug3)
+            .o_debug8(o_debug8),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)
