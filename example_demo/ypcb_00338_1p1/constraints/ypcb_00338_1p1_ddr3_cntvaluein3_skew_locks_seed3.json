@@ -12,12 +12,14 @@
     {
       "bel": "SLICE_X1Y72/A6LUT",
       "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
+      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
       "scope": "idelay_data_cntvaluein3_leaf",
       "type": "SLICE_LUTX"
     },
     {
       "bel": "SLICE_X1Y75/B6LUT",
       "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
+      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
       "scope": "idelay_dqs_cntvaluein3_leaf",
       "type": "SLICE_LUTX"
     }

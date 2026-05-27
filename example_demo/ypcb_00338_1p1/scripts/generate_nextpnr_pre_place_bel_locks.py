@@ -31,14 +31,39 @@ ALLOW_MISSING = {allow_missing}
 applied = 0
 missing = []
 conflicts = []
+ambiguous = []
+
+
+def lock_suffix(name):
+    separator = chr(92)
+    if separator in name:
+        return name.split(separator, 1)[1]
+    return name
+
+
+def resolve_cell(lock):
+    name = lock["cell"]
+    if name in ctx.cells:
+        return name, ctx.cells[name]
+    suffix = lock.get("cell_suffix", lock_suffix(name))
+    matches = [candidate for candidate in ctx.cells if candidate.endswith(suffix)]
+    if len(matches) == 1:
+        return matches[0], ctx.cells[matches[0]]
+    if len(matches) > 1:
+        ambiguous.append({{
+            "cell": name,
+            "suffix": suffix,
+            "matches": matches[:16],
+        }})
+    return name, None
+
 
 for lock in LOCKS:
-    name = lock["cell"]
+    name, cell = resolve_cell(lock)
     bel = lock["bel"]
-    if name not in ctx.cells:
+    if cell is None:
         missing.append(lock)
         continue
-    cell = ctx.cells[name]
     existing_bel = str(cell.bel)
     if existing_bel in ("", "None"):
         existing_bel = None
@@ -64,6 +89,8 @@ for lock in LOCKS:
 
 if conflicts:
     raise RuntimeError("YPCB pre-place BEL lock conflicts: " + repr(conflicts[:16]))
+if ambiguous:
+    raise RuntimeError("YPCB pre-place BEL lock ambiguous cells: " + repr(ambiguous[:16]))
 if missing and not ALLOW_MISSING:
     raise RuntimeError("YPCB pre-place BEL lock missing cells: " + repr(missing[:16]))
 

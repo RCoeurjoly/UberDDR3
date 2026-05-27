@@ -17,6 +17,23 @@ def top_module(data: dict[str, Any]) -> dict[str, Any]:
     )
 
 
+def lock_suffix(name: str) -> str:
+    if "\\" in name:
+        return name.split("\\", 1)[1]
+    return name
+
+
+def resolve_cell(cells: dict[str, Any], lock: dict[str, Any]) -> tuple[str, dict[str, Any] | None, bool]:
+    name = lock["cell"]
+    if name in cells:
+        return name, cells[name], False
+    suffix = lock.get("cell_suffix", lock_suffix(name))
+    matches = [candidate for candidate in cells if candidate.endswith(suffix)]
+    if len(matches) == 1:
+        return matches[0], cells[matches[0]], False
+    return name, None, len(matches) > 1
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--locks-json", required=True, type=Path)
@@ -29,11 +46,14 @@ def main() -> int:
     cells = top_module(data).get("cells", {})
 
     missing = []
+    ambiguous = []
     mismatched = []
     for lock in locks:
-        name = lock["cell"]
+        name, cell, is_ambiguous = resolve_cell(cells, lock)
         expected = lock["bel"]
-        cell = cells.get(name)
+        if is_ambiguous:
+            ambiguous.append(lock)
+            continue
         if cell is None:
             missing.append(lock)
             continue
@@ -47,6 +67,8 @@ def main() -> int:
                 "actual": actual,
             })
 
+    if ambiguous:
+        raise SystemExit(f"ambiguous locked cells: {ambiguous[:16]}")
     if missing and not args.allow_missing:
         raise SystemExit(f"missing locked cells: {missing[:16]}")
     if mismatched:

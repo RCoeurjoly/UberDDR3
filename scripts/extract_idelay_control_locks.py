@@ -56,6 +56,12 @@ def cntvaluein_scope(name: str, kinds: set[str], indexes: set[int] | None) -> st
     return f"idelay_{kind}_cntvaluein{index}_leaf"
 
 
+def stable_cell_suffix(name: str) -> str:
+    if "\\" in name:
+        return name.split("\\", 1)[1]
+    return name
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--placed-json", required=True, type=Path)
@@ -111,6 +117,7 @@ def main() -> int:
             continue
         lock = {
             "cell": lock_name,
+            "cell_suffix": stable_cell_suffix(lock_name),
             "type": lock_cell.get("type", ""),
             "bel": bel,
             "scope": scope,
