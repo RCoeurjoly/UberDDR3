@@ -503,3 +503,15 @@ Analysis sequence:
 5. Promotion: solution hypotheses should prefer high-level fixes in this order: RTL robustness or calibration algorithm tolerance, clock/reset/CDC constraints, relative/soft floorplanning, targeted placement constraints, then absolute BEL locks only as diagnostics or last resort.
 
 The key causality rule is: correlation proposes a cause/effect hypothesis; only an intervention validates it. If a delay metric predicts failure but constraining it does not improve held-out hardware outcomes, it is probably a proxy for another physical or tool-model effect.
+
+Implemented statistical tooling:
+
+- `scripts/uberddr3_build_sdf_feature_table.py` joins committed hardware experiment rows with one or more `artifacts/sdf-metrics/*/semantic_metrics.csv` directories. It emits `features_long.csv` for audit/ranking and `features_wide.csv` for modeling.
+- `scripts/uberddr3_statistical_sdf_analysis.py` ranks semantic features by pass/fail separation, AUC, Cliff's delta, and strict separation. It also writes pass/fail strata summaries so seed, RTL/debug variant, observer payload, and lock set remain visible.
+
+First committed statistical artifact:
+
+- feature table: `artifacts/statistical-sdf/exact-abort-seed3-lock-matrix/`
+- analysis: `artifacts/statistical-sdf/exact-abort-seed3-lock-matrix/analysis/`
+
+This first artifact is only a pipeline smoke test: it has 3 experiments, 2 pass and 1 fail, all seed 3. It correctly reproduces the focused exact-abort candidates (`reset_release`, `idelay_data_cntvaluein`, DQS `CNTVALUEIN`, lane-0 DQ IOLOGIC), but it is not enough for statistical confidence or multifeature modeling. The next real data collection target is at least 3 pass and 3 fail rows per stratum before trusting pairwise/multifeature rankings.
