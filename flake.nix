@@ -360,35 +360,36 @@ META
         robustLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_locks.json";
         idelayControlLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_cntvaluein_locks_seed3.json";
         idelayControlFullLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_control_locks_seed3.json";
-        seedCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        seedMatrix = map toString (lib.range 1 30);
+        seedCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
-        robustCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        robustCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate {
             suffix = "seed-${seed}-robust";
             seed = lib.toInt seed;
             lockFile = robustLock;
             pnrArgs = "--no-tmdriv";
           });
-        noTmdrivCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        noTmdrivCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate {
             suffix = "seed-${seed}-no-tmdriv";
             seed = lib.toInt seed;
             pnrArgs = "--no-tmdriv";
           });
-        resetLockOnlyCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        resetLockOnlyCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate {
             suffix = "seed-${seed}-reset-locks-only";
             seed = lib.toInt seed;
             lockFile = robustLock;
           });
-        idelayControlLockCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        idelayControlLockCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate {
             suffix = "seed-${seed}-idelay-control-locked";
             seed = lib.toInt seed;
             lockFile = idelayControlLock;
             assertLocks = true;
           });
-        idelayControlFullLockCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+        idelayControlFullLockCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate {
             suffix = "seed-${seed}-idelay-control-full-locked";
             seed = lib.toInt seed;

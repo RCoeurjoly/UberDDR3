@@ -515,3 +515,8 @@ First committed statistical artifact:
 - analysis: `artifacts/statistical-sdf/exact-abort-seed3-lock-matrix/analysis/`
 
 This first artifact is only a pipeline smoke test: it has 3 experiments, 2 pass and 1 fail, all seed 3. It correctly reproduces the focused exact-abort candidates (`reset_release`, `idelay_data_cntvaluein`, DQS `CNTVALUEIN`, lane-0 DQ IOLOGIC), but it is not enough for statistical confidence or multifeature modeling. The next real data collection target is at least 3 pass and 3 fail rows per stratum before trusting pairwise/multifeature rankings.
+
+Seed sweep setup:
+
+- `flake.nix` exposes seed-based package attrs for seeds `1..30` through a shared `seedMatrix` binding.
+- The first collection stratum should be baseline/no-lock exact-abort RTL across seeds `1..30`; diagnostic lock strata should be analyzed separately.
