@@ -46,9 +46,9 @@ def resolve_cell(lock):
     if name in ctx.cells:
         return name, ctx.cells[name]
     suffix = lock.get("cell_suffix", lock_suffix(name))
-    matches = [candidate for candidate in ctx.cells if candidate.endswith(suffix)]
+    matches = [(str(candidate), candidate_cell) for candidate, candidate_cell in ctx.cells if str(candidate).endswith(suffix)]
     if len(matches) == 1:
-        return matches[0], ctx.cells[matches[0]]
+        return matches[0]
     if len(matches) > 1:
         ambiguous.append({{
             "cell": name,
