@@ -560,3 +560,35 @@ Run the semantic SDF feature extractor on this 30-row stratum and compare:
 
 The highest-value features to rank first are the previous IDELAY programming/control metrics, lane-0/lane-1 DQ IOLOGIC delay/spread, reset-release max/spread, and any metrics touching the `CHECK_STARTING_DATA` decision cone.
 
+### Baseline No-Lock Repeatability Check: 2026-05-27
+
+Artifacts:
+
+- repeatability directory: `artifacts/hardware/baseline-no-lock-seed-1-30-repeatability/`
+- observations: `artifacts/hardware/baseline-no-lock-seed-1-30-repeatability/repeatability_observations.csv`
+- per-seed summary: `artifacts/hardware/baseline-no-lock-seed-1-30-repeatability/repeatability_summary.csv`
+
+Method:
+
+- Trial 1 is the original committed baseline/no-lock sweep over seeds 1..30.
+- Trial 2 reprogrammed the same 30 bitstreams and used a longer board-test window: `--poll-count 300 --poll-interval 0.1`, about 30 seconds after programming.
+- A third trial was started and then stopped at user request after five completed seeds. It is preserved only as partial audit data and is not used for the full-matrix determinism conclusion.
+
+Result:
+
+| comparison | seeds | pass/fail flips | stable passes | stable reason-2 failures | other stable failures |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| trial 1 vs trial 2 | 30 | 0 | 22 | 7 | 1 |
+
+Interpretation:
+
+- Within this same board/session and repeated reprogramming method, the baseline/no-lock pass/fail labels are stable enough to use as binary labels for the next SDF correlation pass.
+- The longer 30-second poll window did not rescue any failing bitstream, so the earlier failures were not just too-short test timeouts.
+- The seven reason-2 failures repeated the same `CHECK_STARTING_DATA` exhaustion family, including `start_index_check=48` and `dq_target_index=33`.
+- Seed 16 remained a no-abort early calibration failure, but its final visible state changed from 3 to 2. Treat seed 16 as a separate failure bucket rather than pooling it into reason-2 failures.
+- This does not prove pass/fail determinism across cold power cycles, temperature, voltage, or board-to-board variation. If a future repeatability sweep shows flips, the analysis must switch from one binary label per bitstream to pass-rate/probabilistic labels per bitstream.
+
+Statistical-analysis rule:
+
+If a bitstream's pass/fail result is nondeterministic, the SDF analysis is not meaningless, but a single label is invalid. The row should become `(bitstream, n_trials, n_pass, failure_modes)` and the model should correlate SDF/JSON features with pass probability or failure-mode probability. For the current same-session baseline/no-lock data, no such relabeling is needed because the completed repeat trial had zero pass/fail flips.
+
