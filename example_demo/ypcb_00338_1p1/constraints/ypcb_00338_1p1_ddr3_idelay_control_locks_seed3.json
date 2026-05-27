@@ -3,92 +3,92 @@
   "lock_count": 12,
   "locks": [
     {
-      "bel": "SLICE_X3Y68/C6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[0]",
+      "bel": "SLICE_X3Y67/C6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[0]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y68/B6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[1]",
+      "bel": "SLICE_X3Y67/B6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[1]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y65/B6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[2]",
+      "bel": "SLICE_X1Y72/B6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[2]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y68/A6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
+      "bel": "SLICE_X1Y72/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y65/A6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[4]",
+      "bel": "SLICE_X3Y67/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[4]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X1Y76/A6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[0]",
+      "bel": "SLICE_X1Y75/C6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[0]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y75/C6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[1]",
+      "bel": "SLICE_X5Y74/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[1]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y76/A6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[2]",
+      "bel": "SLICE_X7Y88/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[2]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y75/B6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
+      "bel": "SLICE_X1Y75/B6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X3Y75/A6LUT",
-      "cell": "$abc$191703$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[4]",
+      "bel": "SLICE_X1Y75/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[4]",
       "scope": "idelay_cntvaluein_leaf",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X12Y50/A5LUT",
-      "cell": "$auto$abc9_ops.cc:1550:reintegrate$192431",
+      "bel": "SLICE_X12Y65/A5LUT",
+      "cell": "$auto$abc9_ops.cc:1550:reintegrate$192417",
       "scope": "idelay_ld_source_parent",
-      "source_bel": "SLICE_X12Y50/A5FF",
-      "source_cell": "$auto$ff.cc:266:slice$40838",
+      "source_bel": "SLICE_X12Y65/A5FF",
+      "source_cell": "$auto$ff.cc:266:slice$40985",
       "type": "SLICE_LUTX"
     },
     {
-      "bel": "SLICE_X12Y51/A5LUT",
-      "cell": "$auto$abc9_ops.cc:1550:reintegrate$192396",
+      "bel": "SLICE_X12Y64/A5LUT",
+      "cell": "$auto$abc9_ops.cc:1550:reintegrate$193059",
       "scope": "idelay_ld_source_parent",
-      "source_bel": "SLICE_X12Y51/A5FF",
-      "source_cell": "$auto$ff.cc:266:slice$40839",
+      "source_bel": "SLICE_X12Y64/A5FF",
+      "source_cell": "$auto$ff.cc:266:slice$40986",
       "type": "SLICE_LUTX"
     }
   ],
-  "notes": "IDELAY CNTVALUEIN leaf LUTs plus LD source-parent LUTs extracted from reduced payload-v3 seed3 baseline placement.",
+  "notes": "exact-abort seed3 baseline CNTVALUEIN plus LD source parent locks",
   "scope_counts": {
     "idelay_cntvaluein_leaf": 10,
     "idelay_ld_source_parent": 2
   },
   "skipped_missing_bel": [],
   "skipped_missing_bel_count": 0,
-  "source_metrics_csv": "artifacts/sdf-metrics/v3-min-seed3-baseline/direct_entries.csv",
-  "source_placed_json": "result-nextpnr-json-seed3-v3-min-baseline/ypcb_00338_1p1_ddr3.placed.json",
-  "source_sample": "seed3-pass",
+  "source_metrics_csv": "artifacts/sdf-metrics/exact-abort-seed3-baseline/direct_entries.csv",
+  "source_placed_json": "result-cvc-sdf-seed3-exact-abort-baseline/ypcb_00338_1p1_ddr3.placed.json",
+  "source_sample": "seed3-exact-abort-baseline",
   "type_counts": {
     "SLICE_LUTX": 12
   }
