@@ -710,3 +710,28 @@ The RTL stable-before-LD idea remains plausible as a higher-level fix, but this 
 
 Next test: run the same two-cell CNTVALUEIN3 lock over a held-out seed set that includes several known baseline failures and passes. If the pass rate holds, derive a higher-level locality/floorplan constraint for the IDELAY programming source cells rather than promoting exact BEL locks as the final integration strategy.
 
+## CNTVALUEIN3 Lock Held-Out Batch: 2026-05-28
+
+The exact two-cell CNTVALUEIN3 lock was tested against remaining known baseline failures `6, 11, 12, 16, 20, 23, 27` and pass controls `1, 5, 28, 30`.
+
+| Seed group | Seeds | Pass | Fail |
+| --- | --- | ---: | ---: |
+| baseline reason-2 failures | `6, 11, 12, 20, 23, 27` | 4 | 2 |
+| baseline startup failure | `16` | 0 | 1 |
+| baseline pass controls | `1, 5, 28, 30` | 2 | 2 |
+| total | `1, 5, 6, 11, 12, 16, 20, 23, 27, 28, 30` | 6 | 5 |
+
+Passing rows: `6, 11, 20, 27, 1, 5`.
+
+Failing rows:
+
+- `12`: no abort, final state 4, instruction 13.
+- `16`: reason 2, lane 0, CHECK_STARTING_DATA exhaustion.
+- `23`: reason 2, lane 0, CHECK_STARTING_DATA exhaustion.
+- `28`: pass-control damaged by the lock; reason 2, lane 0.
+- `30`: pass-control damaged by the lock; reason 2, lane 0.
+
+Focused SDF/placement audit result: all held-out locked rows have the intended CNTVALUEIN3 source placement distance, `source_dqs1_minus_dq14_manhattan = 3`. Failures remain, and SDF `abs(dqs1-dq14)` is not a separator: passing locked seed27 has 629 ps abs skew, while failing locked seed30 has 69 ps.
+
+Conclusion: exact CNTVALUEIN3 source placement is an effective perturbation and rescues several baseline failures, but it is neither sufficient nor safe as a final workaround. It likely perturbs a broader placement/routing margin. The next analysis should compare pass-vs-fail rows inside the locked population to identify what collateral SDF/JSON feature separates the five failures from the six passes.
+

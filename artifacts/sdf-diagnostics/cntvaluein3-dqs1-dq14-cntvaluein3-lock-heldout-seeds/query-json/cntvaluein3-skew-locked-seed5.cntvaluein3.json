@@ -1,0 +1,574 @@
+{
+  "header": {
+    "sdfversion": "3.0",
+    "design": "top",
+    "vendor": "nextpnr",
+    "program": "nextpnr",
+    "divider": ".",
+    "timescale": "1ps"
+  },
+  "cells": {
+    "top": {
+      "": {
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[0\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[0\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[0\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 2464.0,
+              "avg": 2464.0,
+              "max": 2464.0
+            },
+            "slow": {
+              "min": 2464.0,
+              "avg": 2464.0,
+              "max": 2464.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[10\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[10\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[10\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1746.0,
+              "avg": 1746.0,
+              "max": 1746.0
+            },
+            "slow": {
+              "min": 1746.0,
+              "avg": 1746.0,
+              "max": 1746.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[11\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[11\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[11\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1621.0,
+              "avg": 1621.0,
+              "max": 1621.0
+            },
+            "slow": {
+              "min": 1621.0,
+              "avg": 1621.0,
+              "max": 1621.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[12\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[12\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[12\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1791.0,
+              "avg": 1791.0,
+              "max": 1791.0
+            },
+            "slow": {
+              "min": 1791.0,
+              "avg": 1791.0,
+              "max": 1791.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[13\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[13\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[13\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1610.0,
+              "avg": 1610.0,
+              "max": 1610.0
+            },
+            "slow": {
+              "min": 1610.0,
+              "avg": 1610.0,
+              "max": 1610.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[14\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[14\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[14\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1881.0,
+              "avg": 1881.0,
+              "max": 1881.0
+            },
+            "slow": {
+              "min": 1881.0,
+              "avg": 1881.0,
+              "max": 1881.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[15\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[15\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[15\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1445.0,
+              "avg": 1445.0,
+              "max": 1445.0
+            },
+            "slow": {
+              "min": 1445.0,
+              "avg": 1445.0,
+              "max": 1445.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[1\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[1\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[1\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 2549.0,
+              "avg": 2549.0,
+              "max": 2549.0
+            },
+            "slow": {
+              "min": 2549.0,
+              "avg": 2549.0,
+              "max": 2549.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[2\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[2\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[2\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 2342.0,
+              "avg": 2342.0,
+              "max": 2342.0
+            },
+            "slow": {
+              "min": 2342.0,
+              "avg": 2342.0,
+              "max": 2342.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[3\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[3\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[3\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1930.0,
+              "avg": 1930.0,
+              "max": 1930.0
+            },
+            "slow": {
+              "min": 1930.0,
+              "avg": 1930.0,
+              "max": 1930.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[4\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[4\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[4\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 2634.0,
+              "avg": 2634.0,
+              "max": 2634.0
+            },
+            "slow": {
+              "min": 2634.0,
+              "avg": 2634.0,
+              "max": 2634.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[5\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[5\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[5\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1786.0,
+              "avg": 1786.0,
+              "max": 1786.0
+            },
+            "slow": {
+              "min": 1786.0,
+              "avg": 1786.0,
+              "max": 1786.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[6\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[6\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[6\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1939.0,
+              "avg": 1939.0,
+              "max": 1939.0
+            },
+            "slow": {
+              "min": 1939.0,
+              "avg": 1939.0,
+              "max": 1939.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[7\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[7\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[7\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1934.0,
+              "avg": 1934.0,
+              "max": 1934.0
+            },
+            "slow": {
+              "min": 1934.0,
+              "avg": 1934.0,
+              "max": 1934.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[8\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[8\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[8\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1973.0,
+              "avg": 1973.0,
+              "max": 1973.0
+            },
+            "slow": {
+              "min": 1973.0,
+              "avg": 1973.0,
+              "max": 1973.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[9\\]\\.IDELAYE2_data.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[9\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_data_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk5\\[9\\]\\.IDELAYE2_data.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1536.0,
+              "avg": 1536.0,
+              "max": 1536.0
+            },
+            "slow": {
+              "min": 1536.0,
+              "avg": 1536.0,
+              "max": 1536.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[0\\]\\.IDELAYE2_dqs.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[0\\]\\.IDELAYE2_dqs.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[0\\]\\.IDELAYE2_dqs.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1942.0,
+              "avg": 1942.0,
+              "max": 1942.0
+            },
+            "slow": {
+              "min": 1942.0,
+              "avg": 1942.0,
+              "max": 1942.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        },
+        "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[1\\]\\.IDELAYE2_dqs.CNTVALUEIN3": {
+          "name": "interconnect_\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6_ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[1\\]\\.IDELAYE2_dqs.CNTVALUEIN3",
+          "type": "interconnect",
+          "from_pin": "\\$abc\\$192400\\$lut\\\\ddr3_top_inst\\.ddr3_phy_inst\\.phy_idelay_dqs_cntvaluein\\[3\\].O6",
+          "to_pin": "ddr3_top_inst\\.ddr3_phy_inst\\.genblk7\\[1\\]\\.IDELAYE2_dqs.CNTVALUEIN3",
+          "from_pin_edge": null,
+          "to_pin_edge": null,
+          "delay_paths": {
+            "nominal": null,
+            "fast": {
+              "min": 1526.0,
+              "avg": 1526.0,
+              "max": 1526.0
+            },
+            "slow": {
+              "min": 1526.0,
+              "avg": 1526.0,
+              "max": 1526.0
+            },
+            "setup": null,
+            "hold": null,
+            "rise": null,
+            "fall": null
+          },
+          "cond_equation": null,
+          "is_timing_check": false,
+          "is_timing_env": false,
+          "is_absolute": true,
+          "is_incremental": false,
+          "is_cond": false
+        }
+      }
+    }
+  }
+}
