@@ -354,8 +354,8 @@ Current cause/effect hypotheses:
 | ID | status | proposed SDF/JSON cause | hardware signature | narrow cells/paths | current evidence | next falsification test |
 | --- | --- | --- | --- | --- | --- | --- |
 | CE-001 | active, partially supported | IDELAY programming/control paths to DQ/DQS IDELAYE2 pins are too slow or skewed in failing implementations | state-17 wrong-read or calibration/BIST failure after startup | DQ/DQS IDELAYE2 `CNTVALUEIN`, `LD`, related control fan-in | pass/fail population produced strict fail-slower separators; seed3 CNTVALUEIN-only lock-damage comparison showed IDELAY programming p95 +755 ps and 25 dynamic paths >= +500 ps | same RTL/debug variant matrix over more seeds; failing rows must separate on exact-key IDELAY programming metrics, not raw seed |
-| CE-002 | active, newly exposed | lane-0 data-alignment search in `CHECK_STARTING_DATA` runs out of valid start-index candidates | first abort reason 2, lane 0, `dq_target_index=35`, no tap mismatch | `dq_target_index[0]`, `data_start_index[0]`, `start_index_check`, `lane_write_dq_late[0]`, `lane_read_dq_early[0]`, read sample classification cone | payload-v3 reduced seed3 baseline fails with consistent first abort reason 2; both regenerated lock variants pass under same RTL/debug variant | add a narrower lane-0 decision observer and compare SDF/JSON for baseline fail versus locked pass around these exact cells |
-| CE-003 | active, not SDF-proven | startup/reset/IDELAYCTRL readiness ordering or reset recovery/removal margin causes state-0 returns | state 0 after entering calibration; reset-from-calibrate history set; no tap mismatch | IDELAYCTRL site/refclk/reset/RDY, `delay_before_release_reset`, `sync_rst`, `sync_rst_controller`, state-0 release cone | seed1/seed2 original failures and payload-v2 CNTVALUEIN+LD seed3 failure match this family; filtered SDF did not show a simple dynamic slow-path separator | add reset/ready time counters and compare state-0 failures separately from state-17/read-search failures |
+| CE-002 | active, strengthened by baseline population | data-alignment search in `CHECK_STARTING_DATA` runs out of valid start-index candidates | first abort reason 2, mostly lane 0, `start_index_check=48`, `dq_target_index=33`, no tap mismatch | `dq_target_index`, `data_start_index`, `start_index_check`, `lane_write_dq_late`, `lane_read_dq_early`, read sample classification cone | 30-seed baseline/no-lock sweep produced 7 reason-2 failures and 22 clean passes; exact-abort seed3 CNTVALUEIN+LD-parent row also captures reason 2 with the same `start_index_check=48`, `dq_target_index=33`, `data_start_index=0`, write-late=1, read-early=0, and no tap mismatch | run SDF feature extraction on the 30-row baseline sweep and rank exact-key metrics for reason-2 failures versus clean passes |
+| CE-003 | active, narrowed | startup/reset/IDELAYCTRL readiness ordering or reset recovery/removal margin causes true state-0 returns | state 0 without a captured calibration abort | IDELAYCTRL site/refclk/reset/RDY, `delay_before_release_reset`, `sync_rst`, `sync_rst_controller`, state-0 release cone | seed1/seed2 original pre-abort failures and payload-v2 CNTVALUEIN+LD seed3 failure matched this family before exact abort capture | in the 30-seed exact-abort baseline sweep, 7 apparent state-0 failures actually have first abort reason 2; only rows without an abort snapshot should be used for CE-003 |
 
 Current solution hypotheses:
 
@@ -520,3 +520,43 @@ Seed sweep setup:
 
 - `flake.nix` exposes seed-based package attrs for seeds `1..30` through a shared `seedMatrix` binding.
 - The first collection stratum should be baseline/no-lock exact-abort RTL across seeds `1..30`; diagnostic lock strata should be analyzed separately.
+
+### Baseline No-Lock Seed 1-30 Hardware Sweep: 2026-05-27
+
+Artifacts:
+
+- build manifest: `artifacts/builds/baseline-no-lock-seed-1-30/manifest.csv`
+- hardware run directory: `artifacts/hardware/baseline-no-lock-seed-1-30/`
+- flattened hardware slice: `artifacts/hardware/baseline_no_lock_seed_1_30.csv`
+- canonical matrix: `artifacts/hardware/ddr3_causality_matrix.csv`
+
+Hardware results:
+
+| run group | seeds tested | pass | fail | failing seeds | dominant first abort |
+| --- | ---: | ---: | ---: | --- | --- |
+| baseline/no-lock exact-abort RTL | 30 | 22 | 8 | 2, 6, 11, 12, 16, 20, 23, 27 | reason 2, `CHECK_STARTING_DATA` search exhausted |
+
+Failure buckets:
+
+| bucket | count | seeds | signature |
+| --- | ---: | --- | --- |
+| `CHECK_STARTING_DATA` exhaustion | 7 | 2, 6, 11, 12, 20, 23, 27 | `abort_state=14`, `abort_instruction=22`, `start_index_check=48`, `dq_target_index=33`, `data_start_index=0`, write-late=1, read-early=0, no IDELAY tap mismatch |
+| early calibration stall/no abort snapshot | 1 | 16 | final `state_calibrate=3`, `instruction_address=13`, no captured abort, no wrong reads |
+
+Interpretation:
+
+- This is the first useful baseline population for statistical SDF work: 22 clean pass rows and 8 fail rows under the same RTL/debug payload, no locks, and seeds 1..30.
+- The dominant failure is not simply “state 0”. Seven rows return to visible state 0 after `reset_from_calibrate`, but the exact abort snapshot says the first failure was reason 2 in `CHECK_STARTING_DATA`.
+- The repeated reason-2 constants are now strong CE-002 evidence: `start_index_check=48`, `dq_target_index=33`, `data_start_index=0`, write-late=1, read-early=0, and clean IDELAY tap monitors.
+- CE-003 should be tested only on rows that truly lack an abort snapshot. In this sweep, seed 16 is the only failing row without captured abort evidence.
+
+Immediate next analysis:
+
+Run the semantic SDF feature extractor on this 30-row stratum and compare:
+
+1. all fails versus all passes,
+2. reason-2 fails versus passes,
+3. seed 16 separately versus the pass population.
+
+The highest-value features to rank first are the previous IDELAY programming/control metrics, lane-0/lane-1 DQ IOLOGIC delay/spread, reset-release max/spread, and any metrics touching the `CHECK_STARTING_DATA` decision cone.
+

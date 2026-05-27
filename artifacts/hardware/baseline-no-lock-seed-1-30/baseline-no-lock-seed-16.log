@@ -1,0 +1,151 @@
+{
+  "attempts": 100,
+  "bitstream": "/nix/store/xdsk57hpvinciqpsak1011h3l344vcka-ypcb-ddr3-bitstream-seed-16/ypcb_00338_1p1_ddr3_openxc7.bit",
+  "bitstream_sha256": "a6c5fea8fa764567fa42d974f9aad2a1d352a46346de09dc3c4730d3418b6b27",
+  "fail_reasons": [
+    "calib_incomplete",
+    "calib_state_not_done",
+    "bist_not_done"
+  ],
+  "fields": {
+    "abort_debug": {
+      "data_start_index": 0,
+      "dq_target_index": 0,
+      "instruction_address": 0,
+      "lane": 0,
+      "lane_read_dq_early": false,
+      "lane_write_dq_late": false,
+      "reason": 0,
+      "reason_name": "none",
+      "seen": false,
+      "start_index_check": 0,
+      "state_calibrate": 0
+    },
+    "bist_counts": 0,
+    "bist_done": false,
+    "bist_mode": 2,
+    "calib_complete": false,
+    "calib_gate_debug": {
+      "final_calibration_done": false,
+      "idelayctrl_rdy": true,
+      "initial_calibration_done": false,
+      "instruction_address": 13,
+      "phy_reset": false,
+      "state_calibrate": 3,
+      "sync_rst_controller": false
+    },
+    "clk_locked": true,
+    "correct_read_data": 0,
+    "debug1": 3,
+    "debug_calib_abort": 0,
+    "debug_calib_gate": 1443,
+    "debug_idelay": 771,
+    "debug_startup": 18446462598797967616,
+    "idelay_debug": {
+      "data_cntvalueout": [
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        23,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7,
+        7
+      ],
+      "data_load_seen_mask": 3,
+      "data_mismatch_lane_mask": 0,
+      "dqs_cntvalueout": [
+        0,
+        16
+      ],
+      "dqs_load_seen_mask": 3,
+      "dqs_mismatch_lane_mask": 0
+    },
+    "magic": 860115524,
+    "phy_debug": {
+      "cmd_cke": true,
+      "cmd_reset_n": true,
+      "startup_combined_ready": true,
+      "startup_dci_locked": true,
+      "startup_idelayctrl_rdy": true,
+      "startup_raw": 14,
+      "startup_sync_rst": false,
+      "status_raw": 6,
+      "sync_rst": false
+    },
+    "rst_n": true,
+    "startup_debug": {
+      "cycles_since_reset_release": 65535,
+      "done_ever": false,
+      "final_calibration_done": false,
+      "idelay_data_load_seen_any": true,
+      "idelay_data_tap_mismatch_seen": false,
+      "idelay_dqs_load_seen_any": true,
+      "idelay_dqs_tap_mismatch_seen": false,
+      "idelay_load_seen": true,
+      "idelayctrl_rdy_ever": true,
+      "initial_calibration_done": false,
+      "instruction_13_ever": true,
+      "last_actual_data_tap": 0,
+      "last_actual_dqs_tap": 0,
+      "last_expected_data_tap": 0,
+      "last_expected_dqs_tap": 0,
+      "phy_reset": false,
+      "phy_reset_reasserted_after_release": false,
+      "phy_reset_released_ever": true,
+      "reset_after_rank_1": false,
+      "reset_after_rank_1_ever": false,
+      "reset_from_calibrate": false,
+      "reset_from_calibrate_ever": false,
+      "reset_from_test": false,
+      "reset_from_test_ever": false,
+      "reset_from_wb2": false,
+      "reset_from_wb2_ever": false,
+      "state0_ready_gate_ever": true,
+      "state_ever_nonzero": true,
+      "state_returned_idle_after_nonzero": false,
+      "sync_rst_controller": false,
+      "sync_rst_reasserted_after_release": false,
+      "sync_rst_released_ever": true,
+      "wrong_read_seen": false
+    },
+    "state_calibrate": 3,
+    "version": 3,
+    "wrong_read_data": 0
+  },
+  "finished_at": "2026-05-27T19:07:27.349733+00:00",
+  "jtag": {
+    "backend": "ftdi-mpsse",
+    "bits": 960,
+    "ir_len": 6,
+    "serial": "210299BF3824",
+    "user_ir": 2
+  },
+  "pass": false,
+  "programmer": {
+    "cable": "digilent_hs3",
+    "checkout_commit": "3ae5e5e",
+    "path": "/home/roland/openFPGALoader/build-user/openFPGALoader"
+  },
+  "programming": {
+    "command": [
+      "/home/roland/openFPGALoader/build-user/openFPGALoader",
+      "-c",
+      "digilent_hs3",
+      "--bitstream",
+      "/nix/store/xdsk57hpvinciqpsak1011h3l344vcka-ypcb-ddr3-bitstream-seed-16/ypcb_00338_1p1_ddr3_openxc7.bit"
+    ],
+    "output": "empty\nJtag frequency : requested 6.00MHz    -> real 6.00MHz   \nOpen file DONE\nParse file DONE\nload program\n\nLoad SRAM: [==                                                ] 3.00%\n\nLoad SRAM: [====                                              ] 7.00%\n\nLoad SRAM: [======                                            ] 11.00%\n\nLoad SRAM: [========                                          ] 15.00%\n\nLoad SRAM: [==========                                        ] 19.00%\n\nLoad SRAM: [============                                      ] 23.00%\n\nLoad SRAM: [==============                                    ] 27.00%\n\nLoad SRAM: [================                                  ] 31.00%\n\nLoad SRAM: [==================                                ] 35.00%\n\nLoad SRAM: [====================                              ] 39.00%\n\nLoad SRAM: [======================                            ] 43.00%\n\nLoad SRAM: [========================                          ] 47.00%\n\nLoad SRAM: [==========================                        ] 51.00%\n\nLoad SRAM: [============================                      ] 55.00%\n\nLoad SRAM: [==============================                    ] 59.00%\n\nLoad SRAM: [================================                  ] 63.00%\n\nLoad SRAM: [==================================                ] 67.00%\n\nLoad SRAM: [====================================              ] 71.00%\n\nLoad SRAM: [======================================            ] 75.00%\n\nLoad SRAM: [========================================          ] 79.00%\n\nLoad SRAM: [==========================================        ] 83.00%\n\nLoad SRAM: [============================================      ] 87.00%\n\nLoad SRAM: [==============================================    ] 91.00%\n\nLoad SRAM: [================================================  ] 95.00%\n\nLoad SRAM: [==================================================] 99.00%\n\nLoad SRAM: [==================================================] 100.00%\n\nDone\nShift IR 35\nir: 1 isc_done 1 isc_ena 0 init 1 done 1\n",
+    "returncode": 0
+  },
+  "raw_hex": "0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000e739ce739ef7bdef7bde0060e00000303000005a3ffff000003033344524400000003e1c1003",
+  "started_at": "2026-05-27T19:06:46.290677+00:00"
+}
