@@ -1,0 +1,10 @@
+# candidate: 6 idelay_data_cntvaluein lane1 dq15 ctrl3
+# sample: exact-abort-seed3-idelay-control-locked (pass)
+# direct_delay_ps: 1194.0
+# from_pin: $abc$192400$lutddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3].O6
+# to_pin: ddr3_top_inst.ddr3_phy_inst.genblk5[15].IDELAYE2_data.CNTVALUEIN3
+# command: /nix/store/zdxzm3nbpm2dvc4xr8wk1x1fy3cadzsz-python3.11-sdf-toolkit-0.1.1/bin/sdf-toolkit rank-paths result-cvc-sdf-seed3-exact-abort-idelay-control-locked/ypcb_00338_1p1_ddr3.cvc.sdf '\$abc\$192400\$lut\\ddr3_top_inst\.ddr3_phy_inst\.i_controller_idelay_data_cntvaluein\[3\].O6' 'ddr3_top_inst\.ddr3_phy_inst\.genblk5\[15\]\.IDELAYE2_data.CNTVALUEIN3' --limit 10
+
+#1  scalar=1194.0  \$abc\$192400\$lut\\ddr3_top_inst\.ddr3_phy_inst\.i_controller_idelay_data_cntvaluein\[3\].O6 -> ddr3_top_inst\.ddr3_phy_inst\.genblk5\[15\]\.IDELAYE2_data.CNTVALUEIN3
+
+## stderr

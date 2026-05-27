@@ -464,6 +464,19 @@ Focused SDF metrics for the pass/pass/fail matrix show strict fail-slower candid
 | DQ IDELAY CNTVALUEIN | lane1 dq9 ctrl=3 | +408 ps | +347 ps |
 | IDELAY LD | lane0 dqs0 | +347 ps | +9 ps |
 
+Focused rank-path artifact: `artifacts/sdf-rankings/exact-abort-seed3-lock-matrix-focused/`.
+
+The rank-path check validates the exact source/sink edge behind each selected semantic metric. Because these rows are direct SDF interconnect edges, `rank-paths` usually reports one graph edge rather than decomposing a route into lower-level wire fragments. The direct SDF delay remains the cross-sample statistic; the rank output is the proof of which endpoint pair produced that statistic.
+
+| ranked candidate | baseline pass | CNTVALUEIN-only pass | CNTVALUEIN+LD fail | note |
+| --- | ---: | ---: | ---: | --- |
+| reset_release all | 584 ps | 584 ps | 990 ps | clean strict separator in this matrix |
+| DQ IDELAY CNTVALUEIN lane1 dq9 ctrl=3 | 1396 ps | 1274 ps | 1743 ps | clean strict separator |
+| DQ IDELAY CNTVALUEIN lane1 dq15 ctrl=3 | 1315 ps | 1194 ps | 1652 ps | clean strict separator |
+| DQ IOLOGIC lane0 dq2 | 2069 ps | 2082 ps | 2365 ps | clean lane-0 datapath separator |
+| DQS IDELAY CNTVALUEIN lane0 dqs0 ctrl=4 | 1282 ps | 2066 ps | 2141 ps | weak as a single cause because one passing row is close |
+| IDELAY LD lane0 dqs0 | 2046 ps | 1370 ps | 2055 ps | weak as a single cause because baseline pass is close |
+
 Interpretation:
 
 - CE-002 is strengthened as a concrete hardware failure mode: the failing bitstream aborts exactly in lane-0 `CHECK_STARTING_DATA`, and the tap mismatch monitors stay clean.
@@ -474,3 +487,19 @@ Interpretation:
 Next focused test:
 
 Compare the exact-abort baseline pass against the exact-abort CNTVALUEIN+LD fail around the actual lane-0 `CHECK_STARTING_DATA` decision cone, not the whole design. The next observer should capture only candidate-match history and final comparison operands: which `start_index_check` values matched, final `read_lane_data_shifted`, final `write_pattern[31:0]`, and the lane-0 flags already captured here.
+
+### Statistical Causality Phase
+
+A statistical pass/fail analysis is the right next scale-up, but it must be treated as a designed experiment rather than a raw full-SDF mining exercise. The unit of observation is a committed bitstream experiment row, not a seed. Each row needs these covariates: RTL/debug variant, observer payload, lock set, constraint variant, seed, tool revisions, JSON/SDF/bitstream hashes, hardware pass/fail, final calibration state, abort reason, lane, BIST status, and any board/environment notes.
+
+The derived feature table should be built from normalized DDR semantic metrics, not raw net names. Start with these feature families: DQ/DQS IDELAY `CNTVALUEIN` direct max and bus skew, IDELAY `LD/CE/INC` direct max and fanout spread, DQ/DQS IOLOGIC lane max and lane spread, reset-release max/spread, IDELAYCTRL/RDY paths, and generated-clock distribution to PHY endpoints. Keep exact source/sink pins as evidence, but train/correlate on stable semantic keys.
+
+Analysis sequence:
+
+1. Discovery: run many no-lock and low-observer seeds to estimate natural pass/fail variation. Rank features by strict separation, AUC, effect size, and bootstrap stability.
+2. Stratified comparison: analyze variants separately first, then fit models with RTL/debug variant, observer payload, and lock set as covariates. Do not pool all variants blindly because instrumentation and locks are intentional interventions.
+3. Multifeature check: use small regularized/logistic or tree-style models only after univariate ranking. The goal is to detect combined margins, such as `reset_release` plus lane-0 DQ IOLOGIC plus IDELAY programming, not to produce a black-box predictor.
+4. Intervention: turn the strongest statistical cause hypothesis into one constraint or RTL change at a time, then test fresh seeds. A hypothesis becomes useful only if moving the feature moves the hardware pass rate on held-out seeds.
+5. Promotion: solution hypotheses should prefer high-level fixes in this order: RTL robustness or calibration algorithm tolerance, clock/reset/CDC constraints, relative/soft floorplanning, targeted placement constraints, then absolute BEL locks only as diagnostics or last resort.
+
+The key causality rule is: correlation proposes a cause/effect hypothesis; only an intervention validates it. If a delay metric predicts failure but constraining it does not improve held-out hardware outcomes, it is probably a proxy for another physical or tool-model effect.

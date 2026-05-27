@@ -1,0 +1,10 @@
+# candidate: 5 reset_release all
+# sample: exact-abort-seed3-idelay-control-full-locked (fail)
+# direct_delay_ps: 990.0
+# from_pin: $auto$ff.cc:266:slice$34316.Q
+# to_pin: ddr3_top_inst.ddr3_phy_inst.delay_before_release_reset[0]$LUT$1208.A4
+# command: /nix/store/zdxzm3nbpm2dvc4xr8wk1x1fy3cadzsz-python3.11-sdf-toolkit-0.1.1/bin/sdf-toolkit rank-paths result-cvc-sdf-seed3-exact-abort-idelay-control-full-locked/ypcb_00338_1p1_ddr3.cvc.sdf '\$auto\$ff\.cc\:266\:slice\$34316.Q' 'ddr3_top_inst\.ddr3_phy_inst\.delay_before_release_reset\[0\]\$LUT\$1208.A4' --limit 10
+
+#1  scalar=990.0  \$auto\$ff\.cc\:266\:slice\$34316.Q -> ddr3_top_inst\.ddr3_phy_inst\.delay_before_release_reset\[0\]\$LUT\$1208.A4
+
+## stderr

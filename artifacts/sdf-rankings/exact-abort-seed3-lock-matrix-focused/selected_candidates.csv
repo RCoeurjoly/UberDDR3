@@ -1,0 +1,10 @@
+candidate_index,label,family,lane,bit,control_bit,fail_minus_pass_median_ps,fail_min_minus_pass_max_ps
+1,idelay_dqs_cntvaluein lane1 dqs1 ctrl4,idelay_dqs_cntvaluein,lane1,dqs1,4,514.0,287.0
+2,idelay_dqs_cntvaluein lane0 dqs0 ctrl4,idelay_dqs_cntvaluein,lane0,dqs0,4,467.0,75.0
+3,idelay_dqs_cntvaluein lane0 dqs0 ctrl2,idelay_dqs_cntvaluein,lane0,dqs0,2,435.0,256.0
+4,idelay_data_cntvaluein lane1 dq9 ctrl3,idelay_data_cntvaluein,lane1,dq9,3,408.0,347.0
+5,reset_release all,reset_release,all,,,406.0,406.0
+6,idelay_data_cntvaluein lane1 dq15 ctrl3,idelay_data_cntvaluein,lane1,dq15,3,397.5,337.0
+7,idelay_ld lane0 dqs0,idelay_ld,lane0,dqs0,,347.0,9.0
+8,dq_iologic lane0 dq5,dq_iologic,lane0,dq5,,291.5,174.0
+9,dq_iologic lane0 dq2,dq_iologic,lane0,dq2,,289.5,283.0

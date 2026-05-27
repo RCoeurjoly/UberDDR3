@@ -1,0 +1,10 @@
+# candidate: 7 idelay_ld lane0 dqs0
+# sample: exact-abort-seed3-baseline (pass)
+# direct_delay_ps: 2046.0
+# from_pin: $auto$ff.cc:266:slice$40985.Q
+# to_pin: ddr3_top_inst.ddr3_phy_inst.genblk7[0].IDELAYE2_dqs.LD
+# command: /nix/store/zdxzm3nbpm2dvc4xr8wk1x1fy3cadzsz-python3.11-sdf-toolkit-0.1.1/bin/sdf-toolkit rank-paths result-cvc-sdf-seed3-exact-abort-baseline/ypcb_00338_1p1_ddr3.cvc.sdf '\$auto\$ff\.cc\:266\:slice\$40985.Q' 'ddr3_top_inst\.ddr3_phy_inst\.genblk7\[0\]\.IDELAYE2_dqs.LD' --limit 10
+
+#1  scalar=2046.0  \$auto\$ff\.cc\:266\:slice\$40985.Q -> ddr3_top_inst\.ddr3_phy_inst\.genblk7\[0\]\.IDELAYE2_dqs.LD
+
+## stderr
