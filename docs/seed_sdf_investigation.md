@@ -735,3 +735,17 @@ Focused SDF/placement audit result: all held-out locked rows have the intended C
 
 Conclusion: exact CNTVALUEIN3 source placement is an effective perturbation and rescues several baseline failures, but it is neither sufficient nor safe as a final workaround. It likely perturbs a broader placement/routing margin. The next analysis should compare pass-vs-fail rows inside the locked population to identify what collateral SDF/JSON feature separates the five failures from the six passes.
 
+### CNTVALUEIN3 held-out long-poll retest
+
+The failed rows from `cntvaluein3-lock-heldout-seeds` were reprogrammed with `--poll-count 500 --poll-interval 0.1`. This gives about 50 seconds of JTAG polling after programming completes, versus the previous default 100 polls / 10 seconds.
+
+| Seed | Prior 100-poll result | 500-poll result | Signature |
+| ---: | --- | --- | --- |
+| 12 | False | False | long-poll retest still fails without abort; final state 3 instruction 13 |
+| 16 | False | False | long-poll retest still fails with check_starting_data_search_exhausted lane 0 start_index_check=48 dq_target_index=33 |
+| 23 | False | False | long-poll retest still fails with check_starting_data_search_exhausted lane 0 start_index_check=48 dq_target_index=33 |
+| 28 | False | False | long-poll retest still fails with check_starting_data_search_exhausted lane 0 start_index_check=48 dq_target_index=33 |
+| 30 | False | False | long-poll retest still fails with check_starting_data_search_exhausted lane 0 start_index_check=48 dq_target_index=33 |
+
+Conclusion: the five locked held-out failures are not short-timeout artifacts. The exact CNTVALUEIN3 two-cell lock remains a diagnostic intervention, not a final fix. Seed 12 should be analyzed as a no-abort instruction-13/stalled-calibration case; seeds 16, 23, 28, and 30 should be analyzed as reason-2 lane-0 CHECK_STARTING_DATA cases.
+

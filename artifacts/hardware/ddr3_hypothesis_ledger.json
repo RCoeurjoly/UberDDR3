@@ -117,16 +117,16 @@
     "type": "solution"
   },
   {
-    "evidence_against": "held-out lock batch fails 5/11 rows: reason2 failures seed16, seed23, seed28, seed30 plus seed12 stuck at state4/instruction13; two known baseline pass controls fail, so exact BEL locks are not safe as a final workaround",
+    "evidence_against": "held-out lock batch fails 5/11 rows: reason2 failures seed16, seed23, seed28, seed30 plus seed12 stuck at state4/instruction13; two known baseline pass controls fail, so exact BEL locks are not safe as a final workaround; 500-poll retest of the five failed rows also fails, ruling out the original 100-poll timeout as the explanation",
     "evidence_for": "held-out lock batch passes 6/11 rows, including four additional known baseline failures; combined with previous seed2 result it rescues five baseline failing seeds",
     "hardware_signature": "reason-2 failing seeds become pass without damaging known pass controls",
     "hypothesis": "Locking only the two CNTVALUEIN3 source LUT BELs from seed3 is enough to move the top exact skew metric in the good direction and improve failing seeds.",
     "id": "SO-006",
     "narrow_cells_or_paths": "i_controller_idelay_data_cntvaluein[3] source LUT and i_controller_idelay_dqs_cntvaluein[3] source LUT",
-    "next_test": "treat this lock as an intervention probe only; run locked-population SDF/statistical comparison to find the collateral path family, then design a softer/local constraint or broader RTL fix",
+    "next_test": "compare pass-vs-fail rows inside the locked population using SDF/JSON features outside the two locked CNTVALUEIN3 source LUTs; treat seed12 as a separate no-abort/instruction-13 bucket and seeds16/23/28/30 as reason2 lane0 bucket",
     "sdf_json_signature": "source LUTs for data/dqs CNTVALUEIN3 are fixed to seed3 BELs; focused audit should show smaller abs(dqs1-dq14) CNTVALUEIN3 skew or better source placement symmetry",
     "solution_candidates": "use only to derive a higher-level placement strategy, preferably soft locality/floorplan constraints rather than permanent exact BEL locks",
-    "status": "tested_mixed_reject_as_final_fix",
+    "status": "tested_mixed_reject_as_final_fix_timeout_ruled_out",
     "type": "solution"
   }
 ]
