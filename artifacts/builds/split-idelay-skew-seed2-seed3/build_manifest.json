@@ -1,0 +1,67 @@
+{
+  "generated_at": "2026-05-27T22:18:46.323460+00:00",
+  "git_commit": "d3a8074e1048e3daf466dd521f9ccf9656877192",
+  "purpose": "Separated test of RTL stable-before-LD vs CNTVALUEIN3 physical low-skew lock for seeds 2 and 3.",
+  "rows": [
+    {
+      "bitstream": "/nix/store/rq75r631d3s4d0nl4xg90wjpn0k8s88w-ypcb-ddr3-bitstream-seed-2-idelay-stable-before-ld/ypcb_00338_1p1_ddr3_openxc7.bit",
+      "bitstream_sha256": "033889757999a3c31f1d7a57b40917494d5a90d66f415f1a3423a2035374d87e",
+      "bitstream_store": "/nix/store/rq75r631d3s4d0nl4xg90wjpn0k8s88w-ypcb-ddr3-bitstream-seed-2-idelay-stable-before-ld",
+      "cvc_sdf": "/nix/store/29cczrchfv3dyw1k2nlipr728wx9d2br-ypcb-ddr3-cvc-sdf-seed-2-idelay-stable-before-ld/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "cvc_sdf_size": 9735620,
+      "cvc_sdf_store": "/nix/store/29cczrchfv3dyw1k2nlipr728wx9d2br-ypcb-ddr3-cvc-sdf-seed-2-idelay-stable-before-ld",
+      "experiment_id": "idelay-stable-before-ld-seed2",
+      "nextpnr_json": "/nix/store/5g6jm2hch5m6c1agcjcbbqgz4i2lv8ib-ypcb-ddr3-nextpnr-json-seed-2-idelay-stable-before-ld/ypcb_00338_1p1_ddr3.placed.json",
+      "nextpnr_json_size": 25914044,
+      "nextpnr_json_store": "/nix/store/5g6jm2hch5m6c1agcjcbbqgz4i2lv8ib-ypcb-ddr3-nextpnr-json-seed-2-idelay-stable-before-ld",
+      "nix_attr": "ypcb-ddr3-bitstream-seed-2-idelay-stable-before-ld",
+      "seed": 2,
+      "variant": "idelay-stable-before-ld"
+    },
+    {
+      "bitstream": "/nix/store/nwc3yi0i4k221i9vy6awl86pmlxvl1c3-ypcb-ddr3-bitstream-seed-3-idelay-stable-before-ld/ypcb_00338_1p1_ddr3_openxc7.bit",
+      "bitstream_sha256": "73754fe624fd824dbd1f59dcc63a2ce8d576be76f28778c55ff343d5b77b1aff",
+      "bitstream_store": "/nix/store/nwc3yi0i4k221i9vy6awl86pmlxvl1c3-ypcb-ddr3-bitstream-seed-3-idelay-stable-before-ld",
+      "cvc_sdf": "/nix/store/h0pbqcgsv81jiwlxjlmn9aiwfgd4ypj3-ypcb-ddr3-cvc-sdf-seed-3-idelay-stable-before-ld/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "cvc_sdf_size": 9690720,
+      "cvc_sdf_store": "/nix/store/h0pbqcgsv81jiwlxjlmn9aiwfgd4ypj3-ypcb-ddr3-cvc-sdf-seed-3-idelay-stable-before-ld",
+      "experiment_id": "idelay-stable-before-ld-seed3",
+      "nextpnr_json": "/nix/store/ligcpch11l1f0rzk68rsmqmyjjds18cw-ypcb-ddr3-nextpnr-json-seed-3-idelay-stable-before-ld/ypcb_00338_1p1_ddr3.placed.json",
+      "nextpnr_json_size": 25921833,
+      "nextpnr_json_store": "/nix/store/ligcpch11l1f0rzk68rsmqmyjjds18cw-ypcb-ddr3-nextpnr-json-seed-3-idelay-stable-before-ld",
+      "nix_attr": "ypcb-ddr3-bitstream-seed-3-idelay-stable-before-ld",
+      "seed": 3,
+      "variant": "idelay-stable-before-ld"
+    },
+    {
+      "bitstream": "/nix/store/6n181x85cbam1f0c72sn51b3ki0qgn74-ypcb-ddr3-bitstream-seed-2-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3_openxc7.bit",
+      "bitstream_sha256": "46f9a744de4335d73389391fb0193f753fc3357f4f83d3bb987d93891fa295b0",
+      "bitstream_store": "/nix/store/6n181x85cbam1f0c72sn51b3ki0qgn74-ypcb-ddr3-bitstream-seed-2-cntvaluein3-skew-locked",
+      "cvc_sdf": "/nix/store/8swni5hwgvg8fzs7maxjfs5snvwaj7lp-ypcb-ddr3-cvc-sdf-seed-2-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "cvc_sdf_size": 9690596,
+      "cvc_sdf_store": "/nix/store/8swni5hwgvg8fzs7maxjfs5snvwaj7lp-ypcb-ddr3-cvc-sdf-seed-2-cntvaluein3-skew-locked",
+      "experiment_id": "cntvaluein3-skew-locked-seed2",
+      "nextpnr_json": "/nix/store/77bwrmijyy3x8l5vyxc3l5aqd62nljib-ypcb-ddr3-nextpnr-json-seed-2-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3.placed.json",
+      "nextpnr_json_size": 25905493,
+      "nextpnr_json_store": "/nix/store/77bwrmijyy3x8l5vyxc3l5aqd62nljib-ypcb-ddr3-nextpnr-json-seed-2-cntvaluein3-skew-locked",
+      "nix_attr": "ypcb-ddr3-bitstream-seed-2-cntvaluein3-skew-locked",
+      "seed": 2,
+      "variant": "cntvaluein3-skew-locked"
+    },
+    {
+      "bitstream": "/nix/store/w1f9qbknyalfr3fwazyy39h1ri1k8n27-ypcb-ddr3-bitstream-seed-3-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3_openxc7.bit",
+      "bitstream_sha256": "ab1e78b53d269f567d113675f12c9ddac0a9f854b03b7b59eed93dbf0b3b4c34",
+      "bitstream_store": "/nix/store/w1f9qbknyalfr3fwazyy39h1ri1k8n27-ypcb-ddr3-bitstream-seed-3-cntvaluein3-skew-locked",
+      "cvc_sdf": "/nix/store/rpm83nrx1myi4z04p7dkx968pd871g6f-ypcb-ddr3-cvc-sdf-seed-3-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "cvc_sdf_size": 9724456,
+      "cvc_sdf_store": "/nix/store/rpm83nrx1myi4z04p7dkx968pd871g6f-ypcb-ddr3-cvc-sdf-seed-3-cntvaluein3-skew-locked",
+      "experiment_id": "cntvaluein3-skew-locked-seed3",
+      "nextpnr_json": "/nix/store/9qpkl6x4x0hvpplf0dzgf3ddch3kfn1x-ypcb-ddr3-nextpnr-json-seed-3-cntvaluein3-skew-locked/ypcb_00338_1p1_ddr3.placed.json",
+      "nextpnr_json_size": 25814339,
+      "nextpnr_json_store": "/nix/store/9qpkl6x4x0hvpplf0dzgf3ddch3kfn1x-ypcb-ddr3-nextpnr-json-seed-3-cntvaluein3-skew-locked",
+      "nix_attr": "ypcb-ddr3-bitstream-seed-3-cntvaluein3-skew-locked",
+      "seed": 3,
+      "variant": "cntvaluein3-skew-locked"
+    }
+  ]
+}
