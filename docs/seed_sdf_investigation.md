@@ -418,3 +418,59 @@ Next experiment direction:
 - For every failing run, bucket by abort reason/state before looking at SDF. Compare state-17 wrong-read failures separately from `CHECK_STARTING_DATA` aborts and state-0 startup aborts.
 - Add the next observer only around the lane-0 `CHECK_STARTING_DATA` decision: capture the candidate window bounds and the last accepted/rejected `start_index_check`. That should explain why `dq_target_index=35` cannot find a valid `data_start_index` in the failing placement.
 - Translate fixes in this order: calibration search robustness in RTL, generated-clock/reset/CDC constraints, soft region constraints for IDELAY programming plus calibration bookkeeping, and only then minimal LOC/BEL locks if a specific primitive/site remains causal across the matrix.
+
+## Exact-Abort Seed3 Lock Matrix: 2026-05-27
+
+This is the first clean same-RTL matrix after moving the abort snapshot to the actual `reset_from_calibrate <= 1` decision sites.
+
+Setup commit sequence:
+
+- `7276a90` adds exact calibration-abort observability.
+- `9bbfaba` regenerates the seed3 CNTVALUEIN and CNTVALUEIN+LD-parent lock files from the exact-abort seed3 baseline placement.
+
+Artifacts:
+
+- hardware slice: `artifacts/hardware/exact_abort_seed3_lock_matrix.csv`
+- canonical matrix: `artifacts/hardware/ddr3_causality_matrix.csv`
+- hypothesis ledger: `artifacts/hardware/ddr3_hypothesis_ledger.csv`
+- focused SDF metrics: `artifacts/sdf-metrics/exact-abort-seed3-lock-matrix/`
+- baseline SDF/JSON: `result-cvc-sdf-seed3-exact-abort-baseline/`
+- CNTVALUEIN-lock SDF/JSON: `result-cvc-sdf-seed3-exact-abort-idelay-control-locked/`
+- CNTVALUEIN+LD-lock SDF/JSON: `result-cvc-sdf-seed3-exact-abort-idelay-control-full-locked/`
+
+Hardware results:
+
+| RTL/debug variant | seed | locks | pass | final state | BIST wrong reads | first abort |
+| --- | ---: | --- | --- | ---: | ---: | --- |
+| exact-abort | 3 | none | yes | 23 | 0 | none |
+| exact-abort | 3 | CNTVALUEIN-only | yes | 23 | 0 | none |
+| exact-abort | 3 | CNTVALUEIN + LD-parent | no | 0 | 0 | reason 2, lane 0, `CHECK_STARTING_DATA`, `start_index_check=48`, `dq_target_index=33`, `data_start_index=0`, write-late=1, read-early=0 |
+
+Important observations:
+
+- The exact-abort no-lock baseline passes. That means the exact snapshot implementation is less perturbing than the earlier reduced-v3 baseline failure.
+- CNTVALUEIN-only regenerated locks also pass.
+- CNTVALUEIN+LD-parent regenerated locks fail and now give an exact abort-site snapshot: `CHECK_STARTING_DATA` search exhaustion on lane 0, with no data or DQS tap mismatch.
+- Therefore the current same-RTL cause/effect evidence is not “seed3 is bad” and not “all absolute locks help”. It is: adding the LD-parent lock perturbation changes the exact placed/routed implementation enough to make lane-0 data-alignment calibration exhaust its search.
+
+Focused SDF metrics for the pass/pass/fail matrix show strict fail-slower candidates in the failing CNTVALUEIN+LD row:
+
+| metric family | endpoint | fail-pass median delta | strict separation |
+| --- | --- | ---: | ---: |
+| DQS IDELAY CNTVALUEIN | lane1 dqs1 ctrl=4 | +514 ps | +287 ps |
+| DQS IDELAY CNTVALUEIN | lane0 dqs0 ctrl=4 | +467 ps | +75 ps |
+| clocking | all endpoints | +464.5 ps | +60 ps |
+| reset release | all endpoints | +406 ps | +406 ps |
+| DQ IDELAY CNTVALUEIN | lane1 dq9 ctrl=3 | +408 ps | +347 ps |
+| IDELAY LD | lane0 dqs0 | +347 ps | +9 ps |
+
+Interpretation:
+
+- CE-002 is strengthened as a concrete hardware failure mode: the failing bitstream aborts exactly in lane-0 `CHECK_STARTING_DATA`, and the tap mismatch monitors stay clean.
+- CE-001 remains relevant because the failing same-RTL row has slower IDELAY programming/control candidates, especially DQS CNTVALUEIN ctrl=4 and one LD endpoint. This does not yet prove direct tap-load corruption; it may be margin loss that later appears as calibration search exhaustion.
+- CE-003 stays secondary for this row. Reset-release is slower by a strict +406 ps, and reset reassertion history is set after the abort, but the exact first cause observed by RTL is reason 2, not an unexplained startup state-0 return.
+- SO-001 is again rejected as a final solution. CNTVALUEIN-only locks pass, but CNTVALUEIN+LD-parent locks fail under the same RTL/debug variant.
+
+Next focused test:
+
+Compare the exact-abort baseline pass against the exact-abort CNTVALUEIN+LD fail around the actual lane-0 `CHECK_STARTING_DATA` decision cone, not the whole design. The next observer should capture only candidate-match history and final comparison operands: which `start_index_check` values matched, final `read_lane_data_shifted`, final `write_pattern[31:0]`, and the lane-0 flags already captured here.

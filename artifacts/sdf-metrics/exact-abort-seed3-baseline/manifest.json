@@ -1,0 +1,60 @@
+{
+  "field": "slow",
+  "metric": "max",
+  "queries": [
+    {
+      "description": "DQ IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_data_cntvaluein",
+      "pattern": "IDELAYE2_data\\.CNTVALUEIN"
+    },
+    {
+      "description": "DQS IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_dqs_cntvaluein",
+      "pattern": "IDELAYE2_dqs\\.CNTVALUEIN"
+    },
+    {
+      "description": "IDELAY load-strobe fanout",
+      "family": "idelay_ld",
+      "pattern": "IDELAYE2_(data|dqs)\\.LD"
+    },
+    {
+      "description": "IDELAY CE/INC fanout",
+      "family": "idelay_ce_inc",
+      "pattern": "IDELAYE2_(data|dqs)\\.(CE|INC)"
+    },
+    {
+      "description": "DQ IOLOGIC/IDELAY/SERDES paths",
+      "family": "dq_iologic",
+      "pattern": "(IOBUF_data|IDELAYE2_data|ISERDESE2_data|OSERDESE2_data)"
+    },
+    {
+      "description": "DQS IOLOGIC/IDELAY/SERDES paths",
+      "family": "dqs_iologic",
+      "pattern": "(IOBUFDS_dqs|IDELAYE2_dqs|ISERDESE2_dqs|OSERDESE2_dqs)"
+    },
+    {
+      "description": "IDELAYCTRL/RDY paths",
+      "family": "idelayctrl",
+      "pattern": "(IDELAYCTRL|CTRL_DUP|RDY)"
+    },
+    {
+      "description": "PHY reset-release delay chain",
+      "family": "reset_release",
+      "pattern": "delay_before_release_reset"
+    },
+    {
+      "description": "Generated DDR clocks and clock distribution",
+      "family": "clocking",
+      "pattern": "(MMCM|PLL|BUFG|BUFIO|BUFR|clk_wiz|controller_clk|ddr3_clk|clk_90|ref_clk)"
+    }
+  ],
+  "samples": [
+    {
+      "label": "seed3-exact-abort-baseline",
+      "placed_json": "result-cvc-sdf-seed3-exact-abort-baseline/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-cvc-sdf-seed3-exact-abort-baseline/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    }
+  ],
+  "schema": "uberddr3-sdf-metrics-v1"
+}

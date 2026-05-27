@@ -7,9 +7,9 @@
     "hardware_signature": "state-17 wrong-read or calibration/BIST failure after startup",
     "sdf_json_signature": "exact-key IDELAYE2 CNTVALUEIN/LD/control fan-in paths fail-slower; previous seed3 lock-damage p95 +755 ps and 25 dynamic paths >= +500 ps",
     "narrow_cells_or_paths": "DQ/DQS IDELAYE2 CNTVALUEIN, LD, related control fan-in",
-    "evidence_for": "pass/fail population strict fail-slower separators; same-seed seed3 CNTVALUEIN-only lock-damage comparison preserves selected locks but slows dynamic IDELAY programming paths",
-    "evidence_against": "does not explain every failure; reduced payload-v3 baseline has no tap mismatch and exposes CHECK_STARTING_DATA abort instead",
-    "next_test": "run same RTL/debug variant matrix across seeds and require failures to separate on exact-key IDELAY programming metrics, not seed number",
+    "evidence_for": "pass/fail population strict fail-slower separators; same-seed seed3 CNTVALUEIN-only lock-damage comparison preserves selected locks but slows dynamic IDELAY programming paths; exact-abort seed3 pass/pass/fail matrix has strict fail-slower IDELAY DQS CNTVALUEIN ctrl=4 (+514 ps lane1, +467 ps lane0), DQ CNTVALUEIN lane1 dq9 ctrl=3 (+408 ps), and LD lane0 dqs0 (+347 ps) candidates for the failing CNTVALUEIN+LD row",
+    "evidence_against": "does not explain every failure by itself; exact-abort failing row manifests as CHECK_STARTING_DATA abort with no tap mismatch, so the slow IDELAY/control signature may be causal margin loss or collateral correlate rather than direct tap-load corruption",
+    "next_test": "compare exact-abort baseline pass and CNTVALUEIN-only pass against CNTVALUEIN+LD fail using exact-key paths; then add lane-0 decision observer to see whether the slower IDELAY/control paths shift the read/write alignment window",
     "solution_candidates": "soft IDELAY programming cone floorplan; only minimal absolute locks if exact cells remain causal"
   },
   {
@@ -17,12 +17,12 @@
     "type": "cause_effect",
     "status": "active_newly_exposed",
     "hypothesis": "Lane-0 data-alignment search in CHECK_STARTING_DATA runs out of valid start-index candidates.",
-    "hardware_signature": "first abort reason 2, lane 0, dq_target_index=35, no data/DQS tap mismatch",
-    "sdf_json_signature": "TBD: compare baseline fail versus locked pass around dq_target_index[0], data_start_index[0], start_index_check, lane_write_dq_late[0], lane_read_dq_early[0]",
+    "hardware_signature": "first abort reason 2, lane 0, CHECK_STARTING_DATA exhaustion, no data/DQS tap mismatch; exact-abort full-lock row captures start_index_check=48 and dq_target_index=33",
+    "sdf_json_signature": "exact-abort pass/pass/fail matrix: failing CNTVALUEIN+LD row has strict fail-slower DQS CNTVALUEIN ctrl=4, reset_release, DQ CNTVALUEIN, and lane0 DQ IOLOGIC candidates; exact lane-0 decision-cone signature still pending",
     "narrow_cells_or_paths": "CHECK_STARTING_DATA lane-0 decision cone and read sample classification cone",
-    "evidence_for": "payload-v3 reduced seed3 baseline and rerun capture same first abort reason 2; regenerated lock variants pass under same RTL/debug variant",
-    "evidence_against": "observer-perturbed result so far; only proven for seed3 reduced-v3 RTL/debug variant",
-    "next_test": "add narrower lane-0 decision observer and compare SDF/JSON exact-cell metrics for v3-min baseline fail versus locked pass",
+    "evidence_for": "payload-v3 reduced seed3 baseline captured reason 2; exact-abort seed3 CNTVALUEIN+LD-parent row also captures reason 2 at the real reset site with lane 0, start_index_check=48, dq_target_index=33, data_start_index=0, write-late=1, read-early=0, and no tap mismatch; same exact RTL baseline and CNTVALUEIN-only rows pass",
+    "evidence_against": "current exact-abort reason-2 failure is lock-perturbed, not baseline; only one exact-abort failing row so far, and SDF signature is not yet narrowed to the CHECK_STARTING_DATA decision cells themselves",
+    "next_test": "run focused SDF/JSON comparison for exact-abort baseline pass vs CNTVALUEIN+LD fail around CHECK_STARTING_DATA lane-0 decision cells; add a minimal observer for candidate match history and final read_lane_data_shifted/write_pattern window",
     "solution_candidates": "RTL calibration search robustness; placement locality for lane-0 decision cone if SDF/JSON separates"
   },
   {
@@ -33,9 +33,9 @@
     "hardware_signature": "state 0 after entering calibration; reset_from_calibrate history set; no tap mismatch",
     "sdf_json_signature": "no clean dynamic slow-path separator yet; likely reset recovery/removal, analog readiness, clock-start ordering, or model gap",
     "narrow_cells_or_paths": "IDELAYCTRL site/refclk/reset/RDY, delay_before_release_reset, sync_rst, sync_rst_controller, state-0 release cone",
-    "evidence_for": "seed1/seed2 original failures and payload-v2 CNTVALUEIN+LD seed3 failure match this family",
-    "evidence_against": "filtered SDF did not show simple dynamic delay separation for CNTVALUEIN+LD state-0 failure",
-    "next_test": "instrument reset/ready time counters and classify state-0 failures separately from state-17/read-search failures",
+    "evidence_for": "seed1/seed2 original failures and payload-v2 CNTVALUEIN+LD seed3 failure match this family; exact-abort CNTVALUEIN+LD failure shows reset_from_calibrate_ever, sync/PHY reset reassertion history, and strict fail-slower reset_release +406 ps candidate",
+    "evidence_against": "exact-abort abort snapshot identifies CHECK_STARTING_DATA reason 2, not a pure state-0 startup failure; reset_release may be collateral unless it separates over more state-0 rows",
+    "next_test": "keep state-0 failures separate from reason-2 failures; compare reset_release/IDELAYCTRL metrics only within state-0-labeled rows",
     "solution_candidates": "explicit reset/CDC/generated-clock constraints; startup sequencing RTL changes; IDELAYCTRL locality constraints"
   },
   {
@@ -46,9 +46,9 @@
     "hardware_signature": "should convert failures to pass without introducing new failure states",
     "sdf_json_signature": "selected IDELAY programming leaf cells fixed to good-reference BELs; collateral placement/routing must not worsen narrowed metrics",
     "narrow_cells_or_paths": "10 CNTVALUEIN leaf LUTs plus optional LD-parent LUTs",
-    "evidence_for": "some rows pass or are rescued; reduced-v3 seed3 lock variants pass",
-    "evidence_against": "mixed matrix; earlier seed3/seed5 rows fail under some lock/debug combinations; absolute locks can cause collateral damage",
-    "next_test": "retain as controlled perturbation only; test broad same-RTL matrix before considering workaround status",
+    "evidence_for": "some rows pass or are rescued; exact-abort CNTVALUEIN-only row passes with regenerated locks",
+    "evidence_against": "mixed matrix; exact-abort same-RTL result is baseline pass, CNTVALUEIN-only pass, CNTVALUEIN+LD-parent fail with reason-2 CHECK_STARTING_DATA abort; absolute locks can preserve selected cells while damaging collateral timing/placement",
+    "next_test": "retain absolute locks only as controlled perturbations; do not promote to workaround unless a same-RTL multi-seed matrix shows broad pass and intended SDF/JSON improvement",
     "solution_candidates": "not final; use to discover narrower cause/effect signatures"
   },
   {
