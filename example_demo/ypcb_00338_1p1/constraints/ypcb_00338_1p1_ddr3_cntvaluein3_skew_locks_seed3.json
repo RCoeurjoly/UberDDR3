@@ -11,20 +11,20 @@
   "locks": [
     {
       "bel": "SLICE_X1Y72/A6LUT",
-      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
-      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.phy_idelay_data_cntvaluein[3]",
+      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.phy_idelay_data_cntvaluein[3]",
       "scope": "idelay_data_cntvaluein3_leaf",
       "type": "SLICE_LUTX"
     },
     {
       "bel": "SLICE_X1Y75/B6LUT",
-      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
-      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.phy_idelay_dqs_cntvaluein[3]",
+      "cell_suffix": "ddr3_top_inst.ddr3_phy_inst.phy_idelay_dqs_cntvaluein[3]",
       "scope": "idelay_dqs_cntvaluein3_leaf",
       "type": "SLICE_LUTX"
     }
   ],
-  "notes": "Seed 3 passing baseline lock set for the CNTVALUEIN3 skew diagnostic intervention.",
+  "notes": "Diagnostic intervention: lock current phy_idelay CNTVALUEIN3 leaf LUTs onto the original seed-3 good BELs that produced low dqs1-vs-dq14 CNTVALUEIN3 skew.",
   "scope_counts": {
     "idelay_data_cntvaluein3_leaf": 1,
     "idelay_dqs_cntvaluein3_leaf": 1
@@ -33,6 +33,7 @@
   "skipped_missing_bel_count": 0,
   "source_metrics_csv": null,
   "source_placed_json": "/nix/store/4pnw97bn26lsknlkv3926b6s5dam03xm-ypcb-ddr3-nextpnr-json-seed-3/ypcb_00338_1p1_ddr3.placed.json",
+  "source_remap_placed_json": "/nix/store/xgs5a64hg8a5wpp8wynfsw3wwiidmi8a-ypcb-ddr3-nextpnr-json-seed-3/ypcb_00338_1p1_ddr3.placed.json",
   "source_sample": null,
   "type_counts": {
     "SLICE_LUTX": 2

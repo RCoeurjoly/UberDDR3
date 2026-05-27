@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 
-CNTVALUEIN_RE = re.compile(r"i_controller_idelay_(?P<kind>data|dqs)_cntvaluein\[(?P<index>\d+)\]$")
+CNTVALUEIN_RE = re.compile(r"(?:i_controller_idelay|phy_idelay)_(?P<kind>data|dqs)_cntvaluein\[(?P<index>\d+)\]$")
 
 
 def top_module(data: dict[str, Any]) -> dict[str, Any]:
