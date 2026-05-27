@@ -692,3 +692,21 @@ Preliminary exact audit:
 | baseline seed3 | pass | 1756 ps | 1809 ps | 53 ps | DQ14 `SLICE_X1Y72/A6LUT`, DQS1 `SLICE_X1Y75/B6LUT`, manhattan 3 | IDELAY manhattan 5 |
 
 This is still a cause/effect hypothesis, not proof. The useful property is that the exact top SDF feature now maps to concrete nextpnr cells and BELs. The next proof step is intervention: build/program held-out failing seeds with each family independently, append those hardware rows to the causality matrix, and compare the post-intervention SDF/JSON audit rows against baseline.
+
+## Split IDELAY Skew Interventions: 2026-05-27
+
+This experiment separated two solution hypotheses that were previously conflated:
+
+| Experiment | Seed | RTL/lock setting | Hardware result | Focused CNTVALUEIN3 audit | Interpretation |
+| --- | ---: | --- | --- | --- | --- |
+| `idelay-stable-before-ld-seed2` | 2 | PHY-local CNTVALUEIN/LD pipeline | pass | abs dqs1-dq14 = 184 ps; source manhattan = 2 | This RTL change can rescue seed2. |
+| `idelay-stable-before-ld-seed3` | 3 | PHY-local CNTVALUEIN/LD pipeline | fail, reason 2 | abs dqs1-dq14 = 222 ps; source manhattan = 9 | The current RTL pipeline is not a complete fix; it fails with CHECK_STARTING_DATA exhaustion and tap mismatch. |
+| `cntvaluein3-skew-locked-seed2` | 2 | current `phy_idelay_*_cntvaluein[3]` cells locked to original low-skew seed3 BELs | pass | abs dqs1-dq14 = 163 ps; source manhattan = 3 | The physical intervention rescues seed2. |
+| `cntvaluein3-skew-locked-seed3` | 3 | same two-cell CNTVALUEIN3 lock | pass | abs dqs1-dq14 = 533 ps; source manhattan = 3 | The lock does not damage seed3, but absolute SDF skew alone is not the causal threshold. |
+
+Important conclusion: the intervention result strengthens the physical/topology hypothesis, not the naive `abs(dqs1 - dq14) CNTVALUEIN3 must be below N ps` hypothesis. The locked seed3 row passes with a large SDF abs skew, while the stable-before-LD seed3 row fails with a smaller skew. The current best causal statement is narrower and more careful: placement/topology of the IDELAY CNTVALUEIN3 source cells, or a correlated unmodeled margin around that cone, matters enough that forcing the original good source BEL pair rescues the tested failing seed.
+
+The RTL stable-before-LD idea remains plausible as a higher-level fix, but this implementation is incomplete. The failing seed3 row shows reason 2, lane 1, `start_index_check=48`, `dq_target_index=33`, data/DQS tap mismatch, and reset reassertion after calibration reset. If this path is pursued, it needs an explicit IDELAY load/readback handshake or delayed expected-tap bookkeeping, not just a blind pipeline of CNTVALUEIN and LD.
+
+Next test: run the same two-cell CNTVALUEIN3 lock over a held-out seed set that includes several known baseline failures and passes. If the pass rate holds, derive a higher-level locality/floorplan constraint for the IDELAY programming source cells rather than promoting exact BEL locks as the final integration strategy.
+
