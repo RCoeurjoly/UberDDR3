@@ -662,3 +662,33 @@ Next tests:
 3. Add the `CHECK_STARTING_DATA` candidate-window observer before changing RTL. The skew data predicts an alignment-margin problem, but it does not yet show which comparison or accepted-window boundary collapses.
 4. Use held-out seeds only after the exact skew component/placement extractor is in place. More seed rows with incomplete skew provenance would improve prediction but not causality.
 
+
+
+### CNTVALUEIN3 Exact Component Audit and Split Interventions: 2026-05-27
+
+Purpose: split the strongest current skew hypothesis into two independent interventions.
+
+| Experiment family | What changes | What stays fixed | Causality question |
+| --- | --- | --- | --- |
+| RTL stable-before-LD | `UBERDDR3_IDELAY_STABLE_BEFORE_LD` delays IDELAY `CNTVALUEIN` and `LD` together inside `ddr3_phy` | no placement locks | If CNTVALUEIN/LD sampling skew is causal, making CNTVALUEIN stable before LD should reduce or eliminate seed-dependent calibration failures without requiring exact BELs. |
+| CNTVALUEIN3 skew lock | only the two seed3 source LUT BELs for data/dqs `i_controller_idelay_*_cntvaluein[3]` are locked | baseline RTL and constraints | If the exact `abs(dqs1 - dq14)` `CNTVALUEIN3` placement/skew feature is causal or a strong proxy, moving that metric toward the seed3-good placement should improve failing held-out seeds. |
+
+New build targets:
+
+- RTL variant: `ypcb-ddr3-{bitstream,nextpnr-json,cvc-sdf}-seed-N-idelay-stable-before-ld`
+- Physical diagnostic: `ypcb-ddr3-{bitstream,nextpnr-json,cvc-sdf}-seed-N-cntvaluein3-skew-locked`
+
+New artifacts/scripts:
+
+- focused source/sink audit script: `scripts/uberddr3_cntvaluein3_skew_audit.py`
+- targeted lock file: `example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_cntvaluein3_skew_locks_seed3.json`
+- seed2/seed3 baseline audit: `artifacts/sdf-diagnostics/cntvaluein3-dqs1-dq14-baseline-seed2-seed3/`
+
+Preliminary exact audit:
+
+| Row | Hardware | DQ14 CNTVALUEIN3 | DQS1 CNTVALUEIN3 | abs skew | source BEL delta | sink BEL delta |
+| --- | --- | ---: | ---: | ---: | --- | --- |
+| baseline seed2 | fail reason 2 | 1118 ps | 1825 ps | 707 ps | DQ14 `SLICE_X1Y58/B6LUT`, DQS1 `SLICE_X5Y75/A6LUT`, manhattan 21 | IDELAY manhattan 5 |
+| baseline seed3 | pass | 1756 ps | 1809 ps | 53 ps | DQ14 `SLICE_X1Y72/A6LUT`, DQS1 `SLICE_X1Y75/B6LUT`, manhattan 3 | IDELAY manhattan 5 |
+
+This is still a cause/effect hypothesis, not proof. The useful property is that the exact top SDF feature now maps to concrete nextpnr cells and BELs. The next proof step is intervention: build/program held-out failing seeds with each family independently, append those hardware rows to the causality matrix, and compare the post-intervention SDF/JSON audit rows against baseline.

@@ -1,0 +1,38 @@
+{
+  "cntvaluein_indexes": [
+    3
+  ],
+  "cntvaluein_kinds": [
+    "data",
+    "dqs"
+  ],
+  "format": "uberddr3.nextpnr-bel-locks.v1",
+  "lock_count": 2,
+  "locks": [
+    {
+      "bel": "SLICE_X1Y72/A6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3]",
+      "scope": "idelay_data_cntvaluein3_leaf",
+      "type": "SLICE_LUTX"
+    },
+    {
+      "bel": "SLICE_X1Y75/B6LUT",
+      "cell": "$abc$192400$lut\\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3]",
+      "scope": "idelay_dqs_cntvaluein3_leaf",
+      "type": "SLICE_LUTX"
+    }
+  ],
+  "notes": "Seed 3 passing baseline lock set for the CNTVALUEIN3 skew diagnostic intervention.",
+  "scope_counts": {
+    "idelay_data_cntvaluein3_leaf": 1,
+    "idelay_dqs_cntvaluein3_leaf": 1
+  },
+  "skipped_missing_bel": [],
+  "skipped_missing_bel_count": 0,
+  "source_metrics_csv": null,
+  "source_placed_json": "/nix/store/4pnw97bn26lsknlkv3926b6s5dam03xm-ypcb-ddr3-nextpnr-json-seed-3/ypcb_00338_1p1_ddr3.placed.json",
+  "source_sample": null,
+  "type_counts": {
+    "SLICE_LUTX": 2
+  }
+}

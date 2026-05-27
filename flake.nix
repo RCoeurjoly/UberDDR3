@@ -184,20 +184,25 @@ DBEOF
           } > metadata/toolchain.json
         '';
 
-        mkYosysJson = name: pkgs.runCommand name {
+        mkYosysJson = { name, verilogDefines ? "" }: pkgs.runCommand name {
           nativeBuildInputs = [ pkgs.yosys pkgs.jq pkgs.coreutils ];
         } ''
           cp -R ${src} src
           chmod -R u+w src
           cd src
           mkdir -p $out metadata
-          yosys -l metadata/yosys.log -p "read_verilog ${ypcbSrcs}; synth_xilinx -flatten -abc9 -arch xc7 -top ${ypcb.top}; stat; write_json $out/${ypcb.project}.json"
+          yosys -l metadata/yosys.log -p "read_verilog ${verilogDefines} ${ypcbSrcs}; synth_xilinx -flatten -abc9 -arch xc7 -top ${ypcb.top}; stat; write_json $out/${ypcb.project}.json"
           sha256sum $out/${ypcb.project}.json > metadata/yosys-json.sha256
           ${writeToolMetadata}
+          echo ${builtins.toJSON verilogDefines} > metadata/verilog-defines.json
           cp -R metadata $out/metadata
         '';
 
-        ypcbDdr3YosysJson = mkYosysJson "ypcb-ddr3-yosys-json";
+        ypcbDdr3YosysJson = mkYosysJson { name = "ypcb-ddr3-yosys-json"; };
+        ypcbDdr3IdelayStableBeforeLdYosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-idelay-stable-before-ld";
+          verilogDefines = "-DUBERDDR3_IDELAY_STABLE_BEFORE_LD";
+        };
 
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
@@ -210,7 +215,7 @@ DBEOF
           cp -R metadata $out/metadata
         '';
 
-        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false }:
+        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false, yosysJson ? ypcbDdr3YosysJson }:
           let
             seedArg = if seed == null then "" else "--seed ${toString seed}";
             placerArg = if placer == null then "" else "--placer ${placer}";
@@ -236,7 +241,7 @@ DBEOF
             nextpnr-xilinx \
               --chipdb ${ypcbDdr3Chipdb}/${ypcb.dbpart}.bin \
               --xdc ${ypcb.project}.xdc \
-              --json ${ypcbDdr3YosysJson}/${ypcb.project}.json \
+              --json ${yosysJson}/${ypcb.project}.json \
               --write $out/${ypcb.project}.placed.json \
               --fasm $out/${ypcb.project}.fasm \
               --freq ${ypcb.freqMHz} \
@@ -257,12 +262,12 @@ bels = collections.Counter(str(c.get("attributes", {}).get("NEXTPNR_BEL", "")).s
 print(json.dumps({"cell_count": len(cells), "type_counts": dict(sorted(types.items())), "bel_site_counts": dict(sorted(bels.items()))}, indent=2, sort_keys=True))
 PY
             cat > metadata/candidate.json <<META
-{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}}
+{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "yosys_json": "${yosysJson}"}
 META
             cp -R metadata $out/metadata
           '';
 
-        mkSdf = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false, cvc ? false }:
+        mkSdf = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false, cvc ? false, yosysJson ? ypcbDdr3YosysJson }:
           let
             seedArg = if seed == null then "" else "--seed ${toString seed}";
             placerArg = if placer == null then "" else "--placer ${placer}";
@@ -290,7 +295,7 @@ META
             nextpnr-xilinx \
               --chipdb ${ypcbDdr3Chipdb}/${ypcb.dbpart}.bin \
               --xdc ${ypcb.project}.xdc \
-              --json ${ypcbDdr3YosysJson}/${ypcb.project}.json \
+              --json ${yosysJson}/${ypcb.project}.json \
               --write $out/${ypcb.project}.placed.json \
               --freq ${ypcb.freqMHz} \
               ${seedArg} ${placerArg} ${routerArg} ${pnrArgs} $prePlaceArg ${cvcArg} \
@@ -301,7 +306,7 @@ META
             sha256sum $out/${ypcb.project}.placed.json > metadata/nextpnr-json.sha256
             grep -E "(Checksum|checksum|Placed|Routed|Error|Warning|Info: Device utilisation|Info: Critical path)" metadata/nextpnr-sdf.log > metadata/nextpnr-sdf-summary.txt || true
             cat > metadata/candidate.json <<META
-{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "sdf_cvc": ${if cvc then "true" else "false"}}
+{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "sdf_cvc": ${if cvc then "true" else "false"}, "yosys_json": "${yosysJson}"}
 META
             cp -R metadata $out/metadata
           '';
@@ -346,20 +351,21 @@ META
             cp -R metadata $out/metadata
           '';
 
-        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false }:
+        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false, yosysJson ? ypcbDdr3YosysJson }:
           let
-            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; };
+            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks yosysJson; };
             fasmDrv = mkFasm { name = "ypcb-ddr3-fasm-${suffix}"; nextpnrJson = pnr; };
             frames = mkFrames { name = "ypcb-ddr3-frames-${suffix}"; inherit fasmDrv; };
             bitstream = mkBitstream { name = "ypcb-ddr3-bitstream-${suffix}"; framesDrv = frames; };
-            sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; };
-            cvcSdf = mkSdf { name = "ypcb-ddr3-cvc-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; cvc = true; };
+            sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks yosysJson; };
+            cvcSdf = mkSdf { name = "ypcb-ddr3-cvc-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks yosysJson; cvc = true; };
           in { inherit pnr fasmDrv frames bitstream sdf cvcSdf; };
 
         baseline = mkCandidate { suffix = "baseline"; };
         robustLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_locks.json";
         idelayControlLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_cntvaluein_locks_seed3.json";
         idelayControlFullLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_control_locks_seed3.json";
+        cntvaluein3SkewLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_cntvaluein3_skew_locks_seed3.json";
         seedMatrix = map toString (lib.range 1 30);
         seedCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
@@ -395,6 +401,19 @@ META
             seed = lib.toInt seed;
             lockFile = idelayControlFullLock;
             assertLocks = true;
+          });
+        cntvaluein3SkewLockCandidates = lib.genAttrs seedMatrix (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-cntvaluein3-skew-locked";
+            seed = lib.toInt seed;
+            lockFile = cntvaluein3SkewLock;
+            assertLocks = true;
+          });
+        idelayStableBeforeLdCandidates = lib.genAttrs seedMatrix (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-idelay-stable-before-ld";
+            seed = lib.toInt seed;
+            yosysJson = ypcbDdr3IdelayStableBeforeLdYosysJson;
           });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
@@ -444,6 +463,22 @@ META
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-control-full-locked" candidate.sdf) idelayControlFullLockCandidates;
         idelayControlFullLockCvcSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-control-full-locked" candidate.cvcSdf) idelayControlFullLockCandidates;
+        cntvaluein3SkewLockPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-cntvaluein3-skew-locked" candidate.pnr) cntvaluein3SkewLockCandidates;
+        cntvaluein3SkewLockBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-cntvaluein3-skew-locked" candidate.bitstream) cntvaluein3SkewLockCandidates;
+        cntvaluein3SkewLockSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-cntvaluein3-skew-locked" candidate.sdf) cntvaluein3SkewLockCandidates;
+        cntvaluein3SkewLockCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-cntvaluein3-skew-locked" candidate.cvcSdf) cntvaluein3SkewLockCandidates;
+        idelayStableBeforeLdPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-idelay-stable-before-ld" candidate.pnr) idelayStableBeforeLdCandidates;
+        idelayStableBeforeLdBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-idelay-stable-before-ld" candidate.bitstream) idelayStableBeforeLdCandidates;
+        idelayStableBeforeLdSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-stable-before-ld" candidate.sdf) idelayStableBeforeLdCandidates;
+        idelayStableBeforeLdCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-stable-before-ld" candidate.cvcSdf) idelayStableBeforeLdCandidates;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -473,6 +508,7 @@ META
           uberddr3-sdf-compare = uberddr3SdfCompare;
           uberddr3-sdf-metrics = uberddr3SdfMetrics;
           ypcb-ddr3-yosys-json = ypcbDdr3YosysJson;
+          ypcb-ddr3-yosys-json-idelay-stable-before-ld = ypcbDdr3IdelayStableBeforeLdYosysJson;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -506,6 +542,14 @@ META
           // idelayControlFullLockPnrs
           // idelayControlFullLockBitstreams
           // idelayControlFullLockSdfs
-          // idelayControlFullLockCvcSdfs;
+          // idelayControlFullLockCvcSdfs
+          // cntvaluein3SkewLockPnrs
+          // cntvaluein3SkewLockBitstreams
+          // cntvaluein3SkewLockSdfs
+          // cntvaluein3SkewLockCvcSdfs
+          // idelayStableBeforeLdPnrs
+          // idelayStableBeforeLdBitstreams
+          // idelayStableBeforeLdSdfs
+          // idelayStableBeforeLdCvcSdfs;
       });
 }

@@ -94,6 +94,50 @@ module ddr3_phy #(
         output wire[2:0] o_debug_status
     );
 
+    `ifdef UBERDDR3_IDELAY_STABLE_BEFORE_LD
+        reg[4:0] idelay_data_cntvaluein_d1 = 0;
+        reg[4:0] idelay_data_cntvaluein_d2 = 0;
+        reg[4:0] idelay_dqs_cntvaluein_d1 = 0;
+        reg[4:0] idelay_dqs_cntvaluein_d2 = 0;
+        reg[LANES-1:0] idelay_data_ld_d1 = 0;
+        reg[LANES-1:0] idelay_data_ld_d2 = 0;
+        reg[LANES-1:0] idelay_dqs_ld_d1 = 0;
+        reg[LANES-1:0] idelay_dqs_ld_d2 = 0;
+
+        always @(posedge i_controller_clk) begin
+            if(!i_rst_n || i_controller_reset) begin
+                idelay_data_cntvaluein_d1 <= 0;
+                idelay_data_cntvaluein_d2 <= 0;
+                idelay_dqs_cntvaluein_d1 <= 0;
+                idelay_dqs_cntvaluein_d2 <= 0;
+                idelay_data_ld_d1 <= 0;
+                idelay_data_ld_d2 <= 0;
+                idelay_dqs_ld_d1 <= 0;
+                idelay_dqs_ld_d2 <= 0;
+            end
+            else begin
+                idelay_data_cntvaluein_d1 <= i_controller_idelay_data_cntvaluein;
+                idelay_data_cntvaluein_d2 <= idelay_data_cntvaluein_d1;
+                idelay_dqs_cntvaluein_d1 <= i_controller_idelay_dqs_cntvaluein;
+                idelay_dqs_cntvaluein_d2 <= idelay_dqs_cntvaluein_d1;
+                idelay_data_ld_d1 <= i_controller_idelay_data_ld;
+                idelay_data_ld_d2 <= idelay_data_ld_d1;
+                idelay_dqs_ld_d1 <= i_controller_idelay_dqs_ld;
+                idelay_dqs_ld_d2 <= idelay_dqs_ld_d1;
+            end
+        end
+
+        wire[4:0] phy_idelay_data_cntvaluein = idelay_data_cntvaluein_d2;
+        wire[4:0] phy_idelay_dqs_cntvaluein = idelay_dqs_cntvaluein_d2;
+        wire[LANES-1:0] phy_idelay_data_ld = idelay_data_ld_d2;
+        wire[LANES-1:0] phy_idelay_dqs_ld = idelay_dqs_ld_d2;
+    `else
+        wire[4:0] phy_idelay_data_cntvaluein = i_controller_idelay_data_cntvaluein;
+        wire[4:0] phy_idelay_dqs_cntvaluein = i_controller_idelay_dqs_cntvaluein;
+        wire[LANES-1:0] phy_idelay_data_ld = i_controller_idelay_data_ld;
+        wire[LANES-1:0] phy_idelay_dqs_ld = i_controller_idelay_dqs_ld;
+    `endif
+
     // cmd bit assignment
     localparam CMD_CS_N_2 = cmd_len - 1,
                 CMD_CS_N =  DUAL_RANK_DIMM[0]? cmd_len - 2 : cmd_len - 1,
@@ -715,11 +759,11 @@ module ddr3_phy #(
                 .C(i_controller_clk), // 1-bit input: Clock input
                 .CE(1'b0), // 1-bit input: Active high enable increment/decrement input
                 .CINVCTRL(1'b0),// 1-bit input: Dynamic clock inversion input
-                .CNTVALUEIN(i_controller_idelay_data_cntvaluein), // 5-bit input: Counter value input
+                .CNTVALUEIN(phy_idelay_data_cntvaluein), // 5-bit input: Counter value input
                 .DATAIN(), //1-bit input: Internal delay data input
                 .IDATAIN(read_dq[gen_index]), // 1-bit input: Data input from the I/O
                 .INC(1'b0), // 1-bit input: Increment / Decrement tap delay input
-                .LD(i_controller_idelay_data_ld[gen_index/8]), // 1-bit input: Load IDELAY_VALUE input
+                .LD(phy_idelay_data_ld[gen_index/8]), // 1-bit input: Load IDELAY_VALUE input
                 .LDPIPEEN(1'b0), // 1-bit input: Enable PIPELINE register to load data input
                 .REGRST(1'b0) // 1-bit input: Active-high reset tap-delay input
             );
@@ -1208,11 +1252,11 @@ module ddr3_phy #(
                 .C(i_controller_clk), // 1-bit input: Clock input
                 .CE(1'b0), // 1-bit input: Active high enable increment/decrement input
                 .CINVCTRL(1'b0),// 1-bit input: Dynamic clock inversion input
-                .CNTVALUEIN(i_controller_idelay_dqs_cntvaluein), // 5-bit input: Counter value input
+                .CNTVALUEIN(phy_idelay_dqs_cntvaluein), // 5-bit input: Counter value input
                 .DATAIN(), //1-bit input: Internal delay data input
                 .IDATAIN(read_dqs[gen_index]), // 1-bit input: Data input from the I/O
                 .INC(1'b0), // 1-bit input: Increment / Decrement tap delay input
-                .LD(i_controller_idelay_dqs_ld[gen_index]), // 1-bit input: Load IDELAY_VALUE input
+                .LD(phy_idelay_dqs_ld[gen_index]), // 1-bit input: Load IDELAY_VALUE input
                 .LDPIPEEN(1'b0), // 1-bit input: Enable PIPELINE register to load data input
                 .REGRST(1'b0) // 1-bit input: Active-high reset tap-delay input
             );

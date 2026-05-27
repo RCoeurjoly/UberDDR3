@@ -12,7 +12,7 @@ import re
 from typing import Any
 
 
-CNTVALUEIN_RE = re.compile(r"i_controller_idelay_(?:data|dqs)_cntvaluein\[\d+\]$")
+CNTVALUEIN_RE = re.compile(r"i_controller_idelay_(?P<kind>data|dqs)_cntvaluein\[(?P<index>\d+)\]$")
 
 
 def top_module(data: dict[str, Any]) -> dict[str, Any]:
@@ -43,14 +43,42 @@ def load_ld_source_cells(metrics_csv: Path | None, sample: str | None) -> set[st
     return cells
 
 
+def cntvaluein_scope(name: str, kinds: set[str], indexes: set[int] | None) -> str | None:
+    match = CNTVALUEIN_RE.search(name)
+    if match is None:
+        return None
+    kind = match.group("kind")
+    index = int(match.group("index"))
+    if kind not in kinds:
+        return None
+    if indexes is not None and index not in indexes:
+        return None
+    return f"idelay_{kind}_cntvaluein{index}_leaf"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--placed-json", required=True, type=Path)
     parser.add_argument("--out-json", required=True, type=Path)
     parser.add_argument("--metrics-csv", type=Path)
     parser.add_argument("--sample", help="Sample label to select from --metrics-csv")
+    parser.add_argument(
+        "--cntvaluein-kind",
+        choices=["data", "dqs"],
+        action="append",
+        help="Limit CNTVALUEIN leaf locks to this IDELAY family. Repeat for multiple families. Default: data and dqs.",
+    )
+    parser.add_argument(
+        "--cntvaluein-index",
+        type=int,
+        action="append",
+        help="Limit CNTVALUEIN leaf locks to this bus bit index. Repeat for multiple indices. Default: all indices.",
+    )
     parser.add_argument("--notes", default="")
     args = parser.parse_args()
+
+    cntvaluein_kinds = set(args.cntvaluein_kind or ["data", "dqs"])
+    cntvaluein_indexes = set(args.cntvaluein_index) if args.cntvaluein_index else None
 
     data = json.loads(args.placed_json.read_text(encoding="utf-8"))
     module = top_module(data)
@@ -60,17 +88,15 @@ def main() -> int:
     locks = []
     skipped = []
     for name, cell in sorted(cells.items()):
-        scope = None
-        if CNTVALUEIN_RE.search(name):
-            scope = "idelay_cntvaluein_leaf"
-        elif name in ld_sources:
+        source_cell = None
+        scope = cntvaluein_scope(name, cntvaluein_kinds, cntvaluein_indexes)
+        if scope is None and name in ld_sources:
             scope = "idelay_ld_source"
         if scope is None:
             continue
 
         lock_name = name
         lock_cell = cell
-        source_cell = None
         if scope == "idelay_ld_source":
             parent = cell.get("attributes", {}).get("CONSTR_PARENT")
             if parent and parent in cells:
@@ -102,6 +128,8 @@ def main() -> int:
         "source_metrics_csv": str(args.metrics_csv) if args.metrics_csv else None,
         "source_sample": args.sample,
         "notes": args.notes,
+        "cntvaluein_kinds": sorted(cntvaluein_kinds),
+        "cntvaluein_indexes": sorted(cntvaluein_indexes) if cntvaluein_indexes is not None else None,
         "lock_count": len(locks),
         "scope_counts": dict(sorted(scope_counts.items())),
         "type_counts": dict(sorted(type_counts.items())),
