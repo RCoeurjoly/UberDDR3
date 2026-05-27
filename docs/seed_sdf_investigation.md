@@ -618,7 +618,7 @@ Interpretation:
 - CE-001 remains active, but should be stated as IDELAY programming/control skew or placement-derived alignment margin, not just slow IDELAY programming paths.
 - CE-002 is strengthened by the hardware labels and moderately supported by the SDF population: the dominant hardware failure is consistent and the top SDF features are in the DQS/DQ IDELAY programming families. However, the current SDF analysis does not yet prove the exact mechanism inside the `CHECK_STARTING_DATA` decision cone.
 - Seed16 should stay in CE-003 as a separate startup/IDELAYCTRL bucket. Its strict separators are not population evidence because `n_fail=1`, but the IDELAYCTRL fail-higher result is a good target for future startup-failure rows.
-- The current `idelay_ce_inc` query family produced zero entries for every seed. That is an extractor/modeling limitation, not evidence that CE/INC paths are irrelevant. Before using CE/INC as a causal negative, improve the query pattern or extract those pins from placed JSON plus SDF graph traversal.
+- The initial `idelay_ce_inc` query family produced zero dynamic entries for every seed. Do not treat that as a causal negative by itself; the pin coverage diagnostic below explains that CE/INC/REGRST exist in SDF but are constant-driven in the current RTL.
 
 Next tests:
 
@@ -626,4 +626,39 @@ Next tests:
 2. Add a small observer for the `CHECK_STARTING_DATA` candidate window: accepted/rejected `start_index_check` values, last compared `read_lane_data_shifted`, and the write-pattern slice that drives `lane_write_dq_late` and `lane_read_dq_early`.
 3. Design the first intervention as a relative/locality constraint or RTL tolerance change, not an absolute BEL-lock workaround. The intervention should intentionally move the signed SDF features toward the passing population and then be tested on held-out seeds.
 4. Improve the SDF/JSON feature extractor for IDELAY CE/INC/RST and exact calibration-decision cells before concluding that the current 200-feature table has exhausted the relevant surfaces.
+
+
+### Baseline No-Lock Derived Skew Analysis: 2026-05-27
+
+Artifacts:
+
+- skew derivation script: `scripts/uberddr3_derive_skew_features.py`
+- all-fail skew feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-skew/`
+- reason-2-only skew feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-reason2-skew/`
+- seed16-only skew feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-seed16-skew/`
+- selected skew audit values: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-skew/analysis/selected_skew_feature_values.csv`
+- IDELAY pin coverage diagnostic: `artifacts/sdf-diagnostics/baseline-seed1-idelay-pin-coverage/`
+
+Skew-only results:
+
+| comparison | rows | pass/fail | strict univariate separators | strongest univariate skew evidence | strongest two-feature skew evidence |
+| --- | ---: | ---: | ---: | --- | --- |
+| all baseline fails vs passes | 30 | 22/8 | 0 | `abs(dqs1 - dq14)` on `CNTVALUEIN3`, AUC 0.841, fail median +221 ps | `abs(dqs1 - dq14)` on `CNTVALUEIN3` plus signed lane1 DQS-vs-DQ bus-skew delta, AUC 0.938 |
+| reason-2 fails vs passes | 29 | 22/7 | 0 | `abs(dqs1 - dq14)` on `CNTVALUEIN3`, AUC 0.825, fail median +184 ps | same feature plus signed lane1 DQS-vs-DQ bus-skew delta, AUC 0.948 |
+| seed16 vs passes | 23 | 22/1 | 16 | lane1 IOLOGIC DQ range and multiple IDELAY skew terms strictly separate the single seed16 row | skipped because only one failing row |
+
+Interpretation:
+
+- Explicit skew features are more predictive than the previous absolute-delay features for the dominant reason-2 population. The best reason-2 pairwise score improved from about 0.90 in the raw semantic feature set to 0.948 in the derived skew set.
+- The reason-2 population still has no strict univariate separator. The working model should remain "combined alignment margin" rather than "one bad skew threshold".
+- The top skew features are not confined to the lane reported by the abort observer. Several strongest reason-2 features involve lane1 DQS/DQ skew even though six of seven reason-2 aborts report lane 0. Treat these as placement/alignment-margin signatures or proxies until exact source/sink and placement audits prove the physical interpretation.
+- CE-001 and CE-002 should now be phrased as DQ/DQS IDELAY programming skew and byte-lane alignment margin. "Slow IDELAY programming path" is too narrow and loses the sign information that appears in the skew analysis.
+- The current `idelay_ce_inc` zero-entry result is explained. A seed1 broad IDELAYE2 SDF query finds CE, INC, and REGRST interconnects, but they are all driven by `PACKER_GND_DRV` in this design and are filtered as static edges. LD and CNTVALUEIN remain the dynamic IDELAY programming surfaces in the current RTL.
+
+Next tests:
+
+1. Exact component audit: for the top skew pair, extract the exact source/sink pins and placed cells for DQS1 `CNTVALUEIN3`, DQ14 `CNTVALUEIN3`, and the lane1 DQS-vs-DQ bus-skew contributors.
+2. Add nextpnr JSON placement features for the same components: source cell to sink IDELAY distance, DQS-vs-DQ placement asymmetry, lane0-vs-lane1 placement asymmetry, and whether the source LUTs cross byte-lane/clock-region boundaries.
+3. Add the `CHECK_STARTING_DATA` candidate-window observer before changing RTL. The skew data predicts an alignment-margin problem, but it does not yet show which comparison or accepted-window boundary collapses.
+4. Use held-out seeds only after the exact skew component/placement extractor is in place. More seed rows with incomplete skew provenance would improve prediction but not causality.
 

@@ -1,0 +1,8 @@
+sample,token,interconnect_count,constant_driver_count,example_from_pin,example_to_pin
+baseline-no-lock-seed-1,CE,18,18,\$PACKER_GND_DRV.Y,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.CE
+baseline-no-lock-seed-1,INC,18,18,\$PACKER_GND_DRV.Y,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.INC
+baseline-no-lock-seed-1,REGRST,18,18,\$PACKER_GND_DRV.Y,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.REGRST
+baseline-no-lock-seed-1,LD,36,18,\$auto\$ff\.cc\:266\:slice\$40986.Q,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[10\]\.IDELAYE2_data.LD
+baseline-no-lock-seed-1,CNTVALUEIN,90,0,\$abc\$192400\$lut\\ddr3_top_inst\.ddr3_phy_inst\.i_controller_idelay_data_cntvaluein\[1\].O6,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.CNTVALUEIN1
+baseline-no-lock-seed-1,IDATAIN,18,0,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.genblk1\.IOBUF_data\$subcell\$IBUF.OUT,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.IDATAIN
+baseline-no-lock-seed-1,DATAOUT,18,0,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.IDELAYE2_data.DATAOUT,ddr3_top_inst\.ddr3_phy_inst\.genblk5\[0\]\.ISERDESE2_data.DDLY
