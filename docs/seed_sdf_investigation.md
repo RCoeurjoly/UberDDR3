@@ -592,3 +592,38 @@ Statistical-analysis rule:
 
 If a bitstream's pass/fail result is nondeterministic, the SDF analysis is not meaningless, but a single label is invalid. The row should become `(bitstream, n_trials, n_pass, failure_modes)` and the model should correlate SDF/JSON features with pass probability or failure-mode probability. For the current same-session baseline/no-lock data, no such relabeling is needed because the completed repeat trial had zero pass/fail flips.
 
+### Baseline No-Lock Statistical SDF Analysis: 2026-05-27
+
+Artifacts:
+
+- SDF metrics: `artifacts/sdf-metrics/baseline-no-lock-seed-1-30/`
+- all-fail feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30/`
+- reason-2-only feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-reason2/`
+- seed16-only feature table and analysis: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30-seed16/`
+- filtered hardware slices: `artifacts/hardware/baseline_no_lock_seed_1_30_reason2_vs_pass.csv`, `artifacts/hardware/baseline_no_lock_seed_1_30_seed16_vs_pass.csv`
+- selected audit values: `artifacts/statistical-sdf/baseline-no-lock-seed-1-30/analysis/selected_feature_values.csv`
+
+Population results:
+
+| comparison | rows | pass/fail | strict univariate separators | strongest univariate evidence | strongest two-feature evidence |
+| --- | ---: | ---: | ---: | --- | --- |
+| all baseline fails vs passes | 30 | 22/8 | 0 | DQS lane0 `CNTVALUEIN` bus skew/lane spread, fail-higher, AUC 0.75, median +305 ps | signed DQS lane0 `CNTVALUEIN` skew plus lane1 DQ15 `CNTVALUEIN` skew, AUC 0.903 |
+| reason-2 fails vs passes | 29 | 22/7 | 0 | lane0 DQ `CNTVALUEIN` ctrl1 fanout spread, fail-lower, AUC 0.786; DQS lane0 `CNTVALUEIN` bus skew, fail-higher, AUC 0.721, median +298 ps | signed DQS lane0 `CNTVALUEIN` skew plus lane1 DQ15 `CNTVALUEIN` skew, AUC 0.903; lane0 ctrl4 fanout spread plus lane0 dq6 LD, AUC 0.883 |
+| seed16 vs passes | 23 | 22/1 | 9 | IDELAYCTRL direct/lane spread fail-higher, and several DQ `CNTVALUEIN` ctrl0 paths fail-lower | skipped because only one failing row |
+
+Interpretation:
+
+- The 30-row baseline population does not support a single deterministic univariate SDF threshold for the dominant `CHECK_STARTING_DATA` failures. This weakens any theory that one isolated endpoint delay is the whole cause.
+- The useful reason-2 signal is a combined-margin hypothesis around IDELAY programming skew and byte-lane alignment, not a simple "all failing paths are slower" hypothesis. DQS lane0 `CNTVALUEIN` bus skew is higher in failures, while several DQ `CNTVALUEIN` fanout/skew and LD metrics are lower in failures. The signs matter because the calibration failure is an alignment/search-window failure, so relative skew can be more important than absolute max delay.
+- CE-001 remains active, but should be stated as IDELAY programming/control skew or placement-derived alignment margin, not just slow IDELAY programming paths.
+- CE-002 is strengthened by the hardware labels and moderately supported by the SDF population: the dominant hardware failure is consistent and the top SDF features are in the DQS/DQ IDELAY programming families. However, the current SDF analysis does not yet prove the exact mechanism inside the `CHECK_STARTING_DATA` decision cone.
+- Seed16 should stay in CE-003 as a separate startup/IDELAYCTRL bucket. Its strict separators are not population evidence because `n_fail=1`, but the IDELAYCTRL fail-higher result is a good target for future startup-failure rows.
+- The current `idelay_ce_inc` query family produced zero entries for every seed. That is an extractor/modeling limitation, not evidence that CE/INC paths are irrelevant. Before using CE/INC as a causal negative, improve the query pattern or extract those pins from placed JSON plus SDF graph traversal.
+
+Next tests:
+
+1. Use `rank-paths` or a focused exact-pin extractor on the top signed pair: DQS lane0 `CNTVALUEIN` bus skew and lane1 DQ15 `CNTVALUEIN` bus skew. Confirm the exact source/sink pins and final placed cells behind the semantic features.
+2. Add a small observer for the `CHECK_STARTING_DATA` candidate window: accepted/rejected `start_index_check` values, last compared `read_lane_data_shifted`, and the write-pattern slice that drives `lane_write_dq_late` and `lane_read_dq_early`.
+3. Design the first intervention as a relative/locality constraint or RTL tolerance change, not an absolute BEL-lock workaround. The intervention should intentionally move the signed SDF features toward the passing population and then be tested on held-out seeds.
+4. Improve the SDF/JSON feature extractor for IDELAY CE/INC/RST and exact calibration-decision cells before concluding that the current 200-feature table has exhausted the relevant surfaces.
+

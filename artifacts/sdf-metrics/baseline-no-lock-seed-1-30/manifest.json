@@ -1,0 +1,234 @@
+{
+  "field": "slow",
+  "metric": "max",
+  "queries": [
+    {
+      "description": "DQ IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_data_cntvaluein",
+      "pattern": "IDELAYE2_data\\.CNTVALUEIN"
+    },
+    {
+      "description": "DQS IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_dqs_cntvaluein",
+      "pattern": "IDELAYE2_dqs\\.CNTVALUEIN"
+    },
+    {
+      "description": "IDELAY load-strobe fanout",
+      "family": "idelay_ld",
+      "pattern": "IDELAYE2_(data|dqs)\\.LD"
+    },
+    {
+      "description": "IDELAY CE/INC fanout",
+      "family": "idelay_ce_inc",
+      "pattern": "IDELAYE2_(data|dqs)\\.(CE|INC)"
+    },
+    {
+      "description": "DQ IOLOGIC/IDELAY/SERDES paths",
+      "family": "dq_iologic",
+      "pattern": "(IOBUF_data|IDELAYE2_data|ISERDESE2_data|OSERDESE2_data)"
+    },
+    {
+      "description": "DQS IOLOGIC/IDELAY/SERDES paths",
+      "family": "dqs_iologic",
+      "pattern": "(IOBUFDS_dqs|IDELAYE2_dqs|ISERDESE2_dqs|OSERDESE2_dqs)"
+    },
+    {
+      "description": "IDELAYCTRL/RDY paths",
+      "family": "idelayctrl",
+      "pattern": "(IDELAYCTRL|CTRL_DUP|RDY)"
+    },
+    {
+      "description": "PHY reset-release delay chain",
+      "family": "reset_release",
+      "pattern": "delay_before_release_reset"
+    },
+    {
+      "description": "Generated DDR clocks and clock distribution",
+      "family": "clocking",
+      "pattern": "(MMCM|PLL|BUFG|BUFIO|BUFR|clk_wiz|controller_clk|ddr3_clk|clk_90|ref_clk)"
+    }
+  ],
+  "samples": [
+    {
+      "label": "baseline-no-lock-seed-1",
+      "placed_json": "/nix/store/ahfyga4ylg7y4f2g9bg46rf6dpdbn7mg-ypcb-ddr3-nextpnr-json-seed-1/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/7x1d974s848wf73zrj1zdinfqji2pm0p-ypcb-ddr3-cvc-sdf-seed-1/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-2",
+      "placed_json": "/nix/store/jjyms7rpklqbzn2696577kfscj4mc4kd-ypcb-ddr3-nextpnr-json-seed-2/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/0kdbg5v141vafykf1nvgb36xf0dfnwh2-ypcb-ddr3-cvc-sdf-seed-2/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-3",
+      "placed_json": "/nix/store/4pnw97bn26lsknlkv3926b6s5dam03xm-ypcb-ddr3-nextpnr-json-seed-3/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/zyrzwsrx248z1arjnkd3lizj66m8nn9i-ypcb-ddr3-cvc-sdf-seed-3/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-4",
+      "placed_json": "/nix/store/14x05r7f7qjw9ag6s26fd580gmaxz6yd-ypcb-ddr3-nextpnr-json-seed-4/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/86gcag1fsaib67npy9brsfjrwnlm84gh-ypcb-ddr3-cvc-sdf-seed-4/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-5",
+      "placed_json": "/nix/store/s1zla5q19jk42kldi6q3m5whbgnhdy4p-ypcb-ddr3-nextpnr-json-seed-5/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/43x6xad6wl41cf947x631mziwq3a5v7i-ypcb-ddr3-cvc-sdf-seed-5/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-6",
+      "placed_json": "/nix/store/bnvavwzf8pid2ji0mycppk63zyinxjh1-ypcb-ddr3-nextpnr-json-seed-6/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/rk60jv9g0grc00wfnry0g8dv0ldxapx7-ypcb-ddr3-cvc-sdf-seed-6/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-7",
+      "placed_json": "/nix/store/0r2gcqrivdasyz60z8kg9r3ij0ip5fw4-ypcb-ddr3-nextpnr-json-seed-7/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/mfavlp16blmlrz7nplpy85jchhf474iq-ypcb-ddr3-cvc-sdf-seed-7/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-8",
+      "placed_json": "/nix/store/2p1gsjg197mrmihqlrxnrp7ylnchwdy1-ypcb-ddr3-nextpnr-json-seed-8/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/y74b7x0nj8wskq9hia9vm8703m7bsg5a-ypcb-ddr3-cvc-sdf-seed-8/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-9",
+      "placed_json": "/nix/store/hq1yvvyagvigv93k9yhiff36hrvgx8fm-ypcb-ddr3-nextpnr-json-seed-9/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/icifxmz6r5jqxc313mmfb2rzrq2yafp6-ypcb-ddr3-cvc-sdf-seed-9/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-10",
+      "placed_json": "/nix/store/p7rw5yk68n6rqckdvgmmb4jlx493w6gz-ypcb-ddr3-nextpnr-json-seed-10/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/whmcxhihnghr30i5b7pvdnmqawly7n1q-ypcb-ddr3-cvc-sdf-seed-10/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-11",
+      "placed_json": "/nix/store/88k6rh4776csianfijsb2bhqggf0ma1n-ypcb-ddr3-nextpnr-json-seed-11/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/mg86zc7l1qrgdrwys429yh168ykmw6vz-ypcb-ddr3-cvc-sdf-seed-11/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-12",
+      "placed_json": "/nix/store/ldfbdv2h5mbdk0csnxlzl7l1iqjmmvaj-ypcb-ddr3-nextpnr-json-seed-12/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/vs8bg3dvhsj7gy0djnk8h2310zm1dm69-ypcb-ddr3-cvc-sdf-seed-12/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-13",
+      "placed_json": "/nix/store/lgkkmjfy4vlpr4a18g49g6msq9fil5h8-ypcb-ddr3-nextpnr-json-seed-13/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/xc7zfwa9n7hjfg133zxdfpqd1kpw2saq-ypcb-ddr3-cvc-sdf-seed-13/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-14",
+      "placed_json": "/nix/store/vj21kg08dw5c4k50lwk41fr5p7yyhdp6-ypcb-ddr3-nextpnr-json-seed-14/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/py15l07cnjnh5wsg1jz9mdyh9xzpvhnd-ypcb-ddr3-cvc-sdf-seed-14/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-15",
+      "placed_json": "/nix/store/lm5pz22253qb0bw1c0wjny1gacjc09v6-ypcb-ddr3-nextpnr-json-seed-15/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/2gh0a9nys4mnvgsir71b4zmdqzv80cx0-ypcb-ddr3-cvc-sdf-seed-15/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-16",
+      "placed_json": "/nix/store/87sk1zbjh6az87wlq5npj6ad8rn6fhkh-ypcb-ddr3-nextpnr-json-seed-16/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/ai4dzq0wdfff4sg63n36d4nw5nkxs7xg-ypcb-ddr3-cvc-sdf-seed-16/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-17",
+      "placed_json": "/nix/store/wxkghw47jyp6byi5widhz1js52zlypai-ypcb-ddr3-nextpnr-json-seed-17/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/ajv6adqn9qxdj01zy3zqf87ybzwkchhq-ypcb-ddr3-cvc-sdf-seed-17/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-18",
+      "placed_json": "/nix/store/0vxr5i5zmgp7x4bwflvqlrc23z5zjlqp-ypcb-ddr3-nextpnr-json-seed-18/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/l25jq5nlgvzf2b55v77lhf8v553jxzc8-ypcb-ddr3-cvc-sdf-seed-18/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-19",
+      "placed_json": "/nix/store/cp4hw10ln4z2b009dw28sd01smxlpbpr-ypcb-ddr3-nextpnr-json-seed-19/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/7xy6kyq2p3kcaqvhq8cizmbf668qnc63-ypcb-ddr3-cvc-sdf-seed-19/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-20",
+      "placed_json": "/nix/store/fkym66mwrgcyy24kwsvfn3dnckypx5zs-ypcb-ddr3-nextpnr-json-seed-20/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/lcxc5s8ddg4xd976wmzpwc1afk0h4kid-ypcb-ddr3-cvc-sdf-seed-20/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-21",
+      "placed_json": "/nix/store/pyxw9kl5h4wybm2fxhv397i0m066s8s1-ypcb-ddr3-nextpnr-json-seed-21/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/adg5jq3sd5ajb1rqh9qhjqn6wgzvvlgh-ypcb-ddr3-cvc-sdf-seed-21/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-22",
+      "placed_json": "/nix/store/v4pbkwfmjp0hq1600k3rbrjf6w073i7i-ypcb-ddr3-nextpnr-json-seed-22/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/139i5v6kn2w9b8rfhvv1rwdyp7p9d377-ypcb-ddr3-cvc-sdf-seed-22/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-23",
+      "placed_json": "/nix/store/q71jb15kr9bp0hxz4xwpsbq6vbkqx5i9-ypcb-ddr3-nextpnr-json-seed-23/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/kcc1vg7111008kbf688xb9bpfrwsdj86-ypcb-ddr3-cvc-sdf-seed-23/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-24",
+      "placed_json": "/nix/store/rk5ya4la4yc0231l15jgvzp95nhj9pd4-ypcb-ddr3-nextpnr-json-seed-24/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/h3nm4cvnibjskwfm3ndj9119fdgbsf9z-ypcb-ddr3-cvc-sdf-seed-24/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-25",
+      "placed_json": "/nix/store/npvlk5g083ncx7v3c9i6c1izbjhfnr7p-ypcb-ddr3-nextpnr-json-seed-25/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/fwzl2srsag12qr6h0axl0vh80sr6m63m-ypcb-ddr3-cvc-sdf-seed-25/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-26",
+      "placed_json": "/nix/store/6qy9wxpv9yrmdrb1z66xkpjmialaf37l-ypcb-ddr3-nextpnr-json-seed-26/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/zy1ypv6xrch2gxsjv69hph9xy22jksk9-ypcb-ddr3-cvc-sdf-seed-26/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-27",
+      "placed_json": "/nix/store/gjv1gfpnrwi5f7b3qmp0zjnvwnxqpwis-ypcb-ddr3-nextpnr-json-seed-27/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/fmck9i7wn2im7ldyj5h27s4paph4z6xy-ypcb-ddr3-cvc-sdf-seed-27/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "baseline-no-lock-seed-28",
+      "placed_json": "/nix/store/y9l2l15rp9angzmm33l1ns878xdyan2w-ypcb-ddr3-nextpnr-json-seed-28/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/49lbl68shk0gb11npjnlinxs50cihmd1-ypcb-ddr3-cvc-sdf-seed-28/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-29",
+      "placed_json": "/nix/store/xiy685c6rkxw34q8k0qvq4j5px701yms-ypcb-ddr3-nextpnr-json-seed-29/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/4bmgbm0b5ksq6hbnmqhlkyhih05afb6k-ypcb-ddr3-cvc-sdf-seed-29/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "baseline-no-lock-seed-30",
+      "placed_json": "/nix/store/95sr9d11rflm9pzx6xgsb65a0b66zlg5-ypcb-ddr3-nextpnr-json-seed-30/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "/nix/store/ky5m8jgf8d4860h28aj61rgzsg4pjhm9-ypcb-ddr3-cvc-sdf-seed-30/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    }
+  ],
+  "schema": "uberddr3-sdf-metrics-v1"
+}
