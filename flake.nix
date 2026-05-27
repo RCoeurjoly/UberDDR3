@@ -14,9 +14,94 @@
         lib = pkgs.lib;
         openXc7Shell = toolchain-nix.devShell.${system};
         openXc7Packages = toolchain-nix.packages.${system};
-        nextpnrXilinx = openXc7Packages.nextpnr-xilinx;
+        nextpnrXilinx = openXc7Packages.nextpnr-xilinx.overrideAttrs (old: {
+          patches = (old.patches or [ ]) ++ [
+            ./patches/nextpnr-xilinx-heap-fixed-constrained-children.patch
+          ];
+        });
         prjxray = openXc7Packages.prjxray;
         fasm = openXc7Packages.fasm;
+        sdfToolkitClick = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "click";
+          version = "8.2.1";
+          format = "wheel";
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/py3/c/click/click-${version}-py3-none-any.whl";
+            hash = "sha256-YaMmW5FOhQuFMX0LMQnH+M01pnD5Y4ZgBdbvHVF1oSs=";
+          };
+          doCheck = false;
+          pythonImportsCheck = [ "click" ];
+        };
+        sdfToolkitRich = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "rich";
+          version = "14.3.3";
+          format = "wheel";
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/py3/r/rich/rich-${version}-py3-none-any.whl";
+            hash = "sha256-eTQxwfhhmvp9O1KyzeyFlWK5UOoNS2tQU5dhLbjVNi0=";
+          };
+          propagatedBuildInputs = with pkgs.python311Packages; [ markdown-it-py pygments ];
+          doCheck = false;
+          pythonImportsCheck = [ "rich" ];
+        };
+        sdfToolkitAnnotatedDoc = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "annotated-doc";
+          version = "0.0.4";
+          format = "wheel";
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/py3/a/annotated-doc/annotated_doc-${version}-py3-none-any.whl";
+            hash = "sha256-VxrB3GmRxFCyWpwthKNwXirnpTRntdERwk+ouqu+0yA=";
+          };
+          doCheck = false;
+          pythonImportsCheck = [ "annotated_doc" ];
+        };
+        sdfToolkitTyper = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "typer";
+          version = "0.24.1";
+          format = "wheel";
+          src = pkgs.fetchurl {
+            url = "https://files.pythonhosted.org/packages/py3/t/typer/typer-${version}-py3-none-any.whl";
+            hash = "sha256-ESwfDOV4v7TKuf/avGjwMUFuvMIWU2YRuiHwTpqoTJ4=";
+          };
+          propagatedBuildInputs = with pkgs.python311Packages; [
+            shellingham
+          ] ++ [ sdfToolkitAnnotatedDoc sdfToolkitClick sdfToolkitRich ];
+          doCheck = false;
+          pythonImportsCheck = [ "typer" ];
+        };
+        sdfToolkit = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "sdf-toolkit";
+          version = "0.1.1";
+          format = "pyproject";
+          src = pkgs.fetchPypi {
+            pname = "sdf_toolkit";
+            inherit version;
+            hash = "sha256-s5D6TitfRk+7Q6VRiAhFG+D0zQNkqx+gnMURxrQKG1c=";
+          };
+          postPatch = ''
+            substituteInPlace src/sdf_toolkit/parser/sdf.lark \
+              --replace-fail 'STRING: /[a-zA-Z0-9_\/.\[\]\\]+/' 'STRING: /[a-zA-Z0-9_\/.\[\]\\\$:\-]+/'
+          '';
+          nativeBuildInputs = with pkgs.python311Packages; [
+            hatchling
+            hatch-vcs
+          ];
+          propagatedBuildInputs = with pkgs.python311Packages; [
+            jinja2
+            lark
+            networkx
+            sdfToolkitRich
+            sdfToolkitTyper
+          ];
+          doCheck = false;
+          pythonImportsCheck = [ "sdf_toolkit" ];
+          meta = {
+            description = "Python library and CLI toolkit for Standard Delay Format timing files";
+            homepage = "https://github.com/KelvinChung2000/sdf-toolkit";
+            license = pkgs.lib.licenses.asl20;
+            mainProgram = "sdf-toolkit";
+          };
+        };
         originalPrjxrayDb = "${nextpnrXilinx}/share/nextpnr/external/prjxray-db";
         patchedPrjxrayDb = pkgs.runCommand "prjxray-db-kintex7-lioi3-tbytesrc-oclkm-overlay" { } ''
           mkdir -p $out
@@ -65,6 +150,20 @@ DBEOF
         };
 
         src = self;
+        uberddr3SdfCompare = pkgs.writeShellApplication {
+          name = "uberddr3-sdf-compare";
+          runtimeInputs = [ pkgs.python3 ];
+          text = ''
+            exec python3 ${src}/scripts/uberddr3_sdf_compare.py "$@"
+          '';
+        };
+        uberddr3SdfMetrics = pkgs.writeShellApplication {
+          name = "uberddr3-sdf-metrics";
+          runtimeInputs = [ pkgs.python3 sdfToolkit ];
+          text = ''
+            exec python3 ${src}/scripts/uberddr3_sdf_metrics.py "$@"
+          '';
+        };
         ypcbSrcs = lib.concatStringsSep " " ypcb.sources;
 
         writeToolMetadata = ''
@@ -111,7 +210,7 @@ DBEOF
           cp -R metadata $out/metadata
         '';
 
-        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null }:
+        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false }:
           let
             seedArg = if seed == null then "" else "--seed ${toString seed}";
             placerArg = if placer == null then "" else "--placer ${placer}";
@@ -121,6 +220,11 @@ DBEOF
                 --locks-json ${src}/${lockFile} \
                 --out-py ypcb_bel_locks_pre_place.py
               prePlaceArg="--pre-place ypcb_bel_locks_pre_place.py"
+            '';
+            checkLockSetup = if lockFile == null || !assertLocks then "" else ''
+              python3 ${src}/scripts/check_nextpnr_bel_locks.py \
+                --locks-json ${src}/${lockFile} \
+                --placed-json $out/${ypcb.project}.placed.json
             '';
           in pkgs.runCommand name {
             nativeBuildInputs = [ nextpnrXilinx pkgs.python3 pkgs.jq pkgs.coreutils ];
@@ -138,6 +242,7 @@ DBEOF
               --freq ${ypcb.freqMHz} \
               ${seedArg} ${placerArg} ${routerArg} ${pnrArgs} $prePlaceArg \
               2>&1 | tee metadata/nextpnr.log
+            ${checkLockSetup}
             sha256sum $out/${ypcb.project}.placed.json > metadata/nextpnr-json.sha256
             grep -E "(Checksum|checksum|Placed|Routed|Error|Warning|Info: Device utilisation|Info: Critical path)" metadata/nextpnr.log > metadata/nextpnr-summary.txt || true
             OUT_JSON="$out/${ypcb.project}.placed.json" python3 - <<'PY' > metadata/cell-summary.json
@@ -153,6 +258,50 @@ print(json.dumps({"cell_count": len(cells), "type_counts": dict(sorted(types.ite
 PY
             cat > metadata/candidate.json <<META
 {"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}}
+META
+            cp -R metadata $out/metadata
+          '';
+
+        mkSdf = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false, cvc ? false }:
+          let
+            seedArg = if seed == null then "" else "--seed ${toString seed}";
+            placerArg = if placer == null then "" else "--placer ${placer}";
+            routerArg = if router == null then "" else "--router ${router}";
+            cvcArg = if cvc then "--sdf-cvc" else "";
+            sdfFile = if cvc then "${ypcb.project}.cvc.sdf" else "${ypcb.project}.sdf";
+            lockSetup = if lockFile == null then "" else ''
+              python3 ${src}/${ypcb.boardDir}/scripts/generate_nextpnr_pre_place_bel_locks.py \
+                --locks-json ${src}/${lockFile} \
+                --out-py ypcb_bel_locks_pre_place.py
+              prePlaceArg="--pre-place ypcb_bel_locks_pre_place.py"
+            '';
+            checkLockSetup = if lockFile == null || !assertLocks then "" else ''
+              python3 ${src}/scripts/check_nextpnr_bel_locks.py \
+                --locks-json ${src}/${lockFile} \
+                --placed-json $out/${ypcb.project}.placed.json
+            '';
+          in pkgs.runCommand name {
+            nativeBuildInputs = [ nextpnrXilinx pkgs.python3 pkgs.jq pkgs.coreutils ];
+          } ''
+            cp -R ${src}/${ypcb.boardDir}/${ypcb.project}.xdc .
+            mkdir -p $out metadata
+            prePlaceArg=""
+            ${lockSetup}
+            nextpnr-xilinx \
+              --chipdb ${ypcbDdr3Chipdb}/${ypcb.dbpart}.bin \
+              --xdc ${ypcb.project}.xdc \
+              --json ${ypcbDdr3YosysJson}/${ypcb.project}.json \
+              --write $out/${ypcb.project}.placed.json \
+              --freq ${ypcb.freqMHz} \
+              ${seedArg} ${placerArg} ${routerArg} ${pnrArgs} $prePlaceArg ${cvcArg} \
+              --sdf $out/${sdfFile} \
+              2>&1 | tee metadata/nextpnr-sdf.log
+            ${checkLockSetup}
+            sha256sum $out/${sdfFile} > metadata/sdf.sha256
+            sha256sum $out/${ypcb.project}.placed.json > metadata/nextpnr-json.sha256
+            grep -E "(Checksum|checksum|Placed|Routed|Error|Warning|Info: Device utilisation|Info: Critical path)" metadata/nextpnr-sdf.log > metadata/nextpnr-sdf-summary.txt || true
+            cat > metadata/candidate.json <<META
+{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "sdf_cvc": ${if cvc then "true" else "false"}}
 META
             cp -R metadata $out/metadata
           '';
@@ -197,16 +346,20 @@ META
             cp -R metadata $out/metadata
           '';
 
-        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null }:
+        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, assertLocks ? false }:
           let
-            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile; };
+            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; };
             fasmDrv = mkFasm { name = "ypcb-ddr3-fasm-${suffix}"; nextpnrJson = pnr; };
             frames = mkFrames { name = "ypcb-ddr3-frames-${suffix}"; inherit fasmDrv; };
             bitstream = mkBitstream { name = "ypcb-ddr3-bitstream-${suffix}"; framesDrv = frames; };
-          in { inherit pnr fasmDrv frames bitstream; };
+            sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; };
+            cvcSdf = mkSdf { name = "ypcb-ddr3-cvc-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile assertLocks; cvc = true; };
+          in { inherit pnr fasmDrv frames bitstream sdf cvcSdf; };
 
         baseline = mkCandidate { suffix = "baseline"; };
         robustLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_locks.json";
+        idelayControlLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_cntvaluein_locks_seed3.json";
+        idelayControlFullLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_control_locks_seed3.json";
         seedCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
         robustCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
@@ -216,18 +369,80 @@ META
             lockFile = robustLock;
             pnrArgs = "--no-tmdriv";
           });
+        noTmdrivCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-no-tmdriv";
+            seed = lib.toInt seed;
+            pnrArgs = "--no-tmdriv";
+          });
+        resetLockOnlyCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-reset-locks-only";
+            seed = lib.toInt seed;
+            lockFile = robustLock;
+          });
+        idelayControlLockCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-idelay-control-locked";
+            seed = lib.toInt seed;
+            lockFile = idelayControlLock;
+            assertLocks = true;
+          });
+        idelayControlFullLockCandidates = lib.genAttrs [ "1" "2" "3" "4" "5" ] (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-idelay-control-full-locked";
+            seed = lib.toInt seed;
+            lockFile = idelayControlFullLock;
+            assertLocks = true;
+          });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
+        seedSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}" candidate.sdf) seedCandidates;
+        seedCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}" candidate.cvcSdf) seedCandidates;
         robustBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-robust" candidate.bitstream) robustCandidates;
         robustPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-robust" candidate.pnr) robustCandidates;
         robustFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}-robust" candidate.fasmDrv) robustCandidates;
+        robustSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-robust" candidate.sdf) robustCandidates;
+        robustCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-robust" candidate.cvcSdf) robustCandidates;
+        noTmdrivBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-no-tmdriv" candidate.bitstream) noTmdrivCandidates;
+        noTmdrivSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-no-tmdriv" candidate.sdf) noTmdrivCandidates;
+        noTmdrivCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-no-tmdriv" candidate.cvcSdf) noTmdrivCandidates;
+        resetLockOnlyBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-reset-locks-only" candidate.bitstream) resetLockOnlyCandidates;
+        resetLockOnlySdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-reset-locks-only" candidate.sdf) resetLockOnlyCandidates;
+        resetLockOnlyCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-reset-locks-only" candidate.cvcSdf) resetLockOnlyCandidates;
+        idelayControlLockPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-idelay-control-locked" candidate.pnr) idelayControlLockCandidates;
+        idelayControlLockBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-idelay-control-locked" candidate.bitstream) idelayControlLockCandidates;
+        idelayControlLockSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-control-locked" candidate.sdf) idelayControlLockCandidates;
+        idelayControlLockCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-control-locked" candidate.cvcSdf) idelayControlLockCandidates;
+        idelayControlFullLockPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-idelay-control-full-locked" candidate.pnr) idelayControlFullLockCandidates;
+        idelayControlFullLockBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-idelay-control-full-locked" candidate.bitstream) idelayControlFullLockCandidates;
+        idelayControlFullLockSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-control-full-locked" candidate.sdf) idelayControlFullLockCandidates;
+        idelayControlFullLockCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-control-full-locked" candidate.cvcSdf) idelayControlFullLockCandidates;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -237,7 +452,25 @@ META
           '';
         };
 
+        apps = {
+          sdf-toolkit = {
+            type = "app";
+            program = "${sdfToolkit}/bin/sdf-toolkit";
+          };
+          uberddr3-sdf-compare = {
+            type = "app";
+            program = "${uberddr3SdfCompare}/bin/uberddr3-sdf-compare";
+          };
+          uberddr3-sdf-metrics = {
+            type = "app";
+            program = "${uberddr3SdfMetrics}/bin/uberddr3-sdf-metrics";
+          };
+        };
+
         packages = {
+          sdf-toolkit = sdfToolkit;
+          uberddr3-sdf-compare = uberddr3SdfCompare;
+          uberddr3-sdf-metrics = uberddr3SdfMetrics;
           ypcb-ddr3-yosys-json = ypcbDdr3YosysJson;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
@@ -248,10 +481,30 @@ META
           ypcb-ddr3-frames-baseline = baseline.frames;
           ypcb-ddr3-bitstream = baseline.bitstream;
           ypcb-ddr3-bitstream-baseline = baseline.bitstream;
+          ypcb-ddr3-sdf = baseline.sdf;
+          ypcb-ddr3-sdf-baseline = baseline.sdf;
+          ypcb-ddr3-cvc-sdf = baseline.cvcSdf;
+          ypcb-ddr3-cvc-sdf-baseline = baseline.cvcSdf;
           default = baseline.bitstream;
-        } // seedBitstreams // seedPnrs // seedFasms
+        } // seedBitstreams // seedPnrs // seedFasms // seedSdfs // seedCvcSdfs
           // robustBitstreams
           // robustPnrs
-          // robustFasms;
+          // robustFasms
+          // robustSdfs
+          // robustCvcSdfs
+          // noTmdrivBitstreams
+          // noTmdrivSdfs
+          // noTmdrivCvcSdfs
+          // resetLockOnlyBitstreams
+          // resetLockOnlySdfs
+          // resetLockOnlyCvcSdfs
+          // idelayControlLockPnrs
+          // idelayControlLockBitstreams
+          // idelayControlLockSdfs
+          // idelayControlLockCvcSdfs
+          // idelayControlFullLockPnrs
+          // idelayControlFullLockBitstreams
+          // idelayControlFullLockSdfs
+          // idelayControlFullLockCvcSdfs;
       });
 }

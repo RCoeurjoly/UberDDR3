@@ -1,0 +1,76 @@
+diff --git a/common/placer_heap.cc b/common/placer_heap.cc
+index 0216c9d1..74f5ce86 100644
+--- a/common/placer_heap.cc
++++ b/common/placer_heap.cc
+@@ -519,10 +519,57 @@ class HeAPPlacer
+         return false;
+     }
+ 
++    void place_fixed_children(CellInfo *cell)
++    {
++        NPNR_ASSERT(cell->bel != BelId());
++        Loc base = ctx->getBelLocation(cell->bel);
++        for (auto child : cell->constr_children) {
++            Loc cloc = base;
++            if (child->constr_x != child->UNCONSTR)
++                cloc.x += child->constr_x;
++            if (child->constr_y != child->UNCONSTR)
++                cloc.y += child->constr_y;
++            if (child->constr_z != child->UNCONSTR)
++                cloc.z = child->constr_abs_z ? child->constr_z : (base.z + child->constr_z);
++
++            BelId target = ctx->getBelByLocation(cloc);
++            if (target == BelId())
++                log_error("No Bel found for fixed child cell '%s' at constrained location (%d, %d, %d)\n",
++                          child->name.c_str(ctx), cloc.x, cloc.y, cloc.z);
++            if (ctx->getBelType(target) != child->type)
++                log_error("Bel '%s' of type '%s' does not match fixed child cell '%s' of type '%s'\n",
++                          ctx->getBelName(target).c_str(ctx), ctx->getBelType(target).c_str(ctx),
++                          child->name.c_str(ctx), child->type.c_str(ctx));
++            if (!ctx->isValidBelForCell(child, target))
++                log_error("Bel '%s' is not valid for fixed child cell '%s'\n",
++                          ctx->getBelName(target).c_str(ctx), child->name.c_str(ctx));
++
++            if (child->bel != BelId()) {
++                if (child->bel != target)
++                    log_error("Fixed child cell '%s' is already bound to '%s', expected constrained Bel '%s'\n",
++                              child->name.c_str(ctx), ctx->getBelName(child->bel).c_str(ctx),
++                              ctx->getBelName(target).c_str(ctx));
++            } else {
++                CellInfo *bound = ctx->getBoundBelCell(target);
++                if (bound != nullptr)
++                    log_error("Fixed child cell '%s' cannot be bound to Bel '%s' since it is already bound to cell '%s'\n",
++                              child->name.c_str(ctx), ctx->getBelName(target).c_str(ctx), bound->name.c_str(ctx));
++                ctx->bindBel(target, child, STRENGTH_STRONG);
++            }
++            place_fixed_children(child);
++        }
++    }
++
+     // Build up a random initial placement, without regard to legality
+     // FIXME: Are there better approaches to the initial placement (e.g. greedy?)
+     void seed_placement()
+     {
++        for (auto cell : sorted(ctx->cells)) {
++            if (cell.second->bel != BelId() && cell.second->constr_parent == nullptr &&
++                !cell.second->constr_children.empty())
++                place_fixed_children(cell.second);
++        }
++
+         std::unordered_map<IdString, std::deque<BelId>> available_bels;
+         for (auto bel : ctx->getBels()) {
+             if (!ctx->checkBelAvail(bel))
+@@ -622,6 +669,13 @@ class HeAPPlacer
+             if (!cell->constr_children.empty())
+                 update_chain(cell, cell);
+         }
++        for (auto cell : sorted(ctx->cells)) {
++            if (cell.second->bel == BelId() || cell.second->constr_parent != nullptr ||
++                cell.second->constr_children.empty() || !cell_locs.count(cell.first))
++                continue;
++            chain_size[cell.first] = 1;
++            update_chain(cell.second, cell.second);
++        }
+     }
+ 
+     // Run a function on all ports of a net - including the driver and all users
