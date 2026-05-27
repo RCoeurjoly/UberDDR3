@@ -35,6 +35,15 @@ module ypcb_00338_1p1_ddr3 (
     wire calib_complete;
     wire [31:0] debug1;
     wire [63:0] debug8;
+    wire [31:0] debug_calib_gate;
+    wire [63:0] debug_startup;
+    wire [31:0] debug_idelay;
+    wire [63:0] debug_calib_abort;
+    wire debug_phy_sync_rst;
+    wire [2:0] debug_phy_status;
+    wire [7:0] debug_phy_startup;
+    wire [5*8*BYTE_LANES-1:0] debug_idelay_data_cntvalueout;
+    wire [5*BYTE_LANES-1:0] debug_idelay_dqs_cntvalueout;
     wire [63:0] bist_counts;
     wire [959:0] jtag_debug_payload;
     wire jtag_debug_selected;
@@ -126,6 +135,15 @@ module ypcb_00338_1p1_ddr3 (
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
         .o_debug8(debug8),
+        .o_debug_calib_gate(debug_calib_gate),
+        .o_debug_startup(debug_startup),
+        .o_debug_idelay(debug_idelay),
+        .o_debug_calib_abort(debug_calib_abort),
+        .o_debug_phy_sync_rst(debug_phy_sync_rst),
+        .o_debug_phy_status(debug_phy_status),
+        .o_debug_phy_startup(debug_phy_startup),
+        .o_debug_idelay_data_cntvalueout(debug_idelay_data_cntvalueout),
+        .o_debug_idelay_dqs_cntvalueout(debug_idelay_dqs_cntvalueout),
         .o_bist_counts(bist_counts),
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
@@ -134,11 +152,20 @@ module ypcb_00338_1p1_ddr3 (
     assign jtag_debug_payload = {
         448'd0,
         bist_counts,
-        348'd0,
-        8'h01,
+        78'd0,
+        debug_calib_abort,
+        debug_idelay_data_cntvalueout,
+        debug_idelay_dqs_cntvalueout,
+        debug_phy_sync_rst,
+        debug_phy_status,
+        debug_phy_startup,
+        debug_idelay,
+        debug_calib_gate,
+        debug_startup[63:24],
+        8'h03,
         32'h33445244,
         debug1,
-        24'd0,
+        debug_startup[23:0],
         calib_complete,
         bist_done,
         clk_locked,

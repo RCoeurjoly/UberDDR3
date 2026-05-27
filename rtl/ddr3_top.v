@@ -120,6 +120,15 @@ module ddr3_top #(
         // Debug outputs
         output wire[31:0] o_debug1,
         output wire[63:0] o_debug8,
+        output wire[31:0] o_debug_calib_gate,
+        output wire[63:0] o_debug_startup,
+        output wire[31:0] o_debug_idelay,
+        output wire[63:0] o_debug_calib_abort,
+        output wire o_debug_phy_sync_rst,
+        output wire[2:0] o_debug_phy_status,
+        output wire[7:0] o_debug_phy_startup,
+        output wire[5*DQ_BITS*BYTE_LANES-1:0] o_debug_idelay_data_cntvalueout,
+        output wire[5*BYTE_LANES-1:0] o_debug_idelay_dqs_cntvalueout,
         output wire[63:0] o_bist_counts,
 //        output wire[31:0] o_debug2,
 //        output wire[31:0] o_debug3,
@@ -222,6 +231,14 @@ ddr3_top #(
     wire[BYTE_LANES-1:0] idelay_data_ld, idelay_dqs_ld;
     wire write_leveling_calib;
     wire reset;
+    wire phy_sync_rst;
+    wire[2:0] phy_debug_status;
+    wire[7:0] phy_debug_startup;
+    wire[63:0] controller_debug_startup;
+    wire[31:0] controller_debug_idelay;
+    wire[63:0] controller_debug_calib_abort;
+    wire[5*DQ_BITS*BYTE_LANES-1:0] idelay_data_cntvalueout;
+    wire[5*BYTE_LANES-1:0] idelay_dqs_cntvalueout;
     
     // logic for self-refresh
     reg[8:0] refresh_counter = 0;
@@ -309,6 +326,8 @@ ddr3_top #(
             .i_phy_iserdes_dqs(iserdes_dqs),
             .i_phy_iserdes_bitslip_reference(iserdes_bitslip_reference),
             .i_phy_idelayctrl_rdy(idelayctrl_rdy),
+            .i_phy_idelay_data_cntvalueout(idelay_data_cntvalueout),
+            .i_phy_idelay_dqs_cntvalueout(idelay_dqs_cntvalueout),
             .o_phy_cmd(cmd),
             .o_phy_dqs_tri_control(dqs_tri_control), 
             .o_phy_dq_tri_control(dq_tri_control),
@@ -331,6 +350,10 @@ ddr3_top #(
             // Debug outputs
             .o_debug1(o_debug1),
             .o_debug8(o_debug8),
+            .o_debug_calib_gate(o_debug_calib_gate),
+            .o_debug_startup(controller_debug_startup),
+            .o_debug_idelay(controller_debug_idelay),
+            .o_debug_calib_abort(controller_debug_calib_abort),
             .o_bist_counts(o_bist_counts),
 //            .o_debug2(o_debug2),
 //            .o_debug3(o_debug3)
@@ -376,6 +399,9 @@ ddr3_top #(
                 .o_controller_iserdes_dqs(iserdes_dqs),
                 .o_controller_iserdes_bitslip_reference(iserdes_bitslip_reference),
                 .o_controller_idelayctrl_rdy(idelayctrl_rdy),
+                .o_debug_idelay_data_cntvalueout(idelay_data_cntvalueout),
+                .o_debug_idelay_dqs_cntvalueout(idelay_dqs_cntvalueout),
+                .o_debug_startup(phy_debug_startup),
                 // DDR3 I/O Interface
                 .o_ddr3_clk_p(o_ddr3_clk_p),
                 .o_ddr3_clk_n(o_ddr3_clk_n),
@@ -393,7 +419,9 @@ ddr3_top #(
                 .o_ddr3_dm(o_ddr3_dm),
                 .o_ddr3_odt(o_ddr3_odt), // on-die termination
                 .o_ddr3_debug_read_dqs_p(/*o_ddr3_debug_read_dqs_p*/),
-                .o_ddr3_debug_read_dqs_n(/*o_ddr3_debug_read_dqs_n*/)
+                .o_ddr3_debug_read_dqs_n(/*o_ddr3_debug_read_dqs_n*/),
+                .o_debug_sync_rst(phy_sync_rst),
+                .o_debug_status(phy_debug_status)
             );
     `else // LATTICE ECP5 PHY
         ddr3_phy_ecp5 #(
@@ -449,7 +477,21 @@ ddr3_top #(
                 .o_ddr3_debug_read_dqs_p(/*o_ddr3_debug_read_dqs_p*/),
                 .o_ddr3_debug_read_dqs_n(/*o_ddr3_debug_read_dqs_n*/)
             );
+        assign idelay_data_cntvalueout = {5*DQ_BITS*BYTE_LANES{1'b0}};
+        assign idelay_dqs_cntvalueout = {5*BYTE_LANES{1'b0}};
+        assign phy_sync_rst = 1'b0;
+        assign phy_debug_status = 3'd0;
+        assign phy_debug_startup = 8'd0;
     `endif 
+
+    assign o_debug_phy_sync_rst = phy_sync_rst;
+    assign o_debug_phy_status = phy_debug_status;
+    assign o_debug_phy_startup = phy_debug_startup;
+    assign o_debug_startup = controller_debug_startup;
+    assign o_debug_idelay = controller_debug_idelay;
+    assign o_debug_calib_abort = controller_debug_calib_abort;
+    assign o_debug_idelay_data_cntvalueout = idelay_data_cntvalueout;
+    assign o_debug_idelay_dqs_cntvalueout = idelay_dqs_cntvalueout;
 
         // // display value of parameters for easy debugging
         // initial begin

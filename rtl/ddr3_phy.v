@@ -70,6 +70,9 @@ module ddr3_phy #(
         output wire[LANES*8-1:0] o_controller_iserdes_dqs,
         output wire[LANES*8-1:0] o_controller_iserdes_bitslip_reference,
         output wire o_controller_idelayctrl_rdy,
+        output wire[5*DQ_BITS*LANES-1:0] o_debug_idelay_data_cntvalueout,
+        output wire[5*LANES-1:0] o_debug_idelay_dqs_cntvalueout,
+        output wire[7:0] o_debug_startup,
         // DDR3 I/O Interface
         output wire[DUAL_RANK_DIMM:0] o_ddr3_clk_p,o_ddr3_clk_n,
         output wire o_ddr3_reset_n,
@@ -86,7 +89,9 @@ module ddr3_phy #(
         output wire[DUAL_RANK_DIMM:0] o_ddr3_odt, // on-die termination
         // DEBUG PHY
         output wire[(DQ_BITS*LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
-        output wire[(DQ_BITS*LANES)/8-1:0] o_ddr3_debug_read_dqs_n
+        output wire[(DQ_BITS*LANES)/8-1:0] o_ddr3_debug_read_dqs_n,
+        output wire o_debug_sync_rst,
+        output wire[2:0] o_debug_status
     );
 
     // cmd bit assignment
@@ -152,6 +157,9 @@ module ddr3_phy #(
     end
                 
     assign o_controller_idelayctrl_rdy = idelayctrl_rdy && dci_locked;
+    assign o_debug_sync_rst = sync_rst;
+    assign o_debug_status = {i_controller_cmd[CMD_CKE], i_controller_cmd[CMD_RESET_N], sync_rst};
+    assign o_debug_startup = {4'd0, dci_locked, idelayctrl_rdy, o_controller_idelayctrl_rdy, sync_rst};
     
 `ifdef DEBUG_DQS
     assign o_ddr3_debug_read_dqs_p = io_ddr3_dqs;
@@ -702,7 +710,7 @@ module ddr3_phy #(
                 .SIGNAL_PATTERN("DATA") //DATA, CLOCK input signal
             )
             IDELAYE2_data (
-                .CNTVALUEOUT(), // 5-bit output: Counter value output
+                .CNTVALUEOUT(o_debug_idelay_data_cntvalueout[5*gen_index +: 5]), // 5-bit output: Counter value output
                 .DATAOUT(idelay_data[gen_index]), // 1-bit output: Delayed data output
                 .C(i_controller_clk), // 1-bit input: Clock input
                 .CE(1'b0), // 1-bit input: Active high enable increment/decrement input
@@ -1195,7 +1203,7 @@ module ddr3_phy #(
                 .SIGNAL_PATTERN("CLOCK") //DATA, CLOCK input signal
             )
             IDELAYE2_dqs (
-                .CNTVALUEOUT(), // 5-bit output: Counter value output
+                .CNTVALUEOUT(o_debug_idelay_dqs_cntvalueout[5*gen_index +: 5]), // 5-bit output: Counter value output
                 .DATAOUT(idelay_dqs[gen_index]), // 1-bit output: Delayed data output
                 .C(i_controller_clk), // 1-bit input: Clock input
                 .CE(1'b0), // 1-bit input: Active high enable increment/decrement input

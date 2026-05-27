@@ -15,9 +15,11 @@ DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "/home/roland/openFPG
 PROGRAMMER_COMMIT = "3ae5e5e"
 DEFAULT_BITS = 960
 MAGIC = 0x33445244
-VERSION = 1
+VERSION = 3
 CALIB_DONE_STATE = 23
 BIST_MODE = 2
+BYTE_LANES = 2
+DQ_BITS = 8
 
 FTDI_VENDOR = 0x0403
 FTDI_FT232H_PRODUCT = 0x6014
@@ -289,8 +291,115 @@ def field(payload, offset, width):
 
 def decode_payload(payload, bit_count):
     debug1 = field(payload, 28, 32)
+    version = field(payload, 92, 8)
+    debug_startup = field(payload, 4, 24) | (field(payload, 100, 40) << 24)
+    debug_calib_gate = field(payload, 140, 32)
+    debug_idelay = field(payload, 172, 32)
+    debug_phy_startup = field(payload, 204, 8)
+    debug_phy_status = field(payload, 212, 3)
+    debug_phy_sync_rst = bool(field(payload, 215, 1))
+    idelay_dqs_cntvalueout_raw = field(payload, 216, 5 * BYTE_LANES)
+    idelay_data_cntvalueout_raw = field(payload, 226, 5 * DQ_BITS * BYTE_LANES)
+    debug_calib_abort = field(payload, 306, 64)
     bist_counts = field(payload, 448, 64)
     debug8 = bist_counts
+
+    idelay_data_cntvalueout = [
+        field(idelay_data_cntvalueout_raw, 5 * index, 5)
+        for index in range(DQ_BITS * BYTE_LANES)
+    ]
+    idelay_dqs_cntvalueout = [
+        field(idelay_dqs_cntvalueout_raw, 5 * index, 5)
+        for index in range(BYTE_LANES)
+    ]
+
+    startup_debug = {
+        "sync_rst_controller": bool(field(debug_startup, 0, 1)),
+        "phy_reset": bool(field(debug_startup, 1, 1)),
+        "reset_from_wb2": bool(field(debug_startup, 2, 1)),
+        "reset_from_calibrate": bool(field(debug_startup, 3, 1)),
+        "reset_from_test": bool(field(debug_startup, 4, 1)),
+        "reset_after_rank_1": bool(field(debug_startup, 5, 1)),
+        "initial_calibration_done": bool(field(debug_startup, 6, 1)),
+        "final_calibration_done": bool(field(debug_startup, 7, 1)),
+        "state_ever_nonzero": bool(field(debug_startup, 8, 1)),
+        "state_returned_idle_after_nonzero": bool(field(debug_startup, 9, 1)),
+        "reset_from_test_ever": bool(field(debug_startup, 10, 1)),
+        "reset_from_calibrate_ever": bool(field(debug_startup, 11, 1)),
+        "reset_from_wb2_ever": bool(field(debug_startup, 12, 1)),
+        "reset_after_rank_1_ever": bool(field(debug_startup, 13, 1)),
+        "idelayctrl_rdy_ever": bool(field(debug_startup, 14, 1)),
+        "sync_rst_released_ever": bool(field(debug_startup, 15, 1)),
+        "phy_reset_released_ever": bool(field(debug_startup, 16, 1)),
+        "sync_rst_reasserted_after_release": bool(field(debug_startup, 17, 1)),
+        "phy_reset_reasserted_after_release": bool(field(debug_startup, 18, 1)),
+        "wrong_read_seen": bool(field(debug_startup, 19, 1)),
+        "done_ever": bool(field(debug_startup, 20, 1)),
+        "instruction_13_ever": bool(field(debug_startup, 21, 1)),
+        "state0_ready_gate_ever": bool(field(debug_startup, 22, 1)),
+        "idelay_load_seen": bool(field(debug_startup, 23, 1)),
+        "idelay_data_load_seen_any": bool(field(debug_startup, 24, 1)),
+        "idelay_dqs_load_seen_any": bool(field(debug_startup, 25, 1)),
+        "idelay_data_tap_mismatch_seen": bool(field(debug_startup, 26, 1)),
+        "idelay_dqs_tap_mismatch_seen": bool(field(debug_startup, 27, 1)),
+        "last_expected_data_tap": field(debug_startup, 28, 5),
+        "last_actual_data_tap": field(debug_startup, 33, 5),
+        "last_expected_dqs_tap": field(debug_startup, 38, 5),
+        "last_actual_dqs_tap": field(debug_startup, 43, 5),
+        "cycles_since_reset_release": field(debug_startup, 48, 16),
+    }
+
+    calib_gate_debug = {
+        "state_calibrate": field(debug_calib_gate, 0, 5),
+        "instruction_address": field(debug_calib_gate, 5, 5),
+        "idelayctrl_rdy": bool(field(debug_calib_gate, 10, 1)),
+        "phy_reset": bool(field(debug_calib_gate, 11, 1)),
+        "sync_rst_controller": bool(field(debug_calib_gate, 12, 1)),
+        "initial_calibration_done": bool(field(debug_calib_gate, 13, 1)),
+        "final_calibration_done": bool(field(debug_calib_gate, 14, 1)),
+    }
+
+    idelay_debug = {
+        "data_load_seen_mask": field(debug_idelay, 0, 8),
+        "dqs_load_seen_mask": field(debug_idelay, 8, 8),
+        "data_mismatch_lane_mask": field(debug_idelay, 16, 8),
+        "dqs_mismatch_lane_mask": field(debug_idelay, 24, 8),
+        "data_cntvalueout": idelay_data_cntvalueout,
+        "dqs_cntvalueout": idelay_dqs_cntvalueout,
+    }
+
+    phy_debug = {
+        "sync_rst": debug_phy_sync_rst,
+        "status_raw": debug_phy_status,
+        "cmd_cke": bool(field(debug_phy_status, 2, 1)),
+        "cmd_reset_n": bool(field(debug_phy_status, 1, 1)),
+        "startup_raw": debug_phy_startup,
+        "startup_sync_rst": bool(field(debug_phy_startup, 0, 1)),
+        "startup_combined_ready": bool(field(debug_phy_startup, 1, 1)),
+        "startup_idelayctrl_rdy": bool(field(debug_phy_startup, 2, 1)),
+        "startup_dci_locked": bool(field(debug_phy_startup, 3, 1)),
+    }
+
+    abort_reason = field(debug_calib_abort, 1, 4)
+    abort_debug = {
+        "seen": bool(field(debug_calib_abort, 0, 1)),
+        "reason": abort_reason,
+        "reason_name": {
+            0: "none",
+            1: "analyze_data_both_assumptions_failed",
+            2: "check_starting_data_search_exhausted",
+            15: "unexpected_reset_from_calibrate_state",
+        }.get(abort_reason, "unknown"),
+        "lane": field(debug_calib_abort, 5, 8),
+        "state_calibrate": field(debug_calib_abort, 13, 5),
+        "instruction_address": field(debug_calib_abort, 18, 5),
+        "start_index_check": field(debug_calib_abort, 23, 8),
+        "lane_write_dq_late": bool(field(debug_calib_abort, 31, 1)),
+        "lane_read_dq_early": bool(field(debug_calib_abort, 32, 1)),
+        "dq_target_index": field(debug_calib_abort, 33, 8),
+        "data_start_index": field(debug_calib_abort, 41, 8),
+    }
+
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -299,12 +408,21 @@ def decode_payload(payload, bit_count):
         "debug1": debug1,
         "state_calibrate": debug1 & 0x1F,
         "magic": field(payload, 60, 32),
-        "version": field(payload, 92, 8),
+        "version": version,
         "debug8": debug8,
         "bist_counts": bist_counts,
         "correct_read_data": field(bist_counts, 0, 32),
         "wrong_read_data": field(bist_counts, 32, 32),
         "bist_mode": BIST_MODE,
+        "debug_startup": debug_startup,
+        "debug_calib_gate": debug_calib_gate,
+        "debug_idelay": debug_idelay,
+        "debug_calib_abort": debug_calib_abort,
+        "startup_debug": startup_debug,
+        "calib_gate_debug": calib_gate_debug,
+        "idelay_debug": idelay_debug,
+        "phy_debug": phy_debug,
+        "abort_debug": abort_debug,
     }
     reasons = []
     if decoded["magic"] != MAGIC:
