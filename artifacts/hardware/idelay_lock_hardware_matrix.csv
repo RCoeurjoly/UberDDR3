@@ -1,0 +1,10 @@
+experiment,seed,pass,attempts,state_calibrate,calib_complete,bist_done,wrong_read_data,correct_read_data,bitstream_sha256,result_file
+baseline,3,True,62,23,True,True,0,100663295,ad8cff2246b93620e1caba74cb98318899a35f582cb52582a59ca53e760fe35c,artifacts/hardware/baseline-seed3.json
+baseline,5,True,62,23,True,True,0,100663295,026ca92843c4eddd7702773bb943fec3ba6ea1a67a6a66f856f14d18a1a0dad5,artifacts/hardware/baseline-seed5.json
+cntvaluein_only,1,True,62,23,True,True,0,100663295,ffd02510487f7ea370f7a3371f9e68d221f7a967a6cfa679e154c2a6605ddf50,artifacts/hardware/idelay-control-locked-seed1.json
+cntvaluein_only,2,True,63,23,True,True,0,100663295,b9ee853031bd37dbce5449f07a0da234e8ace478b833d0447bee35baf40749d5,artifacts/hardware/idelay-control-locked-seed2.json
+cntvaluein_only,3,False,4,17,False,False,1,73,9f5e1de0d49ccc9c1f89b663c06bc815852f600467333a1131344895cca4178e,artifacts/hardware/idelay-control-locked-seed3.json
+cntvaluein_only,4,True,62,23,True,True,0,100663295,e13007b676ac36fe59ae1afddd3a85b6af65f0df032e31bd66550469cf7b4253,artifacts/hardware/idelay-control-locked-seed4.json
+cntvaluein_only,5,False,100,0,False,False,0,0,e6b58efc164a625543ff77bd0ebbb2ac0d047e023ebfd09c83caf823b2af33f3,artifacts/hardware/idelay-control-locked-seed5.json
+cntvaluein_plus_ld_parent,3,False,100,0,False,False,0,0,9342d7af43eeda7e9963f2ff5a2cb23bc88846cc55a5a40ce2676dc8f6edd698,artifacts/hardware/idelay-control-full-locked-seed3.json
+cntvaluein_plus_ld_parent,5,True,63,23,True,True,0,100663295,d3c4a91c9df8d6ae227bd1e39011a9496bd16b23f4e90adb58adced2df7b406a,artifacts/hardware/idelay-control-full-locked-seed5.json

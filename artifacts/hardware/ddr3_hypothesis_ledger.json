@@ -1,0 +1,93 @@
+[
+  {
+    "id": "CE-001",
+    "type": "cause_effect",
+    "status": "active_partially_supported",
+    "hypothesis": "IDELAY programming/control paths to DQ/DQS IDELAYE2 pins are too slow or skewed in failing implementations.",
+    "hardware_signature": "state-17 wrong-read or calibration/BIST failure after startup",
+    "sdf_json_signature": "exact-key IDELAYE2 CNTVALUEIN/LD/control fan-in paths fail-slower; previous seed3 lock-damage p95 +755 ps and 25 dynamic paths >= +500 ps",
+    "narrow_cells_or_paths": "DQ/DQS IDELAYE2 CNTVALUEIN, LD, related control fan-in",
+    "evidence_for": "pass/fail population strict fail-slower separators; same-seed seed3 CNTVALUEIN-only lock-damage comparison preserves selected locks but slows dynamic IDELAY programming paths",
+    "evidence_against": "does not explain every failure; reduced payload-v3 baseline has no tap mismatch and exposes CHECK_STARTING_DATA abort instead",
+    "next_test": "run same RTL/debug variant matrix across seeds and require failures to separate on exact-key IDELAY programming metrics, not seed number",
+    "solution_candidates": "soft IDELAY programming cone floorplan; only minimal absolute locks if exact cells remain causal"
+  },
+  {
+    "id": "CE-002",
+    "type": "cause_effect",
+    "status": "active_newly_exposed",
+    "hypothesis": "Lane-0 data-alignment search in CHECK_STARTING_DATA runs out of valid start-index candidates.",
+    "hardware_signature": "first abort reason 2, lane 0, dq_target_index=35, no data/DQS tap mismatch",
+    "sdf_json_signature": "TBD: compare baseline fail versus locked pass around dq_target_index[0], data_start_index[0], start_index_check, lane_write_dq_late[0], lane_read_dq_early[0]",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA lane-0 decision cone and read sample classification cone",
+    "evidence_for": "payload-v3 reduced seed3 baseline and rerun capture same first abort reason 2; regenerated lock variants pass under same RTL/debug variant",
+    "evidence_against": "observer-perturbed result so far; only proven for seed3 reduced-v3 RTL/debug variant",
+    "next_test": "add narrower lane-0 decision observer and compare SDF/JSON exact-cell metrics for v3-min baseline fail versus locked pass",
+    "solution_candidates": "RTL calibration search robustness; placement locality for lane-0 decision cone if SDF/JSON separates"
+  },
+  {
+    "id": "CE-003",
+    "type": "cause_effect",
+    "status": "active_not_sdf_proven",
+    "hypothesis": "Startup/reset/IDELAYCTRL readiness ordering or reset recovery/removal margin causes state-0 returns.",
+    "hardware_signature": "state 0 after entering calibration; reset_from_calibrate history set; no tap mismatch",
+    "sdf_json_signature": "no clean dynamic slow-path separator yet; likely reset recovery/removal, analog readiness, clock-start ordering, or model gap",
+    "narrow_cells_or_paths": "IDELAYCTRL site/refclk/reset/RDY, delay_before_release_reset, sync_rst, sync_rst_controller, state-0 release cone",
+    "evidence_for": "seed1/seed2 original failures and payload-v2 CNTVALUEIN+LD seed3 failure match this family",
+    "evidence_against": "filtered SDF did not show simple dynamic delay separation for CNTVALUEIN+LD state-0 failure",
+    "next_test": "instrument reset/ready time counters and classify state-0 failures separately from state-17/read-search failures",
+    "solution_candidates": "explicit reset/CDC/generated-clock constraints; startup sequencing RTL changes; IDELAYCTRL locality constraints"
+  },
+  {
+    "id": "SO-001",
+    "type": "solution",
+    "status": "diagnostic_only",
+    "hypothesis": "Absolute BEL locks for selected CNTVALUEIN and LD-parent cells make the implementation robust.",
+    "hardware_signature": "should convert failures to pass without introducing new failure states",
+    "sdf_json_signature": "selected IDELAY programming leaf cells fixed to good-reference BELs; collateral placement/routing must not worsen narrowed metrics",
+    "narrow_cells_or_paths": "10 CNTVALUEIN leaf LUTs plus optional LD-parent LUTs",
+    "evidence_for": "some rows pass or are rescued; reduced-v3 seed3 lock variants pass",
+    "evidence_against": "mixed matrix; earlier seed3/seed5 rows fail under some lock/debug combinations; absolute locks can cause collateral damage",
+    "next_test": "retain as controlled perturbation only; test broad same-RTL matrix before considering workaround status",
+    "solution_candidates": "not final; use to discover narrower cause/effect signatures"
+  },
+  {
+    "id": "SO-002",
+    "type": "solution",
+    "status": "proposed",
+    "hypothesis": "Soft floorplan/region constraint for IDELAY programming plus calibration bookkeeping cone improves robustness.",
+    "hardware_signature": "baseline failing rows become pass while passing rows remain pass",
+    "sdf_json_signature": "reduced distance/skew for the cone without freezing every leaf BEL; exact-key IDELAY/control metrics move toward passing population",
+    "narrow_cells_or_paths": "IDELAY programming, LD/CE/INC/control fan-in, calibration bookkeeping near byte-lane IO/IDELAY columns",
+    "evidence_for": "absolute locks show placement matters but are too brittle",
+    "evidence_against": "not yet tested",
+    "next_test": "define region constraints, build SDF/JSON first, then hardware matrix",
+    "solution_candidates": "next preferred physical constraint experiment"
+  },
+  {
+    "id": "SO-003",
+    "type": "solution",
+    "status": "proposed",
+    "hypothesis": "RTL calibration robustness in CHECK_STARTING_DATA removes placement-dependent lane-0 search exhaustion.",
+    "hardware_signature": "reason-2 CHECK_STARTING_DATA aborts disappear or recover; BIST passes",
+    "sdf_json_signature": "may not require physical signature change; should tolerate existing placement variation",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA search/window logic and lane-0 sample classification",
+    "evidence_for": "CE-002 points to calibration search exhaustion rather than bad tap load",
+    "evidence_against": "need more detailed lane-0 window observer before changing algorithm",
+    "next_test": "capture candidate window bounds and last accepted/rejected start_index_check",
+    "solution_candidates": "algorithm/window/retry change if observer confirms fragile search boundary"
+  },
+  {
+    "id": "SO-004",
+    "type": "solution",
+    "status": "proposed",
+    "hypothesis": "Explicit generated-clock/reset/CDC constraints and startup reset handling remove state-0 sensitivity.",
+    "hardware_signature": "state-0 failures disappear without harming state-17/read-search behavior",
+    "sdf_json_signature": "startup/reset paths are constrained or intentionally false/multicycle; reset/ready sequencing is observable and stable",
+    "narrow_cells_or_paths": "IDELAYCTRL RDY/reset, sync_rst, state_calibrate release, reset ROM instruction path",
+    "evidence_for": "CE-003 state-0 family remains insufficiently explained by dynamic SDF",
+    "evidence_against": "not yet isolated as standalone fix",
+    "next_test": "classify state-0 failures with reset/ready counters before applying constraints",
+    "solution_candidates": "constraint cleanup plus startup sequencing changes"
+  }
+]

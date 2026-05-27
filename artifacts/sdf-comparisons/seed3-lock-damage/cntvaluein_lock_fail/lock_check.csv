@@ -1,0 +1,11 @@
+cell,scope,type,expected_bel,baseline_bel,variant_bel,matches_expected,matches_baseline
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[0],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y65/D6LUT,SLICE_X0Y65/D6LUT,SLICE_X0Y65/D6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[1],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X1Y69/C6LUT,SLICE_X1Y69/C6LUT,SLICE_X1Y69/C6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[2],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X1Y63/C6LUT,SLICE_X1Y63/C6LUT,SLICE_X1Y63/C6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[3],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y65/C6LUT,SLICE_X0Y65/C6LUT,SLICE_X0Y65/C6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_data_cntvaluein[4],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y65/B6LUT,SLICE_X0Y65/B6LUT,SLICE_X0Y65/B6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[0],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X1Y61/D5LUT,SLICE_X1Y61/D5LUT,SLICE_X1Y61/D5LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[1],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y64/B6LUT,SLICE_X0Y64/B6LUT,SLICE_X0Y64/B6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[2],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X3Y62/D6LUT,SLICE_X3Y62/D6LUT,SLICE_X3Y62/D6LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[3],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y64/A5LUT,SLICE_X0Y64/A5LUT,SLICE_X0Y64/A5LUT,True,True
+$abc$179448$lut\ddr3_top_inst.ddr3_phy_inst.i_controller_idelay_dqs_cntvaluein[4],idelay_cntvaluein_leaf,SLICE_LUTX,SLICE_X0Y64/A6LUT,SLICE_X0Y64/A6LUT,SLICE_X0Y64/A6LUT,True,True

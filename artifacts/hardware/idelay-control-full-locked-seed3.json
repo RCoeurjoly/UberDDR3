@@ -1,0 +1,51 @@
+{
+  "attempts": 100,
+  "bitstream": "/nix/store/fywddvdn3d23w771xdl9liqasx8n3c7x-ypcb-ddr3-bitstream-seed-3-idelay-control-full-locked/ypcb_00338_1p1_ddr3_openxc7.bit",
+  "bitstream_sha256": "9342d7af43eeda7e9963f2ff5a2cb23bc88846cc55a5a40ce2676dc8f6edd698",
+  "fail_reasons": [
+    "calib_incomplete",
+    "calib_state_not_done",
+    "bist_not_done"
+  ],
+  "fields": {
+    "bist_counts": 0,
+    "bist_done": false,
+    "bist_mode": 2,
+    "calib_complete": false,
+    "clk_locked": true,
+    "correct_read_data": 0,
+    "debug1": 0,
+    "magic": 860115524,
+    "rst_n": true,
+    "state_calibrate": 0,
+    "version": 1,
+    "wrong_read_data": 0
+  },
+  "finished_at": "2026-05-27T13:00:06.291261+00:00",
+  "jtag": {
+    "backend": "ftdi-mpsse",
+    "bits": 960,
+    "ir_len": 6,
+    "serial": "210299BF3824",
+    "user_ir": 2
+  },
+  "pass": false,
+  "programmer": {
+    "cable": "digilent_hs3",
+    "checkout_commit": "3ae5e5e",
+    "path": "/home/roland/openFPGALoader/build-user/openFPGALoader"
+  },
+  "programming": {
+    "command": [
+      "/home/roland/openFPGALoader/build-user/openFPGALoader",
+      "-c",
+      "digilent_hs3",
+      "--bitstream",
+      "/nix/store/fywddvdn3d23w771xdl9liqasx8n3c7x-ypcb-ddr3-bitstream-seed-3-idelay-control-full-locked/ypcb_00338_1p1_ddr3_openxc7.bit"
+    ],
+    "output": "empty\nJtag frequency : requested 6.00MHz    -> real 6.00MHz   \nOpen file DONE\nParse file DONE\nload program\n\nLoad SRAM: [==                                                ] 3.00%\n\nLoad SRAM: [====                                              ] 7.00%\n\nLoad SRAM: [======                                            ] 11.00%\n\nLoad SRAM: [========                                          ] 15.00%\n\nLoad SRAM: [==========                                        ] 19.00%\n\nLoad SRAM: [============                                      ] 23.00%\n\nLoad SRAM: [==============                                    ] 27.00%\n\nLoad SRAM: [================                                  ] 31.00%\n\nLoad SRAM: [==================                                ] 35.00%\n\nLoad SRAM: [====================                              ] 39.00%\n\nLoad SRAM: [======================                            ] 43.00%\n\nLoad SRAM: [========================                          ] 47.00%\n\nLoad SRAM: [==========================                        ] 51.00%\n\nLoad SRAM: [============================                      ] 55.00%\n\nLoad SRAM: [==============================                    ] 59.00%\n\nLoad SRAM: [================================                  ] 63.00%\n\nLoad SRAM: [==================================                ] 67.00%\n\nLoad SRAM: [====================================              ] 71.00%\n\nLoad SRAM: [======================================            ] 75.00%\n\nLoad SRAM: [========================================          ] 79.00%\n\nLoad SRAM: [==========================================        ] 83.00%\n\nLoad SRAM: [============================================      ] 87.00%\n\nLoad SRAM: [==============================================    ] 91.00%\n\nLoad SRAM: [================================================  ] 95.00%\n\nLoad SRAM: [==================================================] 99.00%\n\nLoad SRAM: [==================================================] 100.00%\n\nDone\nShift IR 35\nir: 1 isc_done 1 isc_ena 0 init 1 done 1\n",
+    "returncode": 0
+  },
+  "raw_hex": "0x000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000133445244000000000000003",
+  "started_at": "2026-05-27T12:59:25.257913+00:00"
+}

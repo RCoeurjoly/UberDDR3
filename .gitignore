@@ -29,3 +29,8 @@ testbench/icarus_sim/uberddr3_sim
 
 # But do not ignore testbench/xsim/test_*.log
 !testbench/xsim/test_*.log
+
+# Generated Nix build result links and bulky SDF scratch dumps.
+result*
+artifacts/sdf-metrics/**/query-json/
+artifacts/sdf-metrics/**/direct_entries.csv

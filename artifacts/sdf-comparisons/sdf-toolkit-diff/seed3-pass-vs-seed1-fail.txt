@@ -1,0 +1,99 @@
+
+Only in A: 24584 entries
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$102/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1070/iopath_A1_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1072/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1074/iopath_A1_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1076/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1096/iopath_A5_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1098/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$114/iopath_A3_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1150/iopath_A2_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1152/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$118/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$122/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$126/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$146/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$150/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$154/iopath_A5_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$158/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$158/iopath_A3_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$160/iopath_A2_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$162/iopath_A2_O5
+
+Only in B: 24874 entries
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$102/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1070/iopath_A2_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1072/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1074/iopath_A2_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1076/iopath_A2_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1096/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1098/iopath_A5_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$114/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1150/iopath_A1_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$1152/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$118/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$122/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$126/iopath_A5_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$146/iopath_A5_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$150/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$154/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$158/iopath_A1_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$158/iopath_A4_O5
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$160/iopath_A1_O6
+  SLICE_LUTX/\$PACKER_GND_NET\$LUT\$162/iopath_A1_O5
+                        Value Differences (50364 total)                         
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━┓
+┃ Cell/Instance/Entry                    ┃ Field    ┃ A      ┃ B      ┃ Delta  ┃
+┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━┩
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6480.0 │ 6510.0 │ 30.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 6449.0 │ 6480.0 │ 31.0   │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.max │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.min │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.avg │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ slow.max │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.min │ 5639.0 │ 5460.0 │ -179.0 │
+│ top//interconnect_\$PACKER_GND_DRV.Y_… │ fast.avg │ 5639.0 │ 5460.0 │ -179.0 │
+└────────────────────────────────────────┴──────────┴────────┴────────┴────────┘

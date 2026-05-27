@@ -1,0 +1,120 @@
+{
+  "field": "slow",
+  "metric": "max",
+  "queries": [
+    {
+      "description": "DQ IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_data_cntvaluein",
+      "pattern": "IDELAYE2_data\\.CNTVALUEIN"
+    },
+    {
+      "description": "DQS IDELAY CNTVALUEIN programming fanout",
+      "family": "idelay_dqs_cntvaluein",
+      "pattern": "IDELAYE2_dqs\\.CNTVALUEIN"
+    },
+    {
+      "description": "IDELAY load-strobe fanout",
+      "family": "idelay_ld",
+      "pattern": "IDELAYE2_(data|dqs)\\.LD"
+    },
+    {
+      "description": "IDELAY CE/INC fanout",
+      "family": "idelay_ce_inc",
+      "pattern": "IDELAYE2_(data|dqs)\\.(CE|INC)"
+    },
+    {
+      "description": "DQ IOLOGIC/IDELAY/SERDES paths",
+      "family": "dq_iologic",
+      "pattern": "(IOBUF_data|IDELAYE2_data|ISERDESE2_data|OSERDESE2_data)"
+    },
+    {
+      "description": "DQS IOLOGIC/IDELAY/SERDES paths",
+      "family": "dqs_iologic",
+      "pattern": "(IOBUFDS_dqs|IDELAYE2_dqs|ISERDESE2_dqs|OSERDESE2_dqs)"
+    },
+    {
+      "description": "IDELAYCTRL/RDY paths",
+      "family": "idelayctrl",
+      "pattern": "(IDELAYCTRL|CTRL_DUP|RDY)"
+    },
+    {
+      "description": "PHY reset-release delay chain",
+      "family": "reset_release",
+      "pattern": "delay_before_release_reset"
+    },
+    {
+      "description": "Generated DDR clocks and clock distribution",
+      "family": "clocking",
+      "pattern": "(MMCM|PLL|BUFG|BUFIO|BUFR|clk_wiz|controller_clk|ddr3_clk|clk_90|ref_clk)"
+    }
+  ],
+  "samples": [
+    {
+      "label": "seed1-fail",
+      "placed_json": "result-sdf-seed1-fail/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed1-fail/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "seed2-fail",
+      "placed_json": "result-sdf-seed2-fail/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed2-fail/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "fail"
+    },
+    {
+      "label": "seed3-pass",
+      "placed_json": "result-sdf-seed3-pass/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed3-pass/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "seed4-pass",
+      "placed_json": "result-sdf-seed4-pass/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed4-pass/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "seed5-pass",
+      "placed_json": "result-sdf-seed5-pass/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed5-pass/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "pass"
+    },
+    {
+      "label": "seed1-no-tmdriv",
+      "placed_json": "result-sdf-seed1-no-tmdriv/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed1-no-tmdriv/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "no_tmdriv"
+    },
+    {
+      "label": "seed2-no-tmdriv",
+      "placed_json": "result-sdf-seed2-no-tmdriv/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed2-no-tmdriv/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "no_tmdriv"
+    },
+    {
+      "label": "seed1-reset-locks-only",
+      "placed_json": "result-sdf-seed1-reset-locks-only/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed1-reset-locks-only/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "reset_locks_only"
+    },
+    {
+      "label": "seed2-reset-locks-only",
+      "placed_json": "result-sdf-seed2-reset-locks-only/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed2-reset-locks-only/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "reset_locks_only"
+    },
+    {
+      "label": "seed1-robust",
+      "placed_json": "result-sdf-seed1-robust/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed1-robust/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "robust"
+    },
+    {
+      "label": "seed2-robust",
+      "placed_json": "result-sdf-seed2-robust/ypcb_00338_1p1_ddr3.placed.json",
+      "sdf": "result-sdf-seed2-robust/ypcb_00338_1p1_ddr3.cvc.sdf",
+      "status": "robust"
+    }
+  ],
+  "schema": "uberddr3-sdf-metrics-v1"
+}

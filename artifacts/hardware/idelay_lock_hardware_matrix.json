@@ -1,0 +1,123 @@
+{
+  "conclusion": "CNTVALUEIN-only locks rescue baseline-failing seeds 1 and 2 but are not universal: seed 3 and seed 5 fail under that lock set while current baseline seeds 3 and 5 pass. Adding LD parent LUT locks rescues seed 5 but seed 3 still fails, so absolute locks to a passing seed placement are not yet a deterministic solution.",
+  "generated_from": "artifacts/hardware/*.json",
+  "rows": [
+    {
+      "attempts": 62,
+      "bist_done": true,
+      "bitstream_sha256": "ad8cff2246b93620e1caba74cb98318899a35f582cb52582a59ca53e760fe35c",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "baseline",
+      "pass": true,
+      "result_file": "artifacts/hardware/baseline-seed3.json",
+      "seed": 3,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 62,
+      "bist_done": true,
+      "bitstream_sha256": "026ca92843c4eddd7702773bb943fec3ba6ea1a67a6a66f856f14d18a1a0dad5",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "baseline",
+      "pass": true,
+      "result_file": "artifacts/hardware/baseline-seed5.json",
+      "seed": 5,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 62,
+      "bist_done": true,
+      "bitstream_sha256": "ffd02510487f7ea370f7a3371f9e68d221f7a967a6cfa679e154c2a6605ddf50",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "cntvaluein_only",
+      "pass": true,
+      "result_file": "artifacts/hardware/idelay-control-locked-seed1.json",
+      "seed": 1,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 63,
+      "bist_done": true,
+      "bitstream_sha256": "b9ee853031bd37dbce5449f07a0da234e8ace478b833d0447bee35baf40749d5",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "cntvaluein_only",
+      "pass": true,
+      "result_file": "artifacts/hardware/idelay-control-locked-seed2.json",
+      "seed": 2,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 4,
+      "bist_done": false,
+      "bitstream_sha256": "9f5e1de0d49ccc9c1f89b663c06bc815852f600467333a1131344895cca4178e",
+      "calib_complete": false,
+      "correct_read_data": 73,
+      "experiment": "cntvaluein_only",
+      "pass": false,
+      "result_file": "artifacts/hardware/idelay-control-locked-seed3.json",
+      "seed": 3,
+      "state_calibrate": 17,
+      "wrong_read_data": 1
+    },
+    {
+      "attempts": 62,
+      "bist_done": true,
+      "bitstream_sha256": "e13007b676ac36fe59ae1afddd3a85b6af65f0df032e31bd66550469cf7b4253",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "cntvaluein_only",
+      "pass": true,
+      "result_file": "artifacts/hardware/idelay-control-locked-seed4.json",
+      "seed": 4,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 100,
+      "bist_done": false,
+      "bitstream_sha256": "e6b58efc164a625543ff77bd0ebbb2ac0d047e023ebfd09c83caf823b2af33f3",
+      "calib_complete": false,
+      "correct_read_data": 0,
+      "experiment": "cntvaluein_only",
+      "pass": false,
+      "result_file": "artifacts/hardware/idelay-control-locked-seed5.json",
+      "seed": 5,
+      "state_calibrate": 0,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 100,
+      "bist_done": false,
+      "bitstream_sha256": "9342d7af43eeda7e9963f2ff5a2cb23bc88846cc55a5a40ce2676dc8f6edd698",
+      "calib_complete": false,
+      "correct_read_data": 0,
+      "experiment": "cntvaluein_plus_ld_parent",
+      "pass": false,
+      "result_file": "artifacts/hardware/idelay-control-full-locked-seed3.json",
+      "seed": 3,
+      "state_calibrate": 0,
+      "wrong_read_data": 0
+    },
+    {
+      "attempts": 63,
+      "bist_done": true,
+      "bitstream_sha256": "d3c4a91c9df8d6ae227bd1e39011a9496bd16b23f4e90adb58adced2df7b406a",
+      "calib_complete": true,
+      "correct_read_data": 100663295,
+      "experiment": "cntvaluein_plus_ld_parent",
+      "pass": true,
+      "result_file": "artifacts/hardware/idelay-control-full-locked-seed5.json",
+      "seed": 5,
+      "state_calibrate": 23,
+      "wrong_read_data": 0
+    }
+  ]
+}
