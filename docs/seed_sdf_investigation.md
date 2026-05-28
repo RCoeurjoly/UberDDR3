@@ -877,3 +877,48 @@ Conclusion:
 - SO-006 remains rejected as a final fix. It is useful as a perturbation that generated a cleaner pass/fail population, not as a constraint to ship.
 - The next cause/effect test should either add a focused reason-2 observer for the `CHECK_STARTING_DATA` accepted/rejected candidate window, or create a soft byte-lane locality/floorplan intervention and verify that it moves the broader skew/IOLOGIC signature and held-out pass rate together.
 
+### Seed 31..60 Paired CNTVALUEIN3-Lock Matrix: 2026-05-28
+
+Artifacts:
+
+- build manifest: `artifacts/builds/seed-31-60-baseline-cntvaluein3-lock/`
+- hardware sweep: `artifacts/hardware/seed-31-60-baseline-cntvaluein3-lock/`
+- baseline SDF metrics: `artifacts/sdf-metrics/seed-31-60-baseline-no-lock/`
+- locked SDF metrics: `artifacts/sdf-metrics/seed-31-60-cntvaluein3-lock/`
+- signed-skew transition analysis: `artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock-prepost-signed-skew/`
+- findings summary: `artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock-prepost-signed-skew/findings.md`
+
+This matrix extends the paired baseline versus CNTVALUEIN3-lock experiment to seeds 31..60 with long-poll hardware testing. The hardware transition counts are:
+
+| transition | seeds |
+| --- | ---: |
+| fail -> pass | 13 |
+| fail -> fail | 3 |
+| pass -> fail | 8 |
+| pass -> pass | 6 |
+
+The lock improves aggregate pass count from 14/30 baseline to 19/30 locked, but it damages 8 passing baselines. Therefore the exact two-LUT CNTVALUEIN3 BEL lock remains rejected as a final solution. It is a useful perturbation, not a robust integration constraint.
+
+The larger signed-skew analysis strengthens CE-006 but shifts its narrow target. The original 13-pair result was lane0 ctrl3-heavy; the 30-pair matrix instead ranks signed DQS-minus-DQ CNTVALUEIN relations mostly in lane0 ctrl0/ctrl2:
+
+| feature | pass-to-fail median delta ps | fail-to-pass median delta ps |
+| --- | ---: | ---: |
+| lane0 dq7 ctrl0 signed DQS-DQ | -576.5 | 240 |
+| lane0 dq7 ctrl2 signed DQS-DQ | 551.5 | -229 |
+| lane0 dq3 ctrl0 signed DQS-DQ | -462 | 323 |
+| lane0 dq1 ctrl2 signed DQS-DQ | 448.5 | -292 |
+| lane0 dq4 ctrl2 signed DQS-DQ | 374 | -318 |
+| lane0 dq5 ctrl0 signed DQS-DQ | -505.5 | 208 |
+
+Interpretation:
+
+- CE-006 is strengthened as a signed/order-sensitive IDELAY programming hypothesis, not an absolute-skew hypothesis.
+- The exact `abs(dqs1-dq14) CNTVALUEIN3` target is demoted to a proxy. It is not sufficient as an SDF acceptance criterion.
+- No strict separator exists in the new transition table; the next solution must be SDF-gated before hardware. If a proposed RTL or constraint change does not move the intended signed DQS-vs-DQ and LD-vs-CNTVALUEIN features in the expected direction, the hardware result should not be used as evidence for that solution.
+
+Next test:
+
+1. Build an RTL shadow/load handshake or soft lane0 IDELAY-programming locality intervention.
+2. Reject candidate bitstreams before programming unless signed DQS-vs-DQ and LD-vs-CNTVALUEIN features move into the accepted band.
+3. Hardware-test held-out seeds only after the intended SDF signature moves.
+

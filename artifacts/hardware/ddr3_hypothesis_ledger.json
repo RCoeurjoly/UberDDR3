@@ -143,16 +143,16 @@
     "type": "cause_effect"
   },
   {
-    "evidence_against": "n=2 pass-to-fail rows is small; broad sign churn occurs even in pass-to-pass rows; these signed features may still be proxies for broader routing or calibration-window changes",
-    "evidence_for": "seed30 improves the original abs(dqs1-dq14) metric but fails after signed/order changes; pass-to-fail enriched features are lane0/ctrl3-heavy, matching the reason-2 lane0 abort signature; fail-to-pass rows do not consistently share those specific flips",
-    "hardware_signature": "pass controls seed28 and seed30 become reason-2 lane0 CHECK_STARTING_DATA failures under CNTVALUEIN3 lock; some baseline reason-2 failures become passing under the same perturbation",
+    "evidence_against": "No strict separator exists in the new 30-pair transition table; sign flips and absolute improvements also occur in pass_to_pass and fail_to_fail rows. Top controls differ from the earlier 13-pair ctrl3-heavy result, so the exact feature identity is not yet stable enough for a constraint. The lock is a mixed intervention, not a controlled signed-skew fix.",
+    "evidence_for": "The larger paired matrix has enough fail_to_pass and pass_to_fail rows to compare opposite hardware transitions. The same CNTVALUEIN3-lock perturbation can rescue or damage depending on signed DQS-vs-DQ movement, and the top contrasts are DDR IDELAY programming skew families rather than unrelated logic. Baseline and locked pass/fail rankings also keep IDELAY CNTVALUEIN/LD skew near the top, though with overlap.",
+    "hardware_signature": "30 held-out seed pairs 31..60 under baseline versus CNTVALUEIN3-lock produce all transition classes: fail_to_pass=13, fail_to_fail=3, pass_to_fail=8, pass_to_pass=6. The lock improves locked pass count 19/30 versus baseline 14/30, but damages eight passing baselines, so it is not a fix.",
     "hypothesis": "Residual and damaged-lock DDR3 failures are caused by signed/order-sensitive IDELAY programming relationships, especially lane0 CNTVALUEIN3 DQS-vs-DQ and lane0 DQS LD-vs-CNTVALUEIN3, rather than scalar absolute skew alone.",
     "id": "CE-006",
-    "narrow_cells_or_paths": "lane0 IDELAYE2_dqs dqs0 CNTVALUEIN3, lane0 IDELAYE2_data dq0/dq1/dq4/dq6 CNTVALUEIN3, lane0 DQS LD path, and their signed relation to the calibration CHECK_STARTING_DATA decision point",
-    "next_test": "create a solution hypothesis that protects or deliberately moves lane0 ctrl3 signed DQS-vs-DQ and LD-vs-CNTVALUEIN3 relations, gate the bitstreams by pre-hardware SDF signed-skew acceptance, then test held-out hardware pass rate",
-    "sdf_json_signature": "paired pre/post signed-skew analysis over 13 seed pairs and 124 signed features per seed finds seven pass-to-fail enriched sign-flip features: lane0 ctrl3 DQS-vs-DQ bit/median signed skew and lane0 dqs0 LD-vs-CNTVALUEIN3; both pass-to-fail rows flip these while at most one of five fail-to-pass rows flips them",
-    "solution_candidates": "RTL shadow/load handshake for CNTVALUEIN3 before LD; lane0 byte-lane locality/floorplan constraint covering DQS/DQ CNTVALUEIN3 and LD source cones; avoid exact BEL locks unless the signed SDF acceptance check passes",
-    "status": "active_signed_order_hypothesis_small_n",
+    "narrow_cells_or_paths": "Lane0 DQS-vs-DQ IDELAY CNTVALUEIN signed relations across ctrl0/ctrl2 and selected bits dq0..dq7, plus LD-vs-CNTVALUEIN DQS relations; original lane1 dqs1-dq14 ctrl3 absolute skew is demoted to a proxy, not a sufficient scalar target.",
+    "next_test": "Turn CE-006 into a controlled intervention: build a candidate RTL shadow/load handshake or soft lane0 IDELAY-programming locality constraint, reject bitstreams before hardware unless the intended signed DQS-vs-DQ and LD-vs-CNTVALUEIN features move into the accepted band, then hardware-test held-out seeds.",
+    "sdf_json_signature": "Seed31..60 pre/post signed-skew analysis over 30 paired bitstreams and 124 signed features per seed: strongest pass-to-fail versus fail-to-pass contrasts are signed DQS-minus-DQ CNTVALUEIN relations, mainly lane0 ctrl0/ctrl2. Top examples: lane0 dq7 ctrl0 pass_to_fail median delta -576.5 ps versus fail_to_pass +240 ps; lane0 dq7 ctrl2 +551.5 ps versus -229 ps; lane0 dq3 ctrl0 -462 ps versus +323 ps; lane0 dq1 ctrl2 +448.5 ps versus -292 ps. LD-vs-CNTVALUEIN DQS remains present but lower ranked.",
+    "solution_candidates": "RTL shadow/register CNTVALUEIN before LD with explicit load/readback sequencing; soft lane0 byte-lane locality/floorplan for DQS/DQ CNTVALUEIN and LD cones; SDF-gated acceptance criteria before hardware; avoid exact BEL locks as final solution.",
+    "status": "active_signed_order_hypothesis_strengthened_shifted",
     "type": "cause_effect"
   }
 ]
