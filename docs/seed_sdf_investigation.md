@@ -774,6 +774,52 @@ The strongest refined statement is:
 - The exact BEL source lock is not a sufficient solution hypothesis because it does not reliably move the target SDF skew, and it can damage passing seeds.
 - Any future solution hypothesis must include a pre-hardware SDF acceptance check: build the candidate, measure the target skew/topology, and only then interpret hardware pass/fail as a test of that cause.
 
+### CNTVALUEIN3 Lock Pre/Post Signed-Skew Analysis: 2026-05-28
+
+The next refinement compared signed derived skew features before and after the CNTVALUEIN3 lock, joined by seed and classified by hardware transition. This uses the standard semantic SDF pipeline: normalized SDF metrics -> derived skew features -> paired pre/post transition comparison.
+
+Artifacts:
+
+- locked unique metrics: `artifacts/sdf-metrics/cntvaluein3-lock-unique-prepost/`
+- locked unique feature table: `artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost/`
+- locked unique skew table: `artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost-skew/`
+- paired signed-skew analysis: `artifacts/statistical-sdf/cntvaluein3-lock-prepost-signed-skew-analysis/`
+
+Samples:
+
+| transition | samples |
+| --- | ---: |
+| fail_to_pass | 5 |
+| fail_to_fail | 3 |
+| pass_to_fail | 2 |
+| pass_to_pass | 3 |
+| total | 13 |
+
+Each seed has 124 paired signed features covering IDELAY CNTVALUEIN DQS-vs-DQ, lane-vs-lane, IDELAY LD DQS-vs-DQ, and LD-vs-CNTVALUEIN relations. These are feature observations, not independent samples.
+
+Per-seed aggregate result:
+
+| seed | transition | sign flips / 124 | abs improved | abs worsened | median delta abs ps |
+| ---: | --- | ---: | ---: | ---: | ---: |
+| 2 | fail_to_pass | 62 | 63 | 59 | -14.25 |
+| 20 | fail_to_pass | 88 | 52 | 72 | 28.75 |
+| 28 | pass_to_fail | 87 | 33 | 91 | 236.5 |
+| 30 | pass_to_fail | 65 | 67 | 57 | -22.5 |
+
+Global sign flips are not sufficient by themselves: pass-to-pass rows also show many sign flips. The lock is a large perturbation, so the useful signal is not `any sign flip`; it is which signed relation flips or moves differently in pass-to-fail versus fail-to-pass rows.
+
+The clearest pass-to-fail enriched subset is in `pass_to_fail_sign_flip_enriched.csv`: seven features flip in both pass-to-fail rows but in at most one of five fail-to-pass rows. They concentrate around lane0 `CNTVALUEIN3` DQS-vs-DQ signed relations and lane0 DQS `LD-vs-CNTVALUEIN3`:
+
+| feature family | examples | pass-to-fail flips | fail-to-pass flips |
+| --- | --- | ---: | ---: |
+| lane0 ctrl3 DQS-vs-DQ bit signed skew | dq0, dq1, dq4, dq6 | 2/2 | 1/5 |
+| lane0 ctrl3 DQS-vs-DQ median signed skew | dqs0 vs DQ lane median | 2/2 | 1/5 |
+| lane0 ctrl3 LD-vs-CNTVALUEIN DQS signed skew | dqs0 `LD - CNTVALUEIN3` | 2/2 | 1/5 |
+
+Conclusion: seed30 no longer looks like evidence that lower absolute skew is bad. It looks like evidence that the absolute-skew metric is incomplete. The stronger cause/effect hypothesis is signed/order-sensitive and lane0/control-bit-3 heavy: the damaging lock cases appear to change the relative order between lane0 DQS and DQ `CNTVALUEIN3`, plus the lane0 DQS LD-vs-CNTVALUEIN3 relationship. This fits the hardware signature because the damaged pass controls fail with reason 2 on lane0.
+
+This is still not proof. The pass-to-fail population is only two samples, and pass-to-pass rows also show broad sign churn. The next causal test must intentionally move or protect the lane0 ctrl3 signed relations, then verify the signed SDF acceptance criterion before programming hardware.
+
 ### CNTVALUEIN3 held-out long-poll retest
 
 The failed rows from `cntvaluein3-lock-heldout-seeds` were reprogrammed with `--poll-count 500 --poll-interval 0.1`. This gives about 50 seconds of JTAG polling after programming completes, versus the previous default 100 polls / 10 seconds.

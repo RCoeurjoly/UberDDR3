@@ -141,5 +141,18 @@
     "solution_candidates": "soft byte-lane/IDELAY programming floorplan; RTL calibration search robustness; more exact BEL locks only as diagnostics",
     "status": "active_locked_population_collateral_signature",
     "type": "cause_effect"
+  },
+  {
+    "evidence_against": "n=2 pass-to-fail rows is small; broad sign churn occurs even in pass-to-pass rows; these signed features may still be proxies for broader routing or calibration-window changes",
+    "evidence_for": "seed30 improves the original abs(dqs1-dq14) metric but fails after signed/order changes; pass-to-fail enriched features are lane0/ctrl3-heavy, matching the reason-2 lane0 abort signature; fail-to-pass rows do not consistently share those specific flips",
+    "hardware_signature": "pass controls seed28 and seed30 become reason-2 lane0 CHECK_STARTING_DATA failures under CNTVALUEIN3 lock; some baseline reason-2 failures become passing under the same perturbation",
+    "hypothesis": "Residual and damaged-lock DDR3 failures are caused by signed/order-sensitive IDELAY programming relationships, especially lane0 CNTVALUEIN3 DQS-vs-DQ and lane0 DQS LD-vs-CNTVALUEIN3, rather than scalar absolute skew alone.",
+    "id": "CE-006",
+    "narrow_cells_or_paths": "lane0 IDELAYE2_dqs dqs0 CNTVALUEIN3, lane0 IDELAYE2_data dq0/dq1/dq4/dq6 CNTVALUEIN3, lane0 DQS LD path, and their signed relation to the calibration CHECK_STARTING_DATA decision point",
+    "next_test": "create a solution hypothesis that protects or deliberately moves lane0 ctrl3 signed DQS-vs-DQ and LD-vs-CNTVALUEIN3 relations, gate the bitstreams by pre-hardware SDF signed-skew acceptance, then test held-out hardware pass rate",
+    "sdf_json_signature": "paired pre/post signed-skew analysis over 13 seed pairs and 124 signed features per seed finds seven pass-to-fail enriched sign-flip features: lane0 ctrl3 DQS-vs-DQ bit/median signed skew and lane0 dqs0 LD-vs-CNTVALUEIN3; both pass-to-fail rows flip these while at most one of five fail-to-pass rows flips them",
+    "solution_candidates": "RTL shadow/load handshake for CNTVALUEIN3 before LD; lane0 byte-lane locality/floorplan constraint covering DQS/DQ CNTVALUEIN3 and LD source cones; avoid exact BEL locks unless the signed SDF acceptance check passes",
+    "status": "active_signed_order_hypothesis_small_n",
+    "type": "cause_effect"
   }
 ]
