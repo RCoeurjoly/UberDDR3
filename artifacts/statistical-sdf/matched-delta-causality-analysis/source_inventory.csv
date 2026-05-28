@@ -1,0 +1,12 @@
+layer,path,exists,rows,experiments
+sdf,artifacts/statistical-sdf/baseline-no-lock-seed-1-30/features_long.csv,True,6000,30
+sdf,artifacts/statistical-sdf/seed-31-60-baseline-no-lock/features_long.csv,True,6000,30
+sdf,artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock/features_long.csv,True,6000,30
+sdf,artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll/features_long.csv,True,2200,11
+sdf,artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost/features_long.csv,True,2600,13
+skew,artifacts/statistical-sdf/baseline-no-lock-seed-1-30-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/seed-31-60-baseline-no-lock-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-skew/skew_features_long.csv,True,3036,11
+skew,artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost-skew/skew_features_long.csv,True,3588,13
+json,artifacts/statistical-sdf/json-physical-features/json_physical_features_long.csv,True,37312,106
