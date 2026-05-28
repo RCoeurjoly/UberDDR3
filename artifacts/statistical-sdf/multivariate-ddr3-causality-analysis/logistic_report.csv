@@ -1,0 +1,4 @@
+model,features,train_samples,train_fail,test_samples,test_fail,train_auc,test_auc,train_accuracy,test_accuracy,intercept
+train_baseline_1_30_test_baseline_31_60,10,30,8,30,16,0.886364,0.40625,0.766667,0.4,-1.481304
+train_baseline_31_60_test_baseline_1_30,10,30,16,30,8,0.808036,0.375,0.766667,0.433333,0.231791
+train_baseline_all_test_locked_all,10,60,24,43,16,0.725694,0.62963,0.733333,0.55814,-0.452055

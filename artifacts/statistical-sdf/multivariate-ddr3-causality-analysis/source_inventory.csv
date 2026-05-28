@@ -1,0 +1,12 @@
+feature_layer,path,exists,rows,experiments
+direct,artifacts/statistical-sdf/baseline-no-lock-seed-1-30/features_long.csv,True,6000,30
+direct,artifacts/statistical-sdf/seed-31-60-baseline-no-lock/features_long.csv,True,6000,30
+direct,artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock/features_long.csv,True,6000,30
+direct,artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll/features_long.csv,True,2200,11
+direct,artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost/features_long.csv,True,2600,13
+direct,artifacts/statistical-sdf/exact-abort-seed3-lock-matrix/features_long.csv,True,600,3
+skew,artifacts/statistical-sdf/baseline-no-lock-seed-1-30-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/seed-31-60-baseline-no-lock-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/seed-31-60-cntvaluein3-lock-skew/skew_features_long.csv,True,8280,30
+skew,artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-skew/skew_features_long.csv,True,3036,11
+skew,artifacts/statistical-sdf/cntvaluein3-lock-unique-prepost-skew/skew_features_long.csv,True,3588,13
