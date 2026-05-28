@@ -3421,19 +3421,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         // If the coarse and half-step sentinel searches both miss, do not
                                         // immediately reset. Seed6 reaches this edge with the tap search
                                         // otherwise converged, so try the same read-realignment path used by
-                                        // a positive second-assumption match and record a sticky fallback event.
-                                        calib_abort_snapshot_valid <= 1'b1;
-                                        calib_abort_snapshot_reason <= 4'd3;
-                                        calib_abort_snapshot_lane <= lane;
-                                        calib_abort_snapshot_state <= CHECK_STARTING_DATA;
-                                        calib_abort_snapshot_instruction <= instruction_address;
-                                        calib_abort_snapshot_start_index_check <= start_index_check;
-                                        calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                                        calib_abort_snapshot_lane_read_dq_early <= 1'b1;
-                                        calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
-                                        calib_abort_snapshot_data_start_index <= data_start_index[lane];
-                                        calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
-                                        calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                        // a positive second-assumption match. Do not consume the abort snapshot
+                                        // here; preserve it for any later terminal failure after the fallback.
                                         lane_read_dq_early[lane] <= 1'b1;
                                         check_starting_data_half_step_retry <= 1'b0;
                                         state_calibrate <= BITSLIP_DQS_TRAIN_3;
