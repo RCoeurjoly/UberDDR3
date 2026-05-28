@@ -302,7 +302,6 @@ def decode_payload(payload, bit_count):
     idelay_data_cntvalueout_raw = field(payload, 226, 5 * DQ_BITS * BYTE_LANES)
     debug_calib_abort = field(payload, 306, 64)
     bist_counts = field(payload, 448, 64)
-    debug_calib_fail_snapshot = field(payload, 832, 128)
     debug8 = bist_counts
 
     idelay_data_cntvalueout = [
@@ -382,6 +381,8 @@ def decode_payload(payload, bit_count):
     }
 
     abort_reason = field(debug_calib_abort, 1, 4)
+    abort_read_lane_data_shifted = field(debug_calib_abort, 32, 32)
+    abort_expected_word = 0xD0AD51C1
     abort_debug = {
         "seen": bool(field(debug_calib_abort, 0, 1)),
         "reason": abort_reason,
@@ -391,40 +392,21 @@ def decode_payload(payload, bit_count):
             2: "check_starting_data_search_exhausted",
             15: "unexpected_reset_from_calibrate_state",
         }.get(abort_reason, "unknown"),
-        "lane": field(debug_calib_abort, 5, 8),
-        "state_calibrate": field(debug_calib_abort, 13, 5),
-        "instruction_address": field(debug_calib_abort, 18, 5),
-        "start_index_check": field(debug_calib_abort, 23, 8),
-        "lane_write_dq_late": bool(field(debug_calib_abort, 31, 1)),
-        "lane_read_dq_early": bool(field(debug_calib_abort, 32, 1)),
-        "dq_target_index": field(debug_calib_abort, 33, 8),
-        "data_start_index": field(debug_calib_abort, 41, 8),
-    }
-
-    fail_snapshot_event = field(debug_calib_fail_snapshot, 1, 4)
-    calib_fail_snapshot_debug = {
-        "valid": bool(field(debug_calib_fail_snapshot, 0, 1)),
-        "event": fail_snapshot_event,
-        "event_name": {
-            0: "none",
-            8: "check_starting_data_abort",
-            9: "analyze_data_abort",
-        }.get(fail_snapshot_event, "unknown"),
-        "lane": field(debug_calib_fail_snapshot, 5, 8),
-        "data_start_index": field(debug_calib_fail_snapshot, 13, 8),
-        "dq_target_index": field(debug_calib_fail_snapshot, 21, 8),
-        "start_index_check": field(debug_calib_fail_snapshot, 29, 8),
-        "lane_write_dq_late": bool(field(debug_calib_fail_snapshot, 37, 1)),
-        "lane_read_dq_early": bool(field(debug_calib_fail_snapshot, 38, 1)),
-        "shifted_match": bool(field(debug_calib_fail_snapshot, 39, 1)),
-        "read_lane_data_shifted": field(debug_calib_fail_snapshot, 40, 32),
-        "read_lane_data_shifted_hex": f"0x{field(debug_calib_fail_snapshot, 40, 32):08x}",
-        "expected_word": field(debug_calib_fail_snapshot, 72, 32),
-        "expected_word_hex": f"0x{field(debug_calib_fail_snapshot, 72, 32):08x}",
-        "requested_data_tap": field(debug_calib_fail_snapshot, 104, 5),
-        "requested_dqs_tap": field(debug_calib_fail_snapshot, 109, 5),
-        "actual_data_tap": field(debug_calib_fail_snapshot, 114, 5),
-        "actual_dqs_tap": field(debug_calib_fail_snapshot, 119, 5),
+        "lane": field(debug_calib_abort, 5, 4),
+        "data_start_index": field(debug_calib_abort, 9, 6),
+        "dq_target_index": field(debug_calib_abort, 15, 6),
+        "start_index_check": field(debug_calib_abort, 21, 6),
+        "lane_write_dq_late": bool(field(debug_calib_abort, 27, 1)),
+        "lane_read_dq_early": bool(field(debug_calib_abort, 28, 1)),
+        "shifted_match": bool(field(debug_calib_abort, 29, 1)),
+        "read_lane_data_shifted": abort_read_lane_data_shifted,
+        "read_lane_data_shifted_hex": f"0x{abort_read_lane_data_shifted:08x}",
+        "expected_word": abort_expected_word,
+        "expected_word_hex": f"0x{abort_expected_word:08x}",
+        "xor_with_expected": abort_read_lane_data_shifted ^ abort_expected_word,
+        "xor_with_expected_hex": f"0x{(abort_read_lane_data_shifted ^ abort_expected_word):08x}",
+        "state_calibrate": None,
+        "instruction_address": None,
     }
 
     decoded = {
@@ -445,13 +427,11 @@ def decode_payload(payload, bit_count):
         "debug_calib_gate": debug_calib_gate,
         "debug_idelay": debug_idelay,
         "debug_calib_abort": debug_calib_abort,
-        "debug_calib_fail_snapshot": debug_calib_fail_snapshot,
         "startup_debug": startup_debug,
         "calib_gate_debug": calib_gate_debug,
         "idelay_debug": idelay_debug,
         "phy_debug": phy_debug,
         "abort_debug": abort_debug,
-        "calib_fail_snapshot_debug": calib_fail_snapshot_debug,
     }
     reasons = []
     if decoded["magic"] != MAGIC:

@@ -168,7 +168,6 @@ module ddr3_controller #(
         output	wire	[63:0]	o_debug_startup,
         output	wire	[31:0]	o_debug_idelay,
         output	wire	[63:0]	o_debug_calib_abort,
-        output	wire	[127:0]	o_debug_calib_fail_snapshot,
         output	wire	[63:0]	o_bist_counts,
 //        output	wire	[31:0]	o_debug2,
 //        output	wire	[31:0]	o_debug3
@@ -687,6 +686,8 @@ module ddr3_controller #(
     reg debug_calib_abort_lane_read_dq_early = 0;
     reg[7:0] debug_calib_abort_dq_target_index = 0;
     reg[7:0] debug_calib_abort_data_start_index = 0;
+    reg debug_calib_abort_shifted_match = 0;
+    reg[31:0] debug_calib_abort_read_lane_data_shifted = 0;
     reg calib_abort_snapshot_valid = 0;
     reg[3:0] calib_abort_snapshot_reason = 0;
     reg[7:0] calib_abort_snapshot_lane = 0;
@@ -697,21 +698,8 @@ module ddr3_controller #(
     reg calib_abort_snapshot_lane_read_dq_early = 0;
     reg[7:0] calib_abort_snapshot_dq_target_index = 0;
     reg[7:0] calib_abort_snapshot_data_start_index = 0;
-    reg debug_calib_fail_snapshot_valid = 0;
-    reg[3:0] debug_calib_fail_snapshot_event = 0;
-    reg[7:0] debug_calib_fail_snapshot_lane = 0;
-    reg[7:0] debug_calib_fail_snapshot_data_start_index = 0;
-    reg[7:0] debug_calib_fail_snapshot_dq_target_index = 0;
-    reg[7:0] debug_calib_fail_snapshot_start_index_check = 0;
-    reg debug_calib_fail_snapshot_lane_write_dq_late = 0;
-    reg debug_calib_fail_snapshot_lane_read_dq_early = 0;
-    reg debug_calib_fail_snapshot_shifted_match = 0;
-    reg[31:0] debug_calib_fail_snapshot_read_lane_data_shifted = 0;
-    reg[31:0] debug_calib_fail_snapshot_expected_word = 0;
-    reg[4:0] debug_calib_fail_snapshot_requested_data_tap = 0;
-    reg[4:0] debug_calib_fail_snapshot_requested_dqs_tap = 0;
-    reg[4:0] debug_calib_fail_snapshot_actual_data_tap = 0;
-    reg[4:0] debug_calib_fail_snapshot_actual_dqs_tap = 0;
+    reg calib_abort_snapshot_shifted_match = 0;
+    reg[31:0] calib_abort_snapshot_read_lane_data_shifted = 0;
     integer debug_lane;
     integer debug_dq;
     // test calibration 
@@ -947,29 +935,6 @@ module ddr3_controller #(
     end
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
 
-    task capture_calib_fail_snapshot;
-        input[3:0] event_code;
-        begin
-            if(!debug_calib_fail_snapshot_valid) begin
-                debug_calib_fail_snapshot_valid <= 1'b1;
-                debug_calib_fail_snapshot_event <= event_code;
-                debug_calib_fail_snapshot_lane <= { {(8-lanes_clog2){1'b0}}, lane };
-                debug_calib_fail_snapshot_data_start_index <= {1'b0, data_start_index[lane]};
-                debug_calib_fail_snapshot_dq_target_index <= {2'b0, dq_target_index[lane]};
-                debug_calib_fail_snapshot_start_index_check <= {2'b0, start_index_check};
-                debug_calib_fail_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                debug_calib_fail_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
-                debug_calib_fail_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
-                debug_calib_fail_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
-                debug_calib_fail_snapshot_expected_word <= write_pattern[0 +: 32];
-                debug_calib_fail_snapshot_requested_data_tap <= o_phy_idelay_data_cntvaluein;
-                debug_calib_fail_snapshot_requested_dqs_tap <= o_phy_idelay_dqs_cntvaluein;
-                debug_calib_fail_snapshot_actual_data_tap <= i_phy_idelay_data_cntvalueout[5*(lane*DQ_BITS) +: 5];
-                debug_calib_fail_snapshot_actual_dqs_tap <= i_phy_idelay_dqs_cntvalueout[5*lane +: 5];
-            end
-        end
-    endtask
-
     always @(posedge i_controller_clk) begin
         if(!i_rst_n) begin
             debug_state_ever_nonzero <= 1'b0;
@@ -1011,8 +976,8 @@ module ddr3_controller #(
             debug_calib_abort_lane_read_dq_early <= 1'b0;
             debug_calib_abort_dq_target_index <= 8'd0;
             debug_calib_abort_data_start_index <= 8'd0;
-            // Calibration trace registers are intentionally not reset here.
-            // They are single-writer sticky debug state owned by the calibration FSM.
+            debug_calib_abort_shifted_match <= 1'b0;
+            debug_calib_abort_read_lane_data_shifted <= 32'd0;
             for(debug_lane = 0; debug_lane < LANES; debug_lane = debug_lane + 1) begin
                 debug_expected_data_tap[debug_lane] <= 5'd0;
                 debug_expected_dqs_tap[debug_lane] <= 5'd0;
@@ -1060,6 +1025,8 @@ module ddr3_controller #(
                 debug_calib_abort_lane_read_dq_early <= calib_abort_snapshot_lane_read_dq_early;
                 debug_calib_abort_dq_target_index <= calib_abort_snapshot_dq_target_index;
                 debug_calib_abort_data_start_index <= calib_abort_snapshot_data_start_index;
+                debug_calib_abort_shifted_match <= calib_abort_snapshot_shifted_match;
+                debug_calib_abort_read_lane_data_shifted <= calib_abort_snapshot_read_lane_data_shifted;
             end
 
             if(sync_rst_controller) begin
@@ -3329,7 +3296,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
                                     calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
                                     calib_abort_snapshot_data_start_index <= data_start_index[lane];
-                                    capture_calib_fail_snapshot(4'd9);
+                                    calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
+                                    calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
                                 end
                                 // first assumption (write DQ is late) is wrong so we repeat write-read with data_start_index back to 0
                                 else if(lane_write_dq_late[lane]) begin 
@@ -3446,7 +3414,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
                                         calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
                                         calib_abort_snapshot_data_start_index <= data_start_index[lane];
-                                        capture_calib_fail_snapshot(4'd8);
+                                        calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
+                                        calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
                                     end
                                 end
                             `ifdef UART_DEBUG_ALIGN
@@ -4225,35 +4194,17 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         debug_idelay_data_load_seen
     };
     assign o_debug_calib_abort = {
-        15'd0,
-        debug_calib_abort_data_start_index,
-        debug_calib_abort_dq_target_index,
+        debug_calib_abort_read_lane_data_shifted,
+        2'd0,
+        debug_calib_abort_shifted_match,
         debug_calib_abort_lane_read_dq_early,
         debug_calib_abort_lane_write_dq_late,
-        debug_calib_abort_start_index_check,
-        debug_calib_abort_instruction,
-        debug_calib_abort_state,
-        debug_calib_abort_lane,
+        debug_calib_abort_start_index_check[5:0],
+        debug_calib_abort_dq_target_index[5:0],
+        debug_calib_abort_data_start_index[5:0],
+        debug_calib_abort_lane[3:0],
         debug_calib_abort_reason,
         debug_calib_abort_seen
-    };
-    assign o_debug_calib_fail_snapshot = {
-        6'd0,
-        debug_calib_fail_snapshot_actual_dqs_tap,
-        debug_calib_fail_snapshot_actual_data_tap,
-        debug_calib_fail_snapshot_requested_dqs_tap,
-        debug_calib_fail_snapshot_requested_data_tap,
-        debug_calib_fail_snapshot_expected_word,
-        debug_calib_fail_snapshot_read_lane_data_shifted,
-        debug_calib_fail_snapshot_shifted_match,
-        debug_calib_fail_snapshot_lane_read_dq_early,
-        debug_calib_fail_snapshot_lane_write_dq_late,
-        debug_calib_fail_snapshot_start_index_check,
-        debug_calib_fail_snapshot_dq_target_index,
-        debug_calib_fail_snapshot_data_start_index,
-        debug_calib_fail_snapshot_lane,
-        debug_calib_fail_snapshot_event,
-        debug_calib_fail_snapshot_valid
     };
     assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
