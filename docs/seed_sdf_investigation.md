@@ -735,6 +735,45 @@ Focused SDF/placement audit result: all held-out locked rows have the intended C
 
 Conclusion: exact CNTVALUEIN3 source placement is an effective perturbation and rescues several baseline failures, but it is neither sufficient nor safe as a final workaround. It likely perturbs a broader placement/routing margin. The next analysis should compare pass-vs-fail rows inside the locked population to identify what collateral SDF/JSON feature separates the five failures from the six passes.
 
+### CNTVALUEIN3 Lock Pre/Post SDF Movement: 2026-05-28
+
+Correction to the intervention logic: a failed solution hypothesis does not automatically falsify the cause/effect hypothesis. Before judging the exact CNTVALUEIN3 lock, we must ask whether it actually moved the SDF feature it was supposed to fix.
+
+Artifacts:
+
+- baseline focused audit: `artifacts/sdf-diagnostics/cntvaluein3-dqs1-dq14-prepost-lock/baseline-no-lock/`
+- locked focused audit: `artifacts/sdf-diagnostics/cntvaluein3-dqs1-dq14-prepost-lock/cntvaluein3-skew-locked/`
+- joined pre/post comparison: `artifacts/sdf-diagnostics/cntvaluein3-dqs1-dq14-prepost-lock/prepost_comparison.csv`
+- summary: `artifacts/sdf-diagnostics/cntvaluein3-dqs1-dq14-prepost-lock/README.md`
+
+Summary by hardware transition:
+
+| transition | rows | median baseline abs ps | median locked abs ps | median delta abs ps | improved abs count | worsened abs count | median source manhattan delta |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| fail_to_fail | 3 | 230.0 | 419.0 | 189.0 | 0 | 3 | -10.0 |
+| fail_to_pass | 5 | 400.0 | 163.0 | -155.0 | 3 | 2 | -14.0 |
+| pass_to_fail | 2 | 161.0 | 303.5 | 142.5 | 1 | 1 | -8.5 |
+| pass_to_pass | 3 | 139.0 | 355.0 | 216.0 | 0 | 3 | -4.0 |
+
+Per-seed examples:
+
+| seed | transition | baseline abs ps | locked abs ps | delta abs ps | source manhattan |
+| ---: | --- | ---: | ---: | ---: | --- |
+| 2 | fail_to_pass | 707 | 163 | -544 | 21 -> 3 |
+| 20 | fail_to_pass | 421 | 69 | -352 | 22 -> 3 |
+| 12 | fail_to_fail | 117 | 350 | +233 | 15 -> 3 |
+| 23 | fail_to_fail | 230 | 419 | +189 | 13 -> 3 |
+| 28 | pass_to_fail | 179 | 538 | +359 | 9 -> 3 |
+| 30 | pass_to_fail | 143 | 69 | -74 | 14 -> 3 |
+
+Conclusion: the exact two-cell lock is a valid topology perturbation but not a valid controlled intervention on the `abs(dqs1-dq14) CNTVALUEIN3` SDF skew. It consistently forces the source LUTs to the seed3 BEL pair, but the routed SDF skew often gets worse. Therefore the held-out lock failures do not by themselves disprove the original skew hypothesis. They show that this lock set is too weak or too indirect to guarantee the intended SDF feature.
+
+The strongest refined statement is:
+
+- `abs(dqs1-dq14) CNTVALUEIN3` remains a plausible cause/effect or proxy hypothesis because some rescued rows, especially seeds 2 and 20, moved the target skew sharply in the expected direction.
+- The exact BEL source lock is not a sufficient solution hypothesis because it does not reliably move the target SDF skew, and it can damage passing seeds.
+- Any future solution hypothesis must include a pre-hardware SDF acceptance check: build the candidate, measure the target skew/topology, and only then interpret hardware pass/fail as a test of that cause.
+
 ### CNTVALUEIN3 held-out long-poll retest
 
 The failed rows from `cntvaluein3-lock-heldout-seeds` were reprogrammed with `--poll-count 500 --poll-interval 0.1`. This gives about 50 seconds of JTAG polling after programming completes, versus the previous default 100 polls / 10 seconds.
@@ -787,7 +826,7 @@ Seed12 singleton results:
 
 Conclusion:
 
-- CE-004 is narrowed: source-LUT topology for the exact `CNTVALUEIN3 dqs1-dq14` pair is not sufficient. Locked rows all have the intended source placement, yet five still fail.
+- CE-004 is narrowed, not falsified: source-LUT topology for the exact `CNTVALUEIN3 dqs1-dq14` pair is not sufficient, and the source lock does not reliably improve the actual SDF skew. Locked rows all have the intended source placement, yet the target SDF skew still varies from 69 ps to 629 ps and five rows fail.
 - CE-001 and CE-002 remain active, but the current locked-population evidence points to a broader byte-lane alignment-margin signature involving non-locked CNTVALUEIN bits, LD-vs-CNTVALUEIN skew, and DQ/DQS IOLOGIC delay.
 - SO-006 remains rejected as a final fix. It is useful as a perturbation that generated a cleaner pass/fail population, not as a constraint to ship.
 - The next cause/effect test should either add a focused reason-2 observer for the `CHECK_STARTING_DATA` accepted/rejected candidate window, or create a soft byte-lane locality/floorplan intervention and verify that it moves the broader skew/IOLOGIC signature and held-out pass rate together.
