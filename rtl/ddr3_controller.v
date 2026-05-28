@@ -717,6 +717,7 @@ module ddr3_controller #(
     reg[5:0] debug_calib_search_best_offset = 0;
     reg[5:0] debug_calib_search_best_distance = 0;
     reg debug_calib_search_best_accepted = 0;
+    reg debug_calib_search_entered = 0;
     reg[5:0] analyze_data_search_offset_q = 0;
     reg[63:0] analyze_data_search_window = 0;
     reg[5:0] analyze_data_search_best_offset = 0;
@@ -2697,6 +2698,7 @@ module ddr3_controller #(
             debug_calib_search_best_offset <= 6'd0;
             debug_calib_search_best_distance <= 6'd0;
             debug_calib_search_best_accepted <= 1'b0;
+            debug_calib_search_entered <= 1'b0;
             analyze_data_search_offset_q <= 6'd0;
             analyze_data_search_window <= 64'd0;
             analyze_data_search_best_offset <= 6'd0;
@@ -3342,6 +3344,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     analyze_data_search_best_distance <= 6'd32;
                                     analyze_data_search_best_word <= read_lane_data[0 +: 32];
                                     state_calibrate <= ANALYZE_DATA_SEARCH;
+                                    debug_calib_search_entered <= 1'b1;
                                 end
                                 // first assumption (write DQ is late) is wrong so we repeat write-read with data_start_index back to 0
                                 else if(lane_write_dq_late[lane]) begin 
@@ -4326,7 +4329,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         debug_calib_abort_seen
     };
     assign o_debug_calib_window = debug_calib_abort_read_lane_data;
-    assign o_debug_calib_search = {1'b0, debug_calib_search_best_accepted, debug_calib_search_best_distance, debug_calib_search_best_offset};
+    assign o_debug_calib_search = {debug_calib_search_entered, debug_calib_search_best_accepted, debug_calib_search_best_distance, debug_calib_search_best_offset};
     assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
 //    assign o_debug3 = {debug_trigger,i_phy_iserdes_data[30:0]};

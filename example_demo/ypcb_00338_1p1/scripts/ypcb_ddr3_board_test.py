@@ -412,6 +412,7 @@ def decode_payload(payload, bit_count):
         "best_offset": field(debug_calib_search, 0, 6),
         "best_distance": field(debug_calib_search, 6, 6),
         "best_accepted": bool(field(debug_calib_search, 12, 1)),
+        "search_entered": bool(field(debug_calib_search, 13, 1)),
         "xor_with_expected": abort_read_lane_data_shifted ^ abort_expected_word,
         "xor_with_expected_hex": f"0x{(abort_read_lane_data_shifted ^ abort_expected_word):08x}",
         "state_calibrate": None,
