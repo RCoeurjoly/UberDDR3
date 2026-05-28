@@ -1,0 +1,4 @@
+category_x,category,q1_ps,median_ps,q3_ps,n
+1,pass,203.5,368.0,536.5,63
+2,fail-reason-2,112.25,268.0,491.25,32
+3,no-abort,184.25,345.0,474.0,8

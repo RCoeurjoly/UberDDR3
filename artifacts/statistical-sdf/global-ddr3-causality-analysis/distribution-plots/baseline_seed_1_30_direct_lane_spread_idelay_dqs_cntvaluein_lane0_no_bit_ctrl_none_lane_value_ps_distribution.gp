@@ -1,0 +1,14 @@
+set terminal pngcairo size 1200,720 enhanced font 'DejaVu Sans,10'
+set output 'baseline_seed_1_30_direct_lane_spread_idelay_dqs_cntvaluein_lane0_no_bit_ctrl_none_lane_value_ps_distribution.png'
+set datafile separator comma
+set key outside right top
+set grid ytics
+set xrange [0.45:4.55]
+set xtics ('pass' 1, 'fail-reason-2' 2, 'no-abort' 3, 'fail-other' 4)
+set xlabel 'Hardware outcome class'
+set ylabel 'SDF feature value (ps)'
+set title 'lane_spread__idelay_dqs_cntvaluein__lane0__no_bit__ctrl_none__lane__value_ps'
+plot \
+  'baseline_seed_1_30_direct_lane_spread_idelay_dqs_cntvaluein_lane0_no_bit_ctrl_none_lane_value_ps_distribution.summary.dat' using 1:4:3:5 with yerrorbars pt 9 ps 1.5 lw 3 lc rgb '#333333' title 'median + IQR', \
+  'baseline_seed_1_30_direct_lane_spread_idelay_dqs_cntvaluein_lane0_no_bit_ctrl_none_lane_value_ps_distribution.dat' using 1:4 with points pt 7 ps 1.2 lc rgb '#1a9850' title 'pass', \
+  'baseline_seed_1_30_direct_lane_spread_idelay_dqs_cntvaluein_lane0_no_bit_ctrl_none_lane_value_ps_distribution.dat' using 1:5 with points pt 7 ps 1.2 lc rgb '#d73027' title 'fail'

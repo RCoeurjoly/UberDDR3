@@ -7,10 +7,12 @@ This no-rebuild analysis joins existing HIL outcomes with existing SDF/JSON-deri
 - feature observations: `49628`
 - comparisons ranked: `7`
 - baseline seed 1..30 pass/fail check: pass `22`, fail `8`
-- plot scripts/data generated: `30`
-- plot PNGs rendered: `30`
+- index plot scripts/data generated: `30`
+- index plot PNGs rendered: `30`
+- distribution plot scripts/data generated: `30`
+- distribution plot PNGs rendered: `30`
 
-Pass points are green and fail points are red in every gnuplot graph.
+Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays.
 
 ## Top Baseline Seed 1..30 Features
 
@@ -33,8 +35,12 @@ Pass points are green and fail points are red in every gnuplot graph.
 - `cross_stratum_validation.csv`: whether seed1..30 top features repeat in seed31..60 and lock strata.
 - `feature_source_inventory.csv`: existing feature tables consumed.
 - `experiment_inventory.csv`: pass/fail/failure-class counts by layer/run group/variant.
-- `plots/*.dat`: auditable plot data.
-- `plots/*.gp`: gnuplot scripts.
-- `plots/*.png`: rendered graphs when gnuplot was available.
+- `plots/*.dat`: auditable index-plot data.
+- `plots/*.gp`: index gnuplot scripts.
+- `plots/*.png`: rendered index graphs when gnuplot was available.
+- `distribution-plots/*.dat`: auditable pass/fail distribution point data.
+- `distribution-plots/*.summary.dat`: per-class median and IQR data.
+- `distribution-plots/*.gp`: distribution gnuplot scripts.
+- `distribution-plots/*.png`: rendered pass/fail distribution graphs.
 
 This is hypothesis-generation evidence. A feature is not causal until a controlled intervention moves it and shifts held-out hardware outcomes.

@@ -1,0 +1,14 @@
+set terminal pngcairo size 1200,720 enhanced font 'DejaVu Sans,10'
+set output 'baseline_abort2_vs_pass_direct_cntvaluein_bus_skew_idelay_data_cntvaluein_lane1_dq13_ctrl_none_dq13_value_ps_d.png'
+set datafile separator comma
+set key outside right top
+set grid ytics
+set xrange [0.45:4.55]
+set xtics ('pass' 1, 'fail-reason-2' 2, 'no-abort' 3, 'fail-other' 4)
+set xlabel 'Hardware outcome class'
+set ylabel 'SDF feature value (ps)'
+set title 'cntvaluein_bus_skew__idelay_data_cntvaluein__lane1__dq13__ctrl_none__dq13__value_ps'
+plot \
+  'baseline_abort2_vs_pass_direct_cntvaluein_bus_skew_idelay_data_cntvaluein_lane1_dq13_ctrl_none_dq13_value_ps_d.summary.dat' using 1:4:3:5 with yerrorbars pt 9 ps 1.5 lw 3 lc rgb '#333333' title 'median + IQR', \
+  'baseline_abort2_vs_pass_direct_cntvaluein_bus_skew_idelay_data_cntvaluein_lane1_dq13_ctrl_none_dq13_value_ps_d.dat' using 1:4 with points pt 7 ps 1.2 lc rgb '#1a9850' title 'pass', \
+  'baseline_abort2_vs_pass_direct_cntvaluein_bus_skew_idelay_data_cntvaluein_lane1_dq13_ctrl_none_dq13_value_ps_d.dat' using 1:5 with points pt 7 ps 1.2 lc rgb '#d73027' title 'fail'

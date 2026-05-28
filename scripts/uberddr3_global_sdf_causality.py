@@ -110,6 +110,21 @@ def fnum(value: float | None) -> float | str:
     return round(value, 6)
 
 
+def quantile(values: list[float], fraction: float) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    if len(ordered) == 1:
+        return ordered[0]
+    position = (len(ordered) - 1) * fraction
+    lower = math.floor(position)
+    upper = math.ceil(position)
+    if lower == upper:
+        return ordered[lower]
+    weight = position - lower
+    return ordered[lower] * (1.0 - weight) + ordered[upper] * weight
+
+
 def safe_name(value: str, limit: int = 110) -> str:
     out = []
     for char in value:
@@ -129,6 +144,22 @@ def failure_class(row: dict[str, str]) -> str:
     if row.get("abort_seen", "").lower() == "false" or row.get("abort_reason") in {"0", ""}:
         return "fail_no_abort_or_startup"
     return f"fail_abort_{row.get('abort_reason', 'unknown')}"
+
+
+def distribution_category(row: dict[str, str]) -> tuple[int, str]:
+    klass = failure_class(row)
+    if klass == "pass":
+        return 1, "pass"
+    if klass.startswith("fail_abort2"):
+        return 2, "fail-reason-2"
+    if klass == "fail_no_abort_or_startup":
+        return 3, "no-abort"
+    return 4, "fail-other"
+
+
+def stable_jitter(value: str) -> float:
+    total = sum((index + 1) * ord(char) for index, char in enumerate(value))
+    return ((total % 1000) / 1000.0 - 0.5) * 0.22
 
 
 def load_feature_rows(paths: list[tuple[str, Path]]) -> tuple[list[dict[str, str]], list[dict[str, object]]]:
@@ -417,6 +448,113 @@ def render_plots(plot_dir: Path, plot_rows: list[dict[str, object]], gnuplot: st
     return rendered
 
 
+def distribution_plot_data(rows: list[dict[str, str]], feature_layer: str, feature: str) -> tuple[list[dict[str, object]], list[dict[str, object]], str]:
+    selected = [
+        r
+        for r in rows
+        if r.get("feature_layer") == feature_layer
+        and r.get("feature") == feature
+        and parse_bool(r.get("hardware_pass", "")) is not None
+    ]
+    selected = sorted(selected, key=lambda r: (distribution_category(r)[0], int(r.get("seed") or 0), r.get("experiment_id", "")))
+    points: list[dict[str, object]] = []
+    values_by_category: dict[int, list[float]] = defaultdict(list)
+    labels: dict[int, str] = {}
+    for row in selected:
+        try:
+            value = float(row.get("value_ps", ""))
+        except ValueError:
+            continue
+        category_x, category = distribution_category(row)
+        labels[category_x] = category
+        values_by_category[category_x].append(value)
+        jitter_x = category_x + stable_jitter(row.get("experiment_id", ""))
+        passed = parse_bool(row.get("hardware_pass", ""))
+        points.append(
+            {
+                "x": fnum(jitter_x),
+                "category_x": category_x,
+                "value_ps": fnum(value),
+                "pass_value_ps": fnum(value) if passed is True else "",
+                "fail_value_ps": fnum(value) if passed is False else "",
+                "category": category,
+                "failure_class": failure_class(row),
+                "seed": row.get("seed", ""),
+                "run_group": row.get("run_group", ""),
+                "variant": row.get("variant", ""),
+                "experiment_id": row.get("experiment_id", ""),
+            }
+        )
+    summary: list[dict[str, object]] = []
+    for category_x, values in sorted(values_by_category.items()):
+        q1 = quantile(values, 0.25)
+        med = quantile(values, 0.5)
+        q3 = quantile(values, 0.75)
+        summary.append(
+            {
+                "category_x": category_x,
+                "category": labels[category_x],
+                "q1_ps": fnum(q1),
+                "median_ps": fnum(med),
+                "q3_ps": fnum(q3),
+                "n": len(values),
+            }
+        )
+    return points, summary, feature
+
+
+def write_distribution_plot(plot_dir: Path, rows: list[dict[str, str]], rank_row: dict[str, object], prefix: str) -> dict[str, object] | None:
+    feature_layer = str(rank_row["feature_layer"])
+    feature = str(rank_row["feature"])
+    points, summary, title = distribution_plot_data(rows, feature_layer, feature)
+    if not points or not summary:
+        return None
+    name = safe_name(f"{prefix}_{feature_layer}_{feature}_distribution")
+    dat = plot_dir / f"{name}.dat"
+    summary_dat = plot_dir / f"{name}.summary.dat"
+    gp = plot_dir / f"{name}.gp"
+    png = plot_dir / f"{name}.png"
+    plot_title = title[:120].replace("'", "_")
+    write_csv(
+        dat,
+        points,
+        ["x", "category_x", "value_ps", "pass_value_ps", "fail_value_ps", "category", "failure_class", "seed", "run_group", "variant", "experiment_id"],
+    )
+    write_csv(summary_dat, summary, ["category_x", "category", "q1_ps", "median_ps", "q3_ps", "n"])
+    gp.write_text(
+        "\n".join(
+            [
+                "set terminal pngcairo size 1200,720 enhanced font 'DejaVu Sans,10'",
+                f"set output '{png.name}'",
+                "set datafile separator comma",
+                "set key outside right top",
+                "set grid ytics",
+                "set xrange [0.45:4.55]",
+                "set xtics ('pass' 1, 'fail-reason-2' 2, 'no-abort' 3, 'fail-other' 4)",
+                "set xlabel 'Hardware outcome class'",
+                "set ylabel 'SDF feature value (ps)'",
+                f"set title '{plot_title}'",
+                "plot \\",
+                f"  '{summary_dat.name}' using 1:4:3:5 with yerrorbars pt 9 ps 1.5 lw 3 lc rgb '#333333' title 'median + IQR', \\",
+                f"  '{dat.name}' using 1:4 with points pt 7 ps 1.2 lc rgb '#1a9850' title 'pass', \\",
+                f"  '{dat.name}' using 1:5 with points pt 7 ps 1.2 lc rgb '#d73027' title 'fail'",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    return {
+        "plot": name,
+        "plot_type": "distribution",
+        "feature_layer": feature_layer,
+        "feature": feature,
+        "dat": str(dat),
+        "summary_dat": str(summary_dat),
+        "gp": str(gp),
+        "png": str(png),
+    }
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out-dir", type=Path, default=Path("artifacts/statistical-sdf/global-ddr3-causality-analysis"))
@@ -460,6 +598,23 @@ def main() -> int:
     rendered = render_plots(plot_dir, plot_rows, args.gnuplot if args.render_plots else None)
     write_csv(args.out_dir / "plot_manifest.csv", plot_rows)
 
+    distribution_dir = args.out_dir / "distribution-plots"
+    distribution_dir.mkdir(parents=True, exist_ok=True)
+    distribution_rows: list[dict[str, object]] = []
+    seen_distribution_features = set()
+    for row in plot_candidates:
+        key = (row["feature_layer"], row["feature"])
+        if key in seen_distribution_features:
+            continue
+        seen_distribution_features.add(key)
+        plot = write_distribution_plot(distribution_dir, rows, row, str(row["comparison"]))
+        if plot:
+            distribution_rows.append(plot)
+        if len(distribution_rows) >= args.top_plots:
+            break
+    distribution_rendered = render_plots(distribution_dir, distribution_rows, args.gnuplot if args.render_plots else None)
+    write_csv(args.out_dir / "distribution_plot_manifest.csv", distribution_rows)
+
     pass_fail_1_30 = Counter()
     for row in {r.get("experiment_id", ""): r for r in rows if r.get("run_group") == "baseline_no_lock_seed_1_30"}.values():
         pass_fail_1_30[str(parse_bool(row.get("hardware_pass", "")))] += 1
@@ -474,10 +629,12 @@ def main() -> int:
         f"- feature observations: `{len(rows)}`",
         f"- comparisons ranked: `{len(rankings)}`",
         f"- baseline seed 1..30 pass/fail check: pass `{pass_fail_1_30.get('True', 0)}`, fail `{pass_fail_1_30.get('False', 0)}`",
-        f"- plot scripts/data generated: `{len(plot_rows)}`",
-        f"- plot PNGs rendered: `{rendered}`",
+        f"- index plot scripts/data generated: `{len(plot_rows)}`",
+        f"- index plot PNGs rendered: `{rendered}`",
+        f"- distribution plot scripts/data generated: `{len(distribution_rows)}`",
+        f"- distribution plot PNGs rendered: `{distribution_rendered}`",
         "",
-        "Pass points are green and fail points are red in every gnuplot graph.",
+        "Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays.",
         "",
         "## Top Baseline Seed 1..30 Features",
         "",
@@ -497,9 +654,13 @@ def main() -> int:
             "- `cross_stratum_validation.csv`: whether seed1..30 top features repeat in seed31..60 and lock strata.",
             "- `feature_source_inventory.csv`: existing feature tables consumed.",
             "- `experiment_inventory.csv`: pass/fail/failure-class counts by layer/run group/variant.",
-            "- `plots/*.dat`: auditable plot data.",
-            "- `plots/*.gp`: gnuplot scripts.",
-            "- `plots/*.png`: rendered graphs when gnuplot was available.",
+            "- `plots/*.dat`: auditable index-plot data.",
+            "- `plots/*.gp`: index gnuplot scripts.",
+            "- `plots/*.png`: rendered index graphs when gnuplot was available.",
+            "- `distribution-plots/*.dat`: auditable pass/fail distribution point data.",
+            "- `distribution-plots/*.summary.dat`: per-class median and IQR data.",
+            "- `distribution-plots/*.gp`: distribution gnuplot scripts.",
+            "- `distribution-plots/*.png`: rendered pass/fail distribution graphs.",
             "",
             "This is hypothesis-generation evidence. A feature is not causal until a controlled intervention moves it and shifts held-out hardware outcomes.",
         ]

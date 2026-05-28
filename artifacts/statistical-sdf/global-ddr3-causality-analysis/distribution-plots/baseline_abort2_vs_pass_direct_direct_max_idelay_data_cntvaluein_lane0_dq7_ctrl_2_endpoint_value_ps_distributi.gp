@@ -1,0 +1,14 @@
+set terminal pngcairo size 1200,720 enhanced font 'DejaVu Sans,10'
+set output 'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps_distributi.png'
+set datafile separator comma
+set key outside right top
+set grid ytics
+set xrange [0.45:4.55]
+set xtics ('pass' 1, 'fail-reason-2' 2, 'no-abort' 3, 'fail-other' 4)
+set xlabel 'Hardware outcome class'
+set ylabel 'SDF feature value (ps)'
+set title 'direct_max__idelay_data_cntvaluein__lane0__dq7__ctrl_2__endpoint__value_ps'
+plot \
+  'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps_distributi.summary.dat' using 1:4:3:5 with yerrorbars pt 9 ps 1.5 lw 3 lc rgb '#333333' title 'median + IQR', \
+  'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps_distributi.dat' using 1:4 with points pt 7 ps 1.2 lc rgb '#1a9850' title 'pass', \
+  'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps_distributi.dat' using 1:5 with points pt 7 ps 1.2 lc rgb '#d73027' title 'fail'
