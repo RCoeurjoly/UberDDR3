@@ -301,6 +301,7 @@ def decode_payload(payload, bit_count):
     idelay_dqs_cntvalueout_raw = field(payload, 216, 5 * BYTE_LANES)
     idelay_data_cntvalueout_raw = field(payload, 226, 5 * DQ_BITS * BYTE_LANES)
     debug_calib_abort = field(payload, 306, 64)
+    debug_calib_window = field(payload, 370, 64)
     bist_counts = field(payload, 448, 64)
     debug8 = bist_counts
 
@@ -405,6 +406,8 @@ def decode_payload(payload, bit_count):
         "read_lane_data_shifted_hex": f"0x{abort_read_lane_data_shifted:08x}",
         "expected_word": abort_expected_word,
         "expected_word_hex": f"0x{abort_expected_word:08x}",
+        "read_lane_data_window": debug_calib_window,
+        "read_lane_data_window_hex": f"0x{debug_calib_window:016x}",
         "xor_with_expected": abort_read_lane_data_shifted ^ abort_expected_word,
         "xor_with_expected_hex": f"0x{(abort_read_lane_data_shifted ^ abort_expected_word):08x}",
         "state_calibrate": None,
@@ -429,6 +432,7 @@ def decode_payload(payload, bit_count):
         "debug_calib_gate": debug_calib_gate,
         "debug_idelay": debug_idelay,
         "debug_calib_abort": debug_calib_abort,
+        "debug_calib_window": debug_calib_window,
         "startup_debug": startup_debug,
         "calib_gate_debug": calib_gate_debug,
         "idelay_debug": idelay_debug,
