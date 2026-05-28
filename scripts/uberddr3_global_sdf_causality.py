@@ -448,6 +448,24 @@ def render_plots(plot_dir: Path, plot_rows: list[dict[str, object]], gnuplot: st
     return rendered
 
 
+def is_signed_skew(row: dict[str, object]) -> bool:
+    return str(row.get("feature_layer", "")) == "skew" and str(row.get("metric", "")).startswith("signed_")
+
+
+def signed_skew_candidates(rankings: dict[str, list[dict[str, object]]], top_per_comparison: int) -> list[dict[str, object]]:
+    candidates: list[dict[str, object]] = []
+    for comparison in [
+        "baseline_seed_1_30",
+        "baseline_abort2_vs_pass",
+        "baseline_seed_31_60",
+        "cntvaluein3_locked_only",
+        "locked_abort2_vs_pass",
+    ]:
+        signed = [row for row in rankings.get(comparison, []) if is_signed_skew(row)]
+        candidates.extend(signed[:top_per_comparison])
+    return candidates
+
+
 def distribution_plot_data(rows: list[dict[str, str]], feature_layer: str, feature: str) -> tuple[list[dict[str, object]], list[dict[str, object]], str]:
     selected = [
         r
@@ -615,6 +633,24 @@ def main() -> int:
     distribution_rendered = render_plots(distribution_dir, distribution_rows, args.gnuplot if args.render_plots else None)
     write_csv(args.out_dir / "distribution_plot_manifest.csv", distribution_rows)
 
+    signed_dir = args.out_dir / "signed-skew-distribution-plots"
+    signed_dir.mkdir(parents=True, exist_ok=True)
+    signed_rows: list[dict[str, object]] = []
+    signed_candidates = signed_skew_candidates(rankings, max(4, args.top_plots // 3))
+    seen_signed_features = set()
+    for row in signed_candidates:
+        key = (row["comparison"], row["feature_layer"], row["feature"])
+        if key in seen_signed_features:
+            continue
+        seen_signed_features.add(key)
+        plot = write_distribution_plot(signed_dir, rows, row, f"signed_{row['comparison']}")
+        if plot:
+            signed_rows.append(plot)
+        if len(signed_rows) >= args.top_plots:
+            break
+    signed_rendered = render_plots(signed_dir, signed_rows, args.gnuplot if args.render_plots else None)
+    write_csv(args.out_dir / "signed_skew_distribution_plot_manifest.csv", signed_rows)
+
     pass_fail_1_30 = Counter()
     for row in {r.get("experiment_id", ""): r for r in rows if r.get("run_group") == "baseline_no_lock_seed_1_30"}.values():
         pass_fail_1_30[str(parse_bool(row.get("hardware_pass", "")))] += 1
@@ -633,8 +669,10 @@ def main() -> int:
         f"- index plot PNGs rendered: `{rendered}`",
         f"- distribution plot scripts/data generated: `{len(distribution_rows)}`",
         f"- distribution plot PNGs rendered: `{distribution_rendered}`",
+        f"- focused signed-skew distribution plots generated: `{len(signed_rows)}`",
+        f"- focused signed-skew distribution PNGs rendered: `{signed_rendered}`",
         "",
-        "Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays.",
+        "Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays. Focused signed-skew plots intentionally exclude absolute-value metrics and show only signed skew/order hypotheses.",
         "",
         "## Top Baseline Seed 1..30 Features",
         "",
@@ -661,6 +699,10 @@ def main() -> int:
             "- `distribution-plots/*.summary.dat`: per-class median and IQR data.",
             "- `distribution-plots/*.gp`: distribution gnuplot scripts.",
             "- `distribution-plots/*.png`: rendered pass/fail distribution graphs.",
+            "- `signed-skew-distribution-plots/*.dat`: auditable focused signed-skew point data.",
+            "- `signed-skew-distribution-plots/*.summary.dat`: median and IQR data for focused signed-skew plots.",
+            "- `signed-skew-distribution-plots/*.gp`: focused signed-skew gnuplot scripts.",
+            "- `signed-skew-distribution-plots/*.png`: focused signed-skew/order hypothesis graphs; these exclude absolute-value metrics.",
             "",
             "This is hypothesis-generation evidence. A feature is not causal until a controlled intervention moves it and shifts held-out hardware outcomes.",
         ]

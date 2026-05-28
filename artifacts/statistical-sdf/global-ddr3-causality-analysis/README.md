@@ -11,8 +11,10 @@ This no-rebuild analysis joins existing HIL outcomes with existing SDF/JSON-deri
 - index plot PNGs rendered: `30`
 - distribution plot scripts/data generated: `30`
 - distribution plot PNGs rendered: `30`
+- focused signed-skew distribution plots generated: `30`
+- focused signed-skew distribution PNGs rendered: `30`
 
-Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays.
+Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays. Focused signed-skew plots intentionally exclude absolute-value metrics and show only signed skew/order hypotheses.
 
 ## Top Baseline Seed 1..30 Features
 
@@ -42,5 +44,9 @@ Pass points are green and fail points are red in every gnuplot graph. Distributi
 - `distribution-plots/*.summary.dat`: per-class median and IQR data.
 - `distribution-plots/*.gp`: distribution gnuplot scripts.
 - `distribution-plots/*.png`: rendered pass/fail distribution graphs.
+- `signed-skew-distribution-plots/*.dat`: auditable focused signed-skew point data.
+- `signed-skew-distribution-plots/*.summary.dat`: median and IQR data for focused signed-skew plots.
+- `signed-skew-distribution-plots/*.gp`: focused signed-skew gnuplot scripts.
+- `signed-skew-distribution-plots/*.png`: focused signed-skew/order hypothesis graphs; these exclude absolute-value metrics.
 
 This is hypothesis-generation evidence. A feature is not causal until a controlled intervention moves it and shifts held-out hardware outcomes.
