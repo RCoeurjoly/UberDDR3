@@ -70,6 +70,9 @@ module ddr3_phy #(
         output wire[LANES*8-1:0] o_controller_iserdes_dqs,
         output wire[LANES*8-1:0] o_controller_iserdes_bitslip_reference,
         output wire o_controller_idelayctrl_rdy,
+        output wire o_controller_idelay_load_busy,
+        output wire o_controller_idelay_load_done,
+        output wire o_controller_idelay_load_error,
         output wire[5*DQ_BITS*LANES-1:0] o_debug_idelay_data_cntvalueout,
         output wire[5*LANES-1:0] o_debug_idelay_dqs_cntvalueout,
         output wire[7:0] o_debug_startup,
@@ -94,7 +97,142 @@ module ddr3_phy #(
         output wire[2:0] o_debug_status
     );
 
-    `ifdef UBERDDR3_IDELAY_STABLE_BEFORE_LD
+    `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+        localparam IDELAY_LOAD_STABLE_CYCLES = 3;
+        localparam IDELAY_LOAD_VERIFY_CYCLES = 2;
+        localparam IDELAY_LOAD_RETRIES = 3;
+        localparam IDELAY_LOAD_IDLE = 0;
+        localparam IDELAY_LOAD_STABLE = 1;
+        localparam IDELAY_LOAD_PULSE = 2;
+        localparam IDELAY_LOAD_VERIFY_WAIT = 3;
+        localparam IDELAY_LOAD_VERIFY = 4;
+        integer idelay_load_lane;
+        integer idelay_load_dq;
+
+        reg[2:0] idelay_load_state = IDELAY_LOAD_IDLE;
+        reg[2:0] idelay_load_counter = 0;
+        reg[1:0] idelay_load_retry = 0;
+        reg[LANES-1:0] idelay_load_data_mask = 0;
+        reg[LANES-1:0] idelay_load_dqs_mask = 0;
+        reg[4:0] idelay_load_data_tap = 0;
+        reg[4:0] idelay_load_dqs_tap = 0;
+        reg idelay_load_done = 0;
+        reg idelay_load_error = 0;
+        reg idelay_load_verify_failed;
+
+        wire idelay_load_request = (|i_controller_idelay_data_ld) || (|i_controller_idelay_dqs_ld);
+
+        reg[4:0] phy_idelay_data_cntvaluein_reg = 0;
+        reg[4:0] phy_idelay_dqs_cntvaluein_reg = 0;
+        reg[LANES-1:0] phy_idelay_data_ld_reg = 0;
+        reg[LANES-1:0] phy_idelay_dqs_ld_reg = 0;
+
+        assign o_controller_idelay_load_busy = (idelay_load_state != IDELAY_LOAD_IDLE);
+        assign o_controller_idelay_load_done = idelay_load_done;
+        assign o_controller_idelay_load_error = idelay_load_error;
+
+        always @(posedge i_controller_clk) begin
+            if(!i_rst_n || i_controller_reset) begin
+                idelay_load_state <= IDELAY_LOAD_IDLE;
+                idelay_load_counter <= 0;
+                idelay_load_retry <= 0;
+                idelay_load_data_mask <= 0;
+                idelay_load_dqs_mask <= 0;
+                idelay_load_data_tap <= 0;
+                idelay_load_dqs_tap <= 0;
+                idelay_load_done <= 1'b0;
+                idelay_load_error <= 1'b0;
+                phy_idelay_data_cntvaluein_reg <= 0;
+                phy_idelay_dqs_cntvaluein_reg <= 0;
+                phy_idelay_data_ld_reg <= 0;
+                phy_idelay_dqs_ld_reg <= 0;
+            end
+            else begin
+                idelay_load_done <= 1'b0;
+                idelay_load_error <= 1'b0;
+                phy_idelay_data_ld_reg <= 0;
+                phy_idelay_dqs_ld_reg <= 0;
+
+                case(idelay_load_state)
+                IDELAY_LOAD_IDLE: begin
+                    if(idelay_load_request) begin
+                        idelay_load_data_mask <= i_controller_idelay_data_ld;
+                        idelay_load_dqs_mask <= i_controller_idelay_dqs_ld;
+                        idelay_load_data_tap <= i_controller_idelay_data_cntvaluein;
+                        idelay_load_dqs_tap <= i_controller_idelay_dqs_cntvaluein;
+                        phy_idelay_data_cntvaluein_reg <= i_controller_idelay_data_cntvaluein;
+                        phy_idelay_dqs_cntvaluein_reg <= i_controller_idelay_dqs_cntvaluein;
+                        idelay_load_counter <= IDELAY_LOAD_STABLE_CYCLES[2:0];
+                        idelay_load_retry <= 0;
+                        idelay_load_state <= IDELAY_LOAD_STABLE;
+                    end
+                end
+                IDELAY_LOAD_STABLE: begin
+                    phy_idelay_data_cntvaluein_reg <= idelay_load_data_tap;
+                    phy_idelay_dqs_cntvaluein_reg <= idelay_load_dqs_tap;
+                    if(idelay_load_counter == 0) begin
+                        idelay_load_state <= IDELAY_LOAD_PULSE;
+                    end
+                    else begin
+                        idelay_load_counter <= idelay_load_counter - 1'b1;
+                    end
+                end
+                IDELAY_LOAD_PULSE: begin
+                    phy_idelay_data_cntvaluein_reg <= idelay_load_data_tap;
+                    phy_idelay_dqs_cntvaluein_reg <= idelay_load_dqs_tap;
+                    phy_idelay_data_ld_reg <= idelay_load_data_mask;
+                    phy_idelay_dqs_ld_reg <= idelay_load_dqs_mask;
+                    idelay_load_counter <= IDELAY_LOAD_VERIFY_CYCLES[2:0];
+                    idelay_load_state <= IDELAY_LOAD_VERIFY_WAIT;
+                end
+                IDELAY_LOAD_VERIFY_WAIT: begin
+                    if(idelay_load_counter == 0) begin
+                        idelay_load_state <= IDELAY_LOAD_VERIFY;
+                    end
+                    else begin
+                        idelay_load_counter <= idelay_load_counter - 1'b1;
+                    end
+                end
+                IDELAY_LOAD_VERIFY: begin
+                    idelay_load_verify_failed = 1'b0;
+                    for(idelay_load_lane = 0; idelay_load_lane < LANES; idelay_load_lane = idelay_load_lane + 1) begin
+                        if(idelay_load_data_mask[idelay_load_lane]) begin
+                            for(idelay_load_dq = 0; idelay_load_dq < DQ_BITS; idelay_load_dq = idelay_load_dq + 1) begin
+                                if(o_debug_idelay_data_cntvalueout[5*(idelay_load_lane*DQ_BITS + idelay_load_dq) +: 5] != idelay_load_data_tap) begin
+                                    idelay_load_verify_failed = 1'b1;
+                                end
+                            end
+                        end
+                        if(idelay_load_dqs_mask[idelay_load_lane]) begin
+                            if(o_debug_idelay_dqs_cntvalueout[5*idelay_load_lane +: 5] != idelay_load_dqs_tap) begin
+                                idelay_load_verify_failed = 1'b1;
+                            end
+                        end
+                    end
+
+                    if(idelay_load_verify_failed && idelay_load_retry != IDELAY_LOAD_RETRIES[1:0]) begin
+                        idelay_load_retry <= idelay_load_retry + 1'b1;
+                        idelay_load_counter <= IDELAY_LOAD_STABLE_CYCLES[2:0];
+                        idelay_load_state <= IDELAY_LOAD_STABLE;
+                    end
+                    else begin
+                        idelay_load_done <= !idelay_load_verify_failed;
+                        idelay_load_error <= idelay_load_verify_failed;
+                        idelay_load_state <= IDELAY_LOAD_IDLE;
+                    end
+                end
+                default: begin
+                    idelay_load_state <= IDELAY_LOAD_IDLE;
+                end
+                endcase
+            end
+        end
+
+        wire[4:0] phy_idelay_data_cntvaluein = phy_idelay_data_cntvaluein_reg;
+        wire[4:0] phy_idelay_dqs_cntvaluein = phy_idelay_dqs_cntvaluein_reg;
+        wire[LANES-1:0] phy_idelay_data_ld = phy_idelay_data_ld_reg;
+        wire[LANES-1:0] phy_idelay_dqs_ld = phy_idelay_dqs_ld_reg;
+    `elsif UBERDDR3_IDELAY_STABLE_BEFORE_LD
         reg[4:0] idelay_data_cntvaluein_d1 = 0;
         reg[4:0] idelay_data_cntvaluein_d2 = 0;
         reg[4:0] idelay_dqs_cntvaluein_d1 = 0;
@@ -131,11 +269,17 @@ module ddr3_phy #(
         wire[4:0] phy_idelay_dqs_cntvaluein = idelay_dqs_cntvaluein_d2;
         wire[LANES-1:0] phy_idelay_data_ld = idelay_data_ld_d2;
         wire[LANES-1:0] phy_idelay_dqs_ld = idelay_dqs_ld_d2;
+        assign o_controller_idelay_load_busy = 1'b0;
+        assign o_controller_idelay_load_done = 1'b0;
+        assign o_controller_idelay_load_error = 1'b0;
     `else
         wire[4:0] phy_idelay_data_cntvaluein = i_controller_idelay_data_cntvaluein;
         wire[4:0] phy_idelay_dqs_cntvaluein = i_controller_idelay_dqs_cntvaluein;
         wire[LANES-1:0] phy_idelay_data_ld = i_controller_idelay_data_ld;
         wire[LANES-1:0] phy_idelay_dqs_ld = i_controller_idelay_dqs_ld;
+        assign o_controller_idelay_load_busy = 1'b0;
+        assign o_controller_idelay_load_done = 1'b0;
+        assign o_controller_idelay_load_error = 1'b0;
     `endif
 
     // cmd bit assignment

@@ -140,6 +140,9 @@ module ddr3_controller #(
         input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_dqs,
         input wire[LANES*serdes_ratio*2 - 1:0] i_phy_iserdes_bitslip_reference,
         input wire i_phy_idelayctrl_rdy,
+        input wire i_phy_idelay_load_busy,
+        input wire i_phy_idelay_load_done,
+        input wire i_phy_idelay_load_error,
         input wire[5*DQ_BITS*LANES - 1:0] i_phy_idelay_data_cntvalueout,
         input wire[5*LANES - 1:0] i_phy_idelay_dqs_cntvalueout,
         output reg[cmd_len*serdes_ratio-1:0] o_phy_cmd,
@@ -392,7 +395,8 @@ module ddr3_controller #(
                 ALTERNATE_WRITE_READ = 21,
                 FINISH_READ = 22,
                 DONE_CALIBRATE = 23,
-                ANALYZE_DATA_LOW_FREQ = 24;
+                ANALYZE_DATA_LOW_FREQ = 24,
+                WAIT_IDELAY_LOAD = 25;
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
@@ -547,7 +551,9 @@ module ddr3_controller #(
     reg write_dq_d;
     reg[STAGE2_DATA_DEPTH+1:0] write_dq;  
     
-    (* mark_debug = "true" *) reg[$clog2(DONE_CALIBRATE)-1:0] state_calibrate;
+    (* mark_debug = "true" *) reg[$clog2(WAIT_IDELAY_LOAD)-1:0] state_calibrate;
+    reg[$clog2(WAIT_IDELAY_LOAD)-1:0] state_after_idelay_load;
+    reg[3:0] idelay_load_delay_after_done;
     reg[STORED_DQS_SIZE*8-1:0] dqs_store = 0;
     reg[$clog2(STORED_DQS_SIZE)-1:0] dqs_count_repeat = 0;
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_start_index = 0;
@@ -717,7 +723,7 @@ module ddr3_controller #(
                     UART_FSM_WAIT_SEND = 2,
                     WAIT_UART = 31;
         reg[3:0] track_report = 0;
-        reg[$clog2(DONE_CALIBRATE)-1:0] state_calibrate_next, state_calibrate_last;
+        reg[$clog2(WAIT_IDELAY_LOAD)-1:0] state_calibrate_next, state_calibrate_last;
     `endif
     reg[2:0] bitslip_counter = 0;
     reg[1:0] shift_read_pipe = 0;
@@ -1048,8 +1054,13 @@ module ddr3_controller #(
                     debug_expected_dqs_tap[debug_lane] <= o_phy_idelay_dqs_cntvaluein;
             end
 
+            `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+            debug_idelay_data_check_valid <= {LANES{1'b0}};
+            debug_idelay_dqs_check_valid <= {LANES{1'b0}};
+`else
             debug_idelay_data_check_valid <= o_phy_idelay_data_ld;
             debug_idelay_dqs_check_valid <= o_phy_idelay_dqs_ld;
+`endif
             debug_idelay_load_seen <= debug_idelay_load_seen || (|o_phy_idelay_data_ld) || (|o_phy_idelay_dqs_ld);
             debug_idelay_data_load_seen <= debug_idelay_data_load_seen | o_phy_idelay_data_ld;
             debug_idelay_dqs_load_seen <= debug_idelay_dqs_load_seen | o_phy_idelay_dqs_ld;
@@ -2592,6 +2603,8 @@ module ddr3_controller #(
             o_phy_odelay_dqs_ld <= 0;
             o_phy_idelay_data_ld <= 0;
             o_phy_idelay_dqs_ld <= 0;
+            state_after_idelay_load <= IDLE;
+            idelay_load_delay_after_done <= 0;
             lane_times_8 <= 0;
             idelay_data_cntvaluein_prev <= 0;
             initial_dqs <= 1;
@@ -2725,6 +2738,11 @@ module ddr3_controller #(
                         o_phy_odelay_dqs_ld <= {LANES{1'b1}};
                         o_phy_idelay_data_ld <= {LANES{1'b1}};
                         o_phy_idelay_dqs_ld <= {LANES{1'b1}};
+                        `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+                            state_after_idelay_load <= DLL_OFF? ISSUE_WRITE_1 : BITSLIP_DQS_TRAIN_1;
+                            idelay_load_delay_after_done <= 0;
+                            state_calibrate <= WAIT_IDELAY_LOAD;
+                        `endif
                         pause_counter <= DLL_OFF? 0 : 1; // If DLL on, do calibration so pause instruction address @13 until read calibration finishes
                         write_calib_dqs <= 0;
                         write_calib_odt <= 0;
@@ -2857,8 +2875,14 @@ module ddr3_controller #(
                         if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
-                            state_calibrate <= MPR_READ;
-                            delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+                                state_after_idelay_load <= MPR_READ;
+                                idelay_load_delay_after_done <= 10;
+                                state_calibrate <= WAIT_IDELAY_LOAD;
+                            `else
+                                state_calibrate <= MPR_READ;
+                                delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            `endif
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {"state=ANALYZE_DQS, Glitch: Reached End", 8'h0a,"----------------------",8'h0a,8'h0a};
@@ -2907,8 +2931,14 @@ module ddr3_controller #(
                             // To show why next odd number is needed: https://github.com/AngeloJacobo/UberDDR3/tree/b762c464f6526159c1d8c2e4ee039b4ae4e78dbd#per-lane-read-calibration
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
-                            state_calibrate <= MPR_READ;
-                            delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+                                state_after_idelay_load <= MPR_READ;
+                                idelay_load_delay_after_done <= 10;
+                                state_calibrate <= WAIT_IDELAY_LOAD;
+                            `else
+                                state_calibrate <= MPR_READ;
+                                delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            `endif
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {8'h0a,"state=CALIBRATE_DQS, stored(0x", hex_to_ascii(dqs_start_index_stored[5:4]),hex_to_ascii(dqs_start_index_stored[3:0]),
@@ -3578,6 +3608,26 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         end
                     end    
                                
+    WAIT_IDELAY_LOAD: begin
+                        if(i_phy_idelay_load_done) begin
+                            state_calibrate <= state_after_idelay_load;
+                            delay_before_read_data <= idelay_load_delay_after_done;
+                        end
+                        else if(i_phy_idelay_load_error) begin
+                            reset_from_calibrate <= 1'b1;
+                            calib_abort_snapshot_valid <= 1'b1;
+                            calib_abort_snapshot_reason <= 4'd3;
+                            calib_abort_snapshot_lane <= { {(8-lanes_clog2){1'b0}}, lane };
+                            calib_abort_snapshot_state <= WAIT_IDELAY_LOAD;
+                            calib_abort_snapshot_instruction <= instruction_address;
+                            calib_abort_snapshot_start_index_check <= {2'd0, start_index_check};
+                            calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                            calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                            calib_abort_snapshot_dq_target_index <= {2'd0, dq_target_index[lane]};
+                            calib_abort_snapshot_data_start_index <= {1'd0, data_start_index[lane]};
+                        end
+                     end
+
     DONE_CALIBRATE: begin
                         calib_stb <= 0;
                         state_calibrate <= DONE_CALIBRATE;

@@ -203,6 +203,10 @@ DBEOF
           name = "ypcb-ddr3-yosys-json-idelay-stable-before-ld";
           verilogDefines = "-DUBERDDR3_IDELAY_STABLE_BEFORE_LD";
         };
+        ypcbDdr3IdelayLoadHandshakeYosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-idelay-load-handshake";
+          verilogDefines = "-DUBERDDR3_IDELAY_LOAD_HANDSHAKE";
+        };
 
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
@@ -415,6 +419,12 @@ META
             seed = lib.toInt seed;
             yosysJson = ypcbDdr3IdelayStableBeforeLdYosysJson;
           });
+        idelayLoadHandshakeCandidates = lib.genAttrs seedMatrix (seed:
+          mkCandidate {
+            suffix = "seed-${seed}-idelay-load-handshake";
+            seed = lib.toInt seed;
+            yosysJson = ypcbDdr3IdelayLoadHandshakeYosysJson;
+          });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
@@ -479,6 +489,14 @@ META
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-stable-before-ld" candidate.sdf) idelayStableBeforeLdCandidates;
         idelayStableBeforeLdCvcSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-stable-before-ld" candidate.cvcSdf) idelayStableBeforeLdCandidates;
+        idelayLoadHandshakePnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}-idelay-load-handshake" candidate.pnr) idelayLoadHandshakeCandidates;
+        idelayLoadHandshakeBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}-idelay-load-handshake" candidate.bitstream) idelayLoadHandshakeCandidates;
+        idelayLoadHandshakeSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}-idelay-load-handshake" candidate.sdf) idelayLoadHandshakeCandidates;
+        idelayLoadHandshakeCvcSdfs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-cvc-sdf-seed-${seed}-idelay-load-handshake" candidate.cvcSdf) idelayLoadHandshakeCandidates;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -509,6 +527,7 @@ META
           uberddr3-sdf-metrics = uberddr3SdfMetrics;
           ypcb-ddr3-yosys-json = ypcbDdr3YosysJson;
           ypcb-ddr3-yosys-json-idelay-stable-before-ld = ypcbDdr3IdelayStableBeforeLdYosysJson;
+          ypcb-ddr3-yosys-json-idelay-load-handshake = ypcbDdr3IdelayLoadHandshakeYosysJson;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -550,6 +569,10 @@ META
           // idelayStableBeforeLdPnrs
           // idelayStableBeforeLdBitstreams
           // idelayStableBeforeLdSdfs
-          // idelayStableBeforeLdCvcSdfs;
+          // idelayStableBeforeLdCvcSdfs
+          // idelayLoadHandshakePnrs
+          // idelayLoadHandshakeBitstreams
+          // idelayLoadHandshakeSdfs
+          // idelayLoadHandshakeCvcSdfs;
       });
 }

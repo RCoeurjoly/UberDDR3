@@ -225,6 +225,9 @@ ddr3_top #(
     wire[BYTE_LANES*8-1:0] iserdes_dqs;
     wire[BYTE_LANES*8-1:0] iserdes_bitslip_reference;
     wire idelayctrl_rdy;
+    wire idelay_load_busy;
+    wire idelay_load_done;
+    wire idelay_load_error;
     wire[4:0] odelay_data_cntvaluein, odelay_dqs_cntvaluein;
     wire[4:0] idelay_data_cntvaluein, idelay_dqs_cntvaluein;
     wire[BYTE_LANES-1:0] odelay_data_ld, odelay_dqs_ld;
@@ -326,6 +329,9 @@ ddr3_top #(
             .i_phy_iserdes_dqs(iserdes_dqs),
             .i_phy_iserdes_bitslip_reference(iserdes_bitslip_reference),
             .i_phy_idelayctrl_rdy(idelayctrl_rdy),
+            .i_phy_idelay_load_busy(idelay_load_busy),
+            .i_phy_idelay_load_done(idelay_load_done),
+            .i_phy_idelay_load_error(idelay_load_error),
             .i_phy_idelay_data_cntvalueout(idelay_data_cntvalueout),
             .i_phy_idelay_dqs_cntvalueout(idelay_dqs_cntvalueout),
             .o_phy_cmd(cmd),
@@ -399,6 +405,9 @@ ddr3_top #(
                 .o_controller_iserdes_dqs(iserdes_dqs),
                 .o_controller_iserdes_bitslip_reference(iserdes_bitslip_reference),
                 .o_controller_idelayctrl_rdy(idelayctrl_rdy),
+                .o_controller_idelay_load_busy(idelay_load_busy),
+                .o_controller_idelay_load_done(idelay_load_done),
+                .o_controller_idelay_load_error(idelay_load_error),
                 .o_debug_idelay_data_cntvalueout(idelay_data_cntvalueout),
                 .o_debug_idelay_dqs_cntvalueout(idelay_dqs_cntvalueout),
                 .o_debug_startup(phy_debug_startup),
@@ -479,6 +488,9 @@ ddr3_top #(
             );
         assign idelay_data_cntvalueout = {5*DQ_BITS*BYTE_LANES{1'b0}};
         assign idelay_dqs_cntvalueout = {5*BYTE_LANES{1'b0}};
+        assign idelay_load_busy = 1'b0;
+        assign idelay_load_done = 1'b0;
+        assign idelay_load_error = 1'b0;
         assign phy_sync_rst = 1'b0;
         assign phy_debug_status = 3'd0;
         assign phy_debug_startup = 8'd0;
