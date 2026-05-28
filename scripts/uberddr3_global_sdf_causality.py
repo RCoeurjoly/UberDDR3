@@ -466,6 +466,163 @@ def signed_skew_candidates(rankings: dict[str, list[dict[str, object]]], top_per
     return candidates
 
 
+def collect_feature_values(rows: list[dict[str, str]], feature_layer: str, feature: str) -> list[dict[str, object]]:
+    out: list[dict[str, object]] = []
+    for row in rows:
+        if row.get("feature_layer") != feature_layer or row.get("feature") != feature:
+            continue
+        passed = parse_bool(row.get("hardware_pass", ""))
+        if passed is None:
+            continue
+        try:
+            value = float(row.get("value_ps", ""))
+        except ValueError:
+            continue
+        out.append(
+            {
+                "value_ps": value,
+                "passed": passed,
+                "failure_class": failure_class(row),
+                "seed": row.get("seed", ""),
+                "run_group": row.get("run_group", ""),
+                "variant": row.get("variant", ""),
+                "experiment_id": row.get("experiment_id", ""),
+            }
+        )
+    return out
+
+
+def best_one_sided_threshold(pass_values: list[float], fail_values: list[float]) -> dict[str, object]:
+    values = sorted(set(pass_values + fail_values))
+    if not values:
+        return {}
+    candidates = [values[0] - 1e-9, values[-1] + 1e-9]
+    candidates.extend(values)
+    for left, right in zip(values, values[1:]):
+        candidates.append((left + right) / 2.0)
+
+    best: dict[str, object] | None = None
+    for direction in ["fail_ge_threshold", "fail_le_threshold"]:
+        for threshold in candidates:
+            if direction == "fail_ge_threshold":
+                false_fail = sum(1 for value in pass_values if value >= threshold)
+                false_pass = sum(1 for value in fail_values if value < threshold)
+            else:
+                false_fail = sum(1 for value in pass_values if value <= threshold)
+                false_pass = sum(1 for value in fail_values if value > threshold)
+            errors = false_fail + false_pass
+            balance = max(false_fail, false_pass)
+            row = {
+                "best_rule": direction,
+                "threshold_ps": fnum(threshold),
+                "false_fail_pass_points": false_fail,
+                "false_pass_fail_points": false_pass,
+                "threshold_errors": errors,
+                "threshold_error_rate": fnum(errors / (len(pass_values) + len(fail_values))),
+                "threshold_error_balance": balance,
+            }
+            if best is None or (
+                errors,
+                balance,
+                abs(float(row["threshold_ps"]) if row["threshold_ps"] != "" else 0.0),
+            ) < (
+                int(best["threshold_errors"]),
+                int(best["threshold_error_balance"]),
+                abs(float(best["threshold_ps"]) if best["threshold_ps"] != "" else 0.0),
+            ):
+                best = row
+    return best or {}
+
+
+def failure_free_intervals(pass_values: list[float], fail_values: list[float]) -> list[dict[str, object]]:
+    if not pass_values or not fail_values:
+        return []
+    intervals: list[dict[str, object]] = []
+    all_min = min(pass_values + fail_values)
+    all_max = max(pass_values + fail_values)
+    fail_min = min(fail_values)
+    fail_max = max(fail_values)
+    if all_min < fail_min:
+        intervals.append(
+            {
+                "interval_kind": "low_tail",
+                "low_ps": fnum(all_min),
+                "high_ps": fnum(fail_min),
+                "width_ps": fnum(fail_min - all_min),
+                "pass_points_inside": sum(1 for value in pass_values if all_min <= value < fail_min),
+            }
+        )
+    if fail_max < all_max:
+        intervals.append(
+            {
+                "interval_kind": "high_tail",
+                "low_ps": fnum(fail_max),
+                "high_ps": fnum(all_max),
+                "width_ps": fnum(all_max - fail_max),
+                "pass_points_inside": sum(1 for value in pass_values if fail_max < value <= all_max),
+            }
+        )
+    fail_sorted = sorted(fail_values)
+    for left, right in zip(fail_sorted, fail_sorted[1:]):
+        if left == right:
+            continue
+        pass_inside = sum(1 for value in pass_values if left < value < right)
+        if pass_inside:
+            intervals.append(
+                {
+                    "interval_kind": "internal_gap",
+                    "low_ps": fnum(left),
+                    "high_ps": fnum(right),
+                    "width_ps": fnum(right - left),
+                    "pass_points_inside": pass_inside,
+                }
+            )
+    return sorted(intervals, key=lambda row: (float(row["width_ps"]), int(row["pass_points_inside"])), reverse=True)
+
+
+def threshold_report_rows(rows: list[dict[str, str]], plot_rows: list[dict[str, object]]) -> list[dict[str, object]]:
+    reports: list[dict[str, object]] = []
+    for plot in plot_rows:
+        feature_layer = str(plot["feature_layer"])
+        feature = str(plot["feature"])
+        values = collect_feature_values(rows, feature_layer, feature)
+        pass_values = sorted(float(row["value_ps"]) for row in values if row["passed"] is True)
+        fail_values = sorted(float(row["value_ps"]) for row in values if row["passed"] is False)
+        if not pass_values or not fail_values:
+            continue
+        intervals = failure_free_intervals(pass_values, fail_values)
+        largest = intervals[0] if intervals else {}
+        threshold = best_one_sided_threshold(pass_values, fail_values)
+        reports.append(
+            {
+                "plot": plot["plot"],
+                "feature_layer": feature_layer,
+                "feature": feature,
+                "n_pass": len(pass_values),
+                "n_fail": len(fail_values),
+                "pass_min_ps": fnum(pass_values[0]),
+                "pass_median_ps": fnum(median(pass_values)),
+                "pass_max_ps": fnum(pass_values[-1]),
+                "fail_min_ps": fnum(fail_values[0]),
+                "fail_median_ps": fnum(median(fail_values)),
+                "fail_max_ps": fnum(fail_values[-1]),
+                "failure_free_interval_kind": largest.get("interval_kind", ""),
+                "failure_free_low_ps": largest.get("low_ps", ""),
+                "failure_free_high_ps": largest.get("high_ps", ""),
+                "failure_free_width_ps": largest.get("width_ps", ""),
+                "failure_free_pass_points_inside": largest.get("pass_points_inside", ""),
+                **threshold,
+            }
+        )
+    return sorted(
+        reports,
+        key=lambda row: (
+            int(row.get("threshold_errors", 10**9) or 10**9),
+            -float(row.get("failure_free_width_ps", 0) or 0),
+        ),
+    )
+
+
 def distribution_plot_data(rows: list[dict[str, str]], feature_layer: str, feature: str) -> tuple[list[dict[str, object]], list[dict[str, object]], str]:
     selected = [
         r
@@ -650,6 +807,8 @@ def main() -> int:
             break
     signed_rendered = render_plots(signed_dir, signed_rows, args.gnuplot if args.render_plots else None)
     write_csv(args.out_dir / "signed_skew_distribution_plot_manifest.csv", signed_rows)
+    signed_threshold_rows = threshold_report_rows(rows, signed_rows)
+    write_csv(args.out_dir / "signed_skew_threshold_report.csv", signed_threshold_rows)
 
     pass_fail_1_30 = Counter()
     for row in {r.get("experiment_id", ""): r for r in rows if r.get("run_group") == "baseline_no_lock_seed_1_30"}.values():
@@ -671,8 +830,9 @@ def main() -> int:
         f"- distribution plot PNGs rendered: `{distribution_rendered}`",
         f"- focused signed-skew distribution plots generated: `{len(signed_rows)}`",
         f"- focused signed-skew distribution PNGs rendered: `{signed_rendered}`",
+        f"- focused signed-skew threshold reports generated: `{len(signed_threshold_rows)}`",
         "",
-        "Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays. Focused signed-skew plots intentionally exclude absolute-value metrics and show only signed skew/order hypotheses.",
+        "Pass points are green and fail points are red in every gnuplot graph. Distribution plots group points by `pass`, `fail-reason-2`, `no-abort`, and `fail-other`, with median + IQR overlays. Focused signed-skew plots intentionally exclude absolute-value metrics and show only signed skew/order hypotheses. The threshold report tests one-sided signed-skew rules and reports the least-error threshold, false-pass/false-fail counts, and the largest observed failure-free interval.",
         "",
         "## Top Baseline Seed 1..30 Features",
         "",
@@ -682,6 +842,22 @@ def main() -> int:
     for idx, row in enumerate(top, 1):
         readme.append(
             f"| {idx} | {row['feature_layer']} | {row['auc_best_direction']} | {row['auc_best']} | {row['fail_minus_pass_median_ps']} | `{row['feature']}` |"
+        )
+    readme.extend(
+        [
+            "",
+            "## Signed-Skew Threshold Highlights",
+            "",
+            "| errors | plot | rule | threshold ps | false fail | false pass | no-fail interval | pass pts | feature |",
+            "|---:|---|---|---:|---:|---:|---|---:|---|",
+        ]
+    )
+    for row in signed_threshold_rows[:10]:
+        interval = ""
+        if row.get("failure_free_interval_kind"):
+            interval = f"{row['failure_free_interval_kind']} [{row['failure_free_low_ps']}, {row['failure_free_high_ps']}]"
+        readme.append(
+            f"| {row.get('threshold_errors', '')} | `{row.get('plot', '')}` | {row.get('best_rule', '')} | {row.get('threshold_ps', '')} | {row.get('false_fail_pass_points', '')} | {row.get('false_pass_fail_points', '')} | {interval} | {row.get('failure_free_pass_points_inside', '')} | `{row.get('feature', '')}` |"
         )
     readme.extend(
         [
@@ -703,6 +879,7 @@ def main() -> int:
             "- `signed-skew-distribution-plots/*.summary.dat`: median and IQR data for focused signed-skew plots.",
             "- `signed-skew-distribution-plots/*.gp`: focused signed-skew gnuplot scripts.",
             "- `signed-skew-distribution-plots/*.png`: focused signed-skew/order hypothesis graphs; these exclude absolute-value metrics.",
+            "- `signed_skew_threshold_report.csv`: pass/fail ranges, largest failure-free interval, and best one-sided threshold per focused signed-skew plot.",
             "",
             "This is hypothesis-generation evidence. A feature is not causal until a controlled intervention moves it and shifts held-out hardware outcomes.",
         ]
