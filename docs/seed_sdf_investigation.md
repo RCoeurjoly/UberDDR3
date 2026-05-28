@@ -725,7 +725,7 @@ Passing rows: `6, 11, 20, 27, 1, 5`.
 
 Failing rows:
 
-- `12`: no abort, final state 4, instruction 13.
+- `12`: no abort, final state 3, instruction 13.
 - `16`: reason 2, lane 0, CHECK_STARTING_DATA exhaustion.
 - `23`: reason 2, lane 0, CHECK_STARTING_DATA exhaustion.
 - `28`: pass-control damaged by the lock; reason 2, lane 0.
@@ -748,4 +748,47 @@ The failed rows from `cntvaluein3-lock-heldout-seeds` were reprogrammed with `--
 | 30 | False | False | long-poll retest still fails with check_starting_data_search_exhausted lane 0 start_index_check=48 dq_target_index=33 |
 
 Conclusion: the five locked held-out failures are not short-timeout artifacts. The exact CNTVALUEIN3 two-cell lock remains a diagnostic intervention, not a final fix. Seed 12 should be analyzed as a no-abort instruction-13/stalled-calibration case; seeds 16, 23, 28, and 30 should be analyzed as reason-2 lane-0 CHECK_STARTING_DATA cases.
+
+### CNTVALUEIN3 Locked-Population SDF/JSON Diff: 2026-05-28
+
+Artifacts:
+
+- SDF metrics: `artifacts/sdf-metrics/cntvaluein3-lock-heldout-long-poll/`
+- SDF feature table: `artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll/`
+- derived skew table: `artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-skew/`
+- SDF-referenced placement table: `artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-placement/`
+- filtered bucket analysis: `artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-analysis/`
+- findings summary: `artifacts/statistical-sdf/cntvaluein3-lock-heldout-long-poll-analysis/locked_population_findings.md`
+
+This analysis compares the six passing locked rows against the five failing locked long-poll rows, but filters out the two locked `CNTVALUEIN3` source-LUT features and derived `CNTVALUEIN3` aggregate skew metrics. The goal is to identify collateral SDF/JSON signatures after the intended lock target is held fixed.
+
+Buckets:
+
+| bucket | pass rows | fail rows | interpretation |
+| --- | ---: | ---: | --- |
+| reason-2 lane-0 | 6 | 4 | seeds `16, 23, 28, 30`; all have `CHECK_STARTING_DATA`, lane 0, `start_index_check=48`, `dq_target_index=33` |
+| seed12 no-abort | 6 | 1 | seed `12`; final state `3`, instruction `13`, no captured abort |
+| all-fail pooled | 6 | 5 | retained only as a sanity view; not the main interpretation because seed12 is a different bucket |
+
+Reason-2 lane-0 results:
+
+| feature family | strongest result | interpretation |
+| --- | --- | --- |
+| direct SDF | no strict separator; top fail-higher rows are `dq_iologic lane1 dq11` AUC 0.917, `dq_iologic lane0 dq5` AUC 0.875, and `dq_iologic lane0 dq3` AUC 0.875 | direct delays still point at DQ IOLOGIC and non-locked IDELAY programming, but with overlap |
+| derived skew | one strict separator: `abs(dqs1 - dq9) CNTVALUEIN4`, fail-lower, AUC 1.000, median -273 ps, strict margin 41 ps | the remaining signal is relative skew/alignment margin, not a simple fail-slower threshold |
+| JSON placement distance | no strict separator; reset-release manhattan max/spread AUC 0.75 with overlap | current placement-distance features are too coarse, especially for same-site IOLOGIC edges |
+
+Seed12 singleton results:
+
+| feature family | strongest result | interpretation |
+| --- | --- | --- |
+| direct SDF | strict fail-higher clues in `dq_iologic lane0 dq1` (+566 ps median, +460 ps strict margin), clocking (+562.5 ps, +420 ps), and `idelay_data_cntvaluein lane1 ctrl0` fanout spread (+411 ps, +292 ps) | compatible with a stalled calibration progress bucket, but one failing row is not population proof |
+| derived skew | strict fail-higher clues in lane0 DQS `LD - CNTVALUEIN` skew across ctrl bits, especially ctrl4 (+614.5 ps median, +507 ps strict margin) | suggests seed12 deserves a separate instruction-13 progress observer rather than pooling with reason-2 lane-0 failures |
+
+Conclusion:
+
+- CE-004 is narrowed: source-LUT topology for the exact `CNTVALUEIN3 dqs1-dq14` pair is not sufficient. Locked rows all have the intended source placement, yet five still fail.
+- CE-001 and CE-002 remain active, but the current locked-population evidence points to a broader byte-lane alignment-margin signature involving non-locked CNTVALUEIN bits, LD-vs-CNTVALUEIN skew, and DQ/DQS IOLOGIC delay.
+- SO-006 remains rejected as a final fix. It is useful as a perturbation that generated a cleaner pass/fail population, not as a constraint to ship.
+- The next cause/effect test should either add a focused reason-2 observer for the `CHECK_STARTING_DATA` accepted/rejected candidate window, or create a soft byte-lane locality/floorplan intervention and verify that it moves the broader skew/IOLOGIC signature and held-out pass rate together.
 

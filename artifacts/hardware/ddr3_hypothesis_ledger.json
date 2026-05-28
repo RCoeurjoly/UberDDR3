@@ -1,41 +1,41 @@
 [
   {
-    "evidence_against": "reason2 failures still have zero strict univariate skew separators; strongest features are sometimes in lane1 while the abort observer usually reports lane0, so the skew features may be proxies for broader placement or alignment margin until exact component and placement audits prove locality",
-    "evidence_for": "previous direct-delay experiments exposed IDELAY CNTVALUEIN/LD candidates; baseline 30-row absolute feature analysis kept IDELAY/DQS/DQ metrics near the top; the new derived skew analysis improves the reason2 pairwise AUC to 0.948 and concentrates the signal in DQS-vs-DQ and lane-relative IDELAY programming skew",
+    "evidence_against": "reason2 failures still lack a clean univariate direct-delay threshold; the one strict locked-population skew separator is fail-lower and lane1 while the abort observer reports lane0, so the feature may be a proxy for broader byte-lane alignment margin; current JSON placement-distance features are too coarse",
+    "evidence_for": "previous direct-delay experiments exposed IDELAY CNTVALUEIN/LD candidates; baseline 30-row absolute/skew analysis concentrated the signal in DQS-vs-DQ and lane-relative IDELAY programming skew; locked-population analysis preserves a residual skew/IOLOGIC signature after the original CNTVALUEIN3 target is held fixed",
     "hardware_signature": "state-17 wrong-read, reason-2 CHECK_STARTING_DATA exhaustion, or BIST/calibration failure after startup",
     "hypothesis": "IDELAY programming/control skew and byte-lane alignment margin around DQ/DQS IDELAYE2 pins predicts failing implementations.",
     "id": "CE-001",
     "narrow_cells_or_paths": "DQ/DQS IDELAYE2 CNTVALUEIN signed/absolute skew, LD-vs-CNTVALUEIN relative skew, byte-lane DQS-vs-DQ and lane-vs-lane placement skew; CE/INC/RST only if future RTL drives them dynamically",
-    "next_test": "extract exact source/sink pins and nextpnr placements for the top skew pair, then add JSON distance/asymmetry features before designing a constraint intervention",
-    "sdf_json_signature": "skew-only baseline analysis: all-fail top univariate abs(dqs1-dq14) CNTVALUEIN3 AUC 0.841, median +221 ps; reason2 top univariate same feature AUC 0.825, median +184 ps; reason2 top pair same feature plus signed lane1 DQS-vs-DQ bus-skew delta AUC 0.948; CE/INC/REGRST are present but constant GND in current RTL",
+    "next_test": "test causality by either moving the broader byte-lane locality/skew signature with a soft floorplan, or adding the CHECK_STARTING_DATA candidate-window observer to prove which alignment boundary collapses",
+    "sdf_json_signature": "skew-only baseline analysis: all-fail top univariate abs(dqs1-dq14) CNTVALUEIN3 AUC 0.841, median +221 ps; reason2 top pair same feature plus signed lane1 DQS-vs-DQ bus-skew delta AUC 0.948. Locked CNTVALUEIN3 population after excluding locked ctrl3 features: reason2 rows have no strict direct-delay separator; one strict skew separator abs(dqs1-dq9) CNTVALUEIN4 fail-lower AUC 1.0, median -273 ps, strict margin 41 ps; DQ IOLOGIC and non-locked IDELAY programming metrics remain high-AUC but overlapping.",
     "solution_candidates": "soft IDELAY/byte-lane floorplan; RTL calibration tolerance for skewed windows; minimal absolute locks only as diagnostics",
-    "status": "active_strengthened_by_skew_analysis",
+    "status": "active_strengthened_by_locked_population",
     "type": "cause_effect"
   },
   {
-    "evidence_against": "no single skew metric strictly separates reason-2 failures from passes; lane attribution is not yet explained because several top skew features involve lane1 while six of seven aborts report lane0; current metrics do not include exact CHECK_STARTING_DATA operands",
-    "evidence_for": "baseline/no-lock seeds 1..30 produced 7 deterministic reason-2 failures and 22 clean passes; explicit skew features are more predictive than absolute direct-delay features; the strongest pairwise reason2 skew model reaches AUC 0.948",
+    "evidence_against": "the locked-population residual SDF signature is not a single fail-slower path and still has lane/proxy ambiguity; seed12 is a separate no-abort bucket and must not be pooled with reason2",
+    "evidence_for": "baseline/no-lock seeds 1..30 produced deterministic reason-2 failures; locked long-poll failures seeds 16/23/28/30 repeat the same reason-2 lane0 snapshot with start_index_check=48 and dq_target_index=33; SDF/skew features remain concentrated in DQ/DQS IOLOGIC and IDELAY programming/alignment families rather than unrelated logic",
     "hardware_signature": "first abort reason 2, mostly lane 0, CHECK_STARTING_DATA exhaustion, no data/DQS tap mismatch; baseline 30-seed sweep repeats start_index_check=48 and dq_target_index=33",
     "hypothesis": "Data-alignment search in CHECK_STARTING_DATA runs out of valid start-index candidates because the implemented alignment margin is seed-dependent.",
     "id": "CE-002",
     "narrow_cells_or_paths": "CHECK_STARTING_DATA lane decision cone, read sample classification cone, DQS lane0 CNTVALUEIN skew, DQ CNTVALUEIN fanout/skew, and LD/control fan-in",
-    "next_test": "audit exact pins/placements behind the top skew features and add the CHECK_STARTING_DATA candidate-window observer to see which accepted/rejected boundary collapses",
-    "sdf_json_signature": "reason2 skew-only analysis: no strict univariate separator, but abs(dqs1-dq14) CNTVALUEIN3 AUC 0.825 and the best two-feature skew score reaches AUC 0.948 with signed lane1 DQS-vs-DQ bus-skew delta",
+    "next_test": "add the CHECK_STARTING_DATA candidate-window observer: accepted/rejected start_index_check values, final read_lane_data_shifted, write-pattern slice, and whether the valid window disappears or shifts",
+    "sdf_json_signature": "baseline reason2 skew analysis has no strict univariate separator but best two-feature skew score AUC 0.948. Locked CNTVALUEIN3 reason2 rows, after excluding the locked target, still show lane0 CHECK_STARTING_DATA aborts with high-AUC DQ IOLOGIC/non-locked IDELAY skew features and one strict fail-lower skew separator abs(dqs1-dq9) CNTVALUEIN4.",
     "solution_candidates": "RTL calibration search/window robustness; soft placement locality for the alignment and IDELAY programming cones if the exact features move with hardware pass rate",
-    "status": "active_strengthened_by_skew_population",
+    "status": "active_reason2_bucket_strengthened_by_locked_population",
     "type": "cause_effect"
   },
   {
-    "evidence_against": "only one startup/no-abort baseline row exists, so strict seed16 separators can be single-sample artifacts",
-    "evidence_for": "seed16 remains a distinct no-abort startup bucket; derived skew analysis shows a distinctive lane1 IOLOGIC/DQ range and IDELAY skew profile for this one row",
+    "evidence_against": "only singleton rows exist for these non-reason2 buckets, so strict separators can be artifacts; do not pool seed12 with reason2 lane0 failures",
+    "evidence_for": "seed16 remains a distinct no-abort startup bucket in baseline data; locked seed12 is a separate no-abort instruction-13/stalled-calibration row with singleton strict clues in clocking, lane0 DQ IOLOGIC, and lane0 DQS LD-vs-CNTVALUEIN skew",
     "hardware_signature": "true no-abort early calibration failure; exclude rows that returned to state 0 only after reason-2 reset_from_calibrate",
     "hypothesis": "Startup/reset/IDELAYCTRL readiness ordering or reset recovery/removal margin causes no-abort early calibration failures.",
     "id": "CE-003",
     "narrow_cells_or_paths": "IDELAYCTRL site/refclk/reset/RDY, delay_before_release_reset, sync_rst, sync_rst_controller, state-0 release cone, and reset ROM instruction path",
-    "next_test": "collect more no-abort startup failures or induce this bucket with controlled reset/startup perturbations before promoting IDELAYCTRL/reset constraints",
+    "next_test": "add a seed12/instruction-13 progress observer before applying constraints: capture what instruction 13 waits for, DQS/read-leveling progress counters, and whether clocks/resets/IDELAYCTRL ready remain stable",
     "sdf_json_signature": "seed16 skew-only analysis has n_fail=1, 16 strict skew separators, and startup relative idelayctrl-minus-reset-release ranks high but is not strict; these are targets for more startup rows, not proof",
     "solution_candidates": "explicit reset/CDC/generated-clock constraints; startup sequencing RTL changes; IDELAYCTRL locality constraints only after repeated startup rows support the signature",
-    "status": "active_seed16_startup_bucket",
+    "status": "active_startup_or_progress_bucket",
     "type": "cause_effect"
   },
   {
@@ -91,16 +91,16 @@
     "type": "solution"
   },
   {
-    "evidence_against": "same lock fails baseline reason2 seeds 12 and 23, baseline startup seed16, and damages baseline pass controls seed28 and seed30; focused audit shows source manhattan=3 for every locked row, so source distance/topology alone is not sufficient",
-    "evidence_for": "held-out batch: exact two-cell CNTVALUEIN3 lock rescues baseline reason2 failures seed6, seed11, seed20, and seed27; seed2 also passed in the previous split batch",
+    "evidence_against": "same lock fails baseline reason2 seeds 23 plus damaged pass controls 28/30, baseline startup seed16, and seed12 no-abort instruction-13; focused audit shows source manhattan=3 for every locked row; locked-population SDF/JSON diff outside the two locked LUTs finds no direct placement-distance separator and no strict direct-delay separator, so the exact source pair is not sufficient",
+    "evidence_for": "held-out batch: exact two-cell CNTVALUEIN3 lock rescues baseline reason2 failures seed6, seed11, seed20, and seed27; seed2 also passed in the previous split batch; all locked rows intentionally hold the source LUT placement distance at the seed3-style value",
     "hardware_signature": "reason-2 CHECK_STARTING_DATA exhaustion or calibration/BIST failure after startup",
     "hypothesis": "The exact lane1 DQS1 versus DQ14 CNTVALUEIN3 skew is causal or a high-fidelity proxy for the dominant reason-2 calibration failures.",
     "id": "CE-004",
     "narrow_cells_or_paths": "ddr3_phy IDELAYE2_dqs lane1 CNTVALUEIN3, IDELAYE2_data dq14 CNTVALUEIN3, source LUTs i_controller_idelay_dqs_cntvaluein[3] and i_controller_idelay_data_cntvaluein[3]",
-    "next_test": "compare pass-vs-fail rows inside the locked population to identify collateral SDF/JSON signatures outside the two locked CNTVALUEIN3 cells",
+    "next_test": "widen the cause hypothesis to collateral byte-lane IDELAY/DQ/DQS skew and calibration-decision cones; do not test more exact BEL locks until a broader signature is moved intentionally",
     "sdf_json_signature": "focused SDF audit shows large abs(dqs1-dq14) CNTVALUEIN3 skew and asymmetric source LUT placement in failing rows; seed2 fail has 707 ps skew and source manhattan 21 while seed3 pass has 53 ps skew and source manhattan 3",
     "solution_candidates": "soft placement/locality constraint for the IDELAY programming source LUTs if the lock intervention improves pass rate; otherwise treat as proxy and widen the audited cone",
-    "status": "active_refined_source_topology_not_sufficient",
+    "status": "active_source_topology_not_sufficient",
     "type": "cause_effect"
   },
   {
@@ -117,16 +117,29 @@
     "type": "solution"
   },
   {
-    "evidence_against": "held-out lock batch fails 5/11 rows: reason2 failures seed16, seed23, seed28, seed30 plus seed12 stuck at state4/instruction13; two known baseline pass controls fail, so exact BEL locks are not safe as a final workaround; 500-poll retest of the five failed rows also fails, ruling out the original 100-poll timeout as the explanation",
+    "evidence_against": "held-out lock batch fails 5/11 rows after 500-poll retest: reason2 failures seed16, seed23, seed28, seed30 plus seed12 final state3/instruction13; two known baseline pass controls fail; locked-population SDF/JSON diff proves the exact source placement is not sufficient",
     "evidence_for": "held-out lock batch passes 6/11 rows, including four additional known baseline failures; combined with previous seed2 result it rescues five baseline failing seeds",
     "hardware_signature": "reason-2 failing seeds become pass without damaging known pass controls",
     "hypothesis": "Locking only the two CNTVALUEIN3 source LUT BELs from seed3 is enough to move the top exact skew metric in the good direction and improve failing seeds.",
     "id": "SO-006",
     "narrow_cells_or_paths": "i_controller_idelay_data_cntvaluein[3] source LUT and i_controller_idelay_dqs_cntvaluein[3] source LUT",
-    "next_test": "compare pass-vs-fail rows inside the locked population using SDF/JSON features outside the two locked CNTVALUEIN3 source LUTs; treat seed12 as a separate no-abort/instruction-13 bucket and seeds16/23/28/30 as reason2 lane0 bucket",
-    "sdf_json_signature": "source LUTs for data/dqs CNTVALUEIN3 are fixed to seed3 BELs; focused audit should show smaller abs(dqs1-dq14) CNTVALUEIN3 skew or better source placement symmetry",
+    "next_test": "do not promote the exact BEL lock. Use it only as a diagnostic population; next intervention should be a soft byte-lane locality/floorplan change or RTL observer-driven calibration robustness test",
+    "sdf_json_signature": "source LUTs for data/dqs CNTVALUEIN3 are fixed to seed3 BELs, but locked-population analysis shows residual failures are not explained by that target alone; outside the locked ctrl3 features, reason2 failures show broader DQ IOLOGIC/non-locked IDELAY skew evidence and seed12 is a separate no-abort instruction-13 bucket",
     "solution_candidates": "use only to derive a higher-level placement strategy, preferably soft locality/floorplan constraints rather than permanent exact BEL locks",
-    "status": "tested_mixed_reject_as_final_fix_timeout_ruled_out",
+    "status": "tested_mixed_rejected_final_fix_analyzed",
     "type": "solution"
+  },
+  {
+    "evidence_against": "Small n=4 failure population; only one strict skew separator and it is fail-lower; top skew features can involve lane1 while the abort is lane0; current JSON placement features are coarse and do not prove physical locality.",
+    "evidence_for": "Same lock/payload population gives 6 pass rows versus 4 homogeneous reason2 failures; analysis explicitly excludes the locked target, so the residual signal is collateral; all reason2 failures share the same abort operands.",
+    "hardware_signature": "Within the cntvaluein3-skew-locked long-poll population, seeds 16/23/28/30 fail with reason 2, lane 0, CHECK_STARTING_DATA, start_index_check=48, dq_target_index=33; seed12 is excluded as a separate no-abort instruction-13 bucket.",
+    "hypothesis": "Residual failures after locking the two CNTVALUEIN3 source LUTs are caused by collateral byte-lane alignment margin involving non-locked IDELAY programming bits, LD-vs-CNTVALUEIN skew, and DQ/DQS IOLOGIC delay rather than the locked source pair itself.",
+    "id": "CE-005",
+    "narrow_cells_or_paths": "Non-locked DQ/DQS IDELAY CNTVALUEIN ctrl4/ctrl2 skew terms, lane0 DQ IOLOGIC dq3/dq5, lane1 DQ IOLOGIC dq11, LD-vs-CNTVALUEIN DQS skew, and the lane0 CHECK_STARTING_DATA decision cone.",
+    "next_test": "Move the proposed collateral signature intentionally with a soft byte-lane locality/floorplan intervention, or add CHECK_STARTING_DATA window observability to connect the SDF/skew proxy to the exact failing comparison.",
+    "sdf_json_signature": "After filtering locked CNTVALUEIN3 ctrl3 features, reason2 has no strict direct-SDF separator; one strict skew separator abs(dqs1-dq9) CNTVALUEIN4 is fail-lower with AUC 1.0 and 41 ps margin; DQ IOLOGIC lane1 dq11 AUC 0.917 fail-higher, lane0 dq5/dq3 AUC 0.875 fail-higher; placement-distance reset-release AUC 0.75 overlaps.",
+    "solution_candidates": "soft byte-lane/IDELAY programming floorplan; RTL calibration search robustness; more exact BEL locks only as diagnostics",
+    "status": "active_locked_population_collateral_signature",
+    "type": "cause_effect"
   }
 ]

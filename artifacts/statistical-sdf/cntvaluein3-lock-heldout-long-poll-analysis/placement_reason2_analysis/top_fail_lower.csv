@@ -1,0 +1,1 @@
+feature,metric,family,lane,bit,control_bit,scope,n_pass,n_fail,pass_min_ps,pass_median_ps,pass_max_ps,fail_min_ps,fail_median_ps,fail_max_ps,fail_minus_pass_median_ps,fail_min_minus_pass_max_ps,pass_min_minus_fail_max_ps,auc_fail_higher,auc_best_direction,auc_best,cliffs_delta_fail_higher,strict_separation,strict_margin_ps

@@ -1,0 +1,17 @@
+stratum,value,total,pass,fail,unknown
+metrics_group,cntvaluein3-lock-heldout-long-poll,7,6,1,0
+run_group,cntvaluein3_lock_heldout_long_poll_500,1,0,1,0
+run_group,cntvaluein3_lock_heldout_seed_batch,6,6,0,0
+variant,cntvaluein3-skew-locked,7,6,1,0
+payload_version,3,7,6,1,0
+seed,1,1,1,0,0
+seed,11,1,1,0,0
+seed,12,1,0,1,0
+seed,20,1,1,0,0
+seed,27,1,1,0,0
+seed,5,1,1,0,0
+seed,6,1,1,0,0
+metric_status,fail,1,0,1,0
+metric_status,pass,6,6,0,0
+abort_reason_name,none,7,6,1,0
+abort_lane,0,7,6,1,0
