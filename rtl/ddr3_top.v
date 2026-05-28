@@ -124,7 +124,7 @@ module ddr3_top #(
         output wire[63:0] o_debug_startup,
         output wire[31:0] o_debug_idelay,
         output wire[63:0] o_debug_calib_abort,
-        output wire[319:0] o_debug_calib_trace,
+        output wire[127:0] o_debug_calib_fail_snapshot,
         output wire o_debug_phy_sync_rst,
         output wire[2:0] o_debug_phy_status,
         output wire[7:0] o_debug_phy_startup,
@@ -241,7 +241,7 @@ ddr3_top #(
     wire[63:0] controller_debug_startup;
     wire[31:0] controller_debug_idelay;
     wire[63:0] controller_debug_calib_abort;
-    wire[319:0] controller_debug_calib_trace;
+    wire[127:0] controller_debug_calib_fail_snapshot;
     wire[5*DQ_BITS*BYTE_LANES-1:0] idelay_data_cntvalueout;
     wire[5*BYTE_LANES-1:0] idelay_dqs_cntvalueout;
     
@@ -362,7 +362,7 @@ ddr3_top #(
             .o_debug_startup(controller_debug_startup),
             .o_debug_idelay(controller_debug_idelay),
             .o_debug_calib_abort(controller_debug_calib_abort),
-            .o_debug_calib_trace(controller_debug_calib_trace),
+            .o_debug_calib_fail_snapshot(controller_debug_calib_fail_snapshot),
             .o_bist_counts(o_bist_counts),
 //            .o_debug2(o_debug2),
 //            .o_debug3(o_debug3)
@@ -505,7 +505,7 @@ ddr3_top #(
     assign o_debug_startup = controller_debug_startup;
     assign o_debug_idelay = controller_debug_idelay;
     assign o_debug_calib_abort = controller_debug_calib_abort;
-    assign o_debug_calib_trace = controller_debug_calib_trace;
+    assign o_debug_calib_fail_snapshot = controller_debug_calib_fail_snapshot;
     assign o_debug_idelay_data_cntvalueout = idelay_data_cntvalueout;
     assign o_debug_idelay_dqs_cntvalueout = idelay_dqs_cntvalueout;
 
