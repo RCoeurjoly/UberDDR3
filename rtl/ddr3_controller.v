@@ -618,6 +618,7 @@ module ddr3_controller #(
     reg[$clog2(REPEAT_CLK_SAMPLING):0] sample_clk_repeat = 0;
     reg stored_write_level_feedback = 0;
     reg[5:0] start_index_check = 0;
+    reg check_starting_data_half_step_retry = 0;
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
     reg odelay_cntvalue_halfway = 0;
@@ -2664,6 +2665,7 @@ module ddr3_controller #(
             lane_read_dq_early <= 0;
             shift_read_pipe <= 0;
             bitslip_counter <= 0;
+            check_starting_data_half_step_retry <= 1'b0;
             prep_done <= 0;
             `ifdef UART_DEBUG
                 uart_start_send <= 0;
@@ -3304,6 +3306,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     data_start_index[lane] <= 0; // set delay to outgoing stage2_data back to zero
                                     if(data_start_index[lane] == 0) begin // if already set to zero then we already did write-read with default zero data_start_index, so we go to CHECK_STARTING_DATA to try second assumtpion
                                         state_calibrate <= CHECK_STARTING_DATA;
+                                        check_starting_data_half_step_retry <= 1'b0;
                                         `ifdef UART_DEBUG_ALIGN
                                             uart_start_send <= 1'b1;
                                             uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", First Assumption wrong, Start second assumption: Read too early",8'h0a,8'h0a,
@@ -3325,6 +3328,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     data_start_index[lane] <= 0;     
                                     start_index_check <= 0;
                                     state_calibrate <= CHECK_STARTING_DATA;
+                                    check_starting_data_half_step_retry <= 1'b0;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
                                         uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", Reached end",8'h0a,8'h0a};
@@ -3364,6 +3368,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
                                     data_start_index[lane] <= 64 - start_index_check; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, so we subtract from 64 so the burst we will be forwarded to the tip of stage2_data
                                     lane_write_dq_late[lane] <= 1'b1;
+                                    check_starting_data_half_step_retry <= 1'b0;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
                                         uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing First Assumption",8'h0a};
@@ -3374,6 +3379,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 // if first assumption is not the fix then second assmption: controller reads the DQ too early (THUS WE NEED TO CALIBRATE INCOMING DQ SIGNAL starting from bitslip training)
                                 else begin 
                                     lane_read_dq_early[lane] <= 1'b1; // set to 1 to see later what lanes has this problem
+                                    check_starting_data_half_step_retry <= 1'b0;
                                     state_calibrate <= BITSLIP_DQS_TRAIN_3;
                                     added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] } 
                                                                 + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0; // added_read_pipe can just be 1 or 0
@@ -3389,12 +3395,14 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             else begin
                                 start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
                                 dq_target_index[lane] <= dq_target_index[lane] + 2;
-                                if(start_index_check == 48)begin // start_index_check is now outside the possible values
+                                if((!check_starting_data_half_step_retry && start_index_check == 48) ||
+                                   (check_starting_data_half_step_retry && start_index_check == 56))begin // start_index_check is now outside the possible values
                                     // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
                                     if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not yet set so we know this first assunmption is not yet tested
                                         state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
                                         data_start_index[lane] <= 1; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, since assumption is we are 1 controller cycle early then data_start_index is 64 
                                         lane_write_dq_late[lane] <= 1'b1;
+                                        check_starting_data_half_step_retry <= 1'b0;
                                         `ifdef UART_DEBUG_ALIGN
                                             uart_start_send <= 1'b1;
                                             uart_text <= {"state=CHECK_STARTING_DATA, Reached end, First Assumption: Write is 1 Controller cycle early",8'h0a};
@@ -3402,7 +3410,14 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             state_calibrate_next <= ISSUE_WRITE_1;
                                         `endif
                                     end
-                                    else begin // if first assumption is wrong and start_index_check is still outside of possible values then reset
+                                    else if(!check_starting_data_half_step_retry) begin
+                                        // Normal search checks 0,16,32,48. Marginal seeds can land between
+                                        // those windows, so run one bounded half-step pass at 8,24,40,56.
+                                        check_starting_data_half_step_retry <= 1'b1;
+                                        start_index_check <= 6'd8;
+                                        dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                    end
+                                    else begin // if first assumption is wrong and the half-step search also failed then reset
                                         reset_from_calibrate <= 1;
                                         calib_abort_snapshot_valid <= 1'b1;
                                         calib_abort_snapshot_reason <= 4'd2;
