@@ -366,7 +366,7 @@ META
         idelayControlLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_cntvaluein_locks_seed3.json";
         idelayControlFullLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_idelay_control_locks_seed3.json";
         cntvaluein3SkewLock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_cntvaluein3_skew_locks_seed3.json";
-        seedMatrix = map toString (lib.range 1 30);
+        seedMatrix = map toString (lib.range 1 60);
         seedCandidates = lib.genAttrs seedMatrix (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
         robustCandidates = lib.genAttrs seedMatrix (seed:
