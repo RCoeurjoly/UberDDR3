@@ -390,6 +390,7 @@ def decode_payload(payload, bit_count):
             0: "none",
             1: "analyze_data_both_assumptions_failed",
             2: "check_starting_data_search_exhausted",
+            3: "check_starting_data_forced_read_realign",
             15: "unexpected_reset_from_calibrate_state",
         }.get(abort_reason, "unknown"),
         "lane": field(debug_calib_abort, 5, 4),

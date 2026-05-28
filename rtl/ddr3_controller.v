@@ -3417,20 +3417,29 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         start_index_check <= 6'd8;
                                         dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
                                     end
-                                    else begin // if first assumption is wrong and the half-step search also failed then reset
-                                        reset_from_calibrate <= 1;
+                                    else begin
+                                        // If the coarse and half-step sentinel searches both miss, do not
+                                        // immediately reset. Seed6 reaches this edge with the tap search
+                                        // otherwise converged, so try the same read-realignment path used by
+                                        // a positive second-assumption match and record a sticky fallback event.
                                         calib_abort_snapshot_valid <= 1'b1;
-                                        calib_abort_snapshot_reason <= 4'd2;
+                                        calib_abort_snapshot_reason <= 4'd3;
                                         calib_abort_snapshot_lane <= lane;
                                         calib_abort_snapshot_state <= CHECK_STARTING_DATA;
                                         calib_abort_snapshot_instruction <= instruction_address;
                                         calib_abort_snapshot_start_index_check <= start_index_check;
                                         calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                                        calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                                        calib_abort_snapshot_lane_read_dq_early <= 1'b1;
                                         calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
                                         calib_abort_snapshot_data_start_index <= data_start_index[lane];
                                         calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
                                         calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                        lane_read_dq_early[lane] <= 1'b1;
+                                        check_starting_data_half_step_retry <= 1'b0;
+                                        state_calibrate <= BITSLIP_DQS_TRAIN_3;
+                                        added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
+                                                                    + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
+                                        dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
                                     end
                                 end
                             `ifdef UART_DEBUG_ALIGN
