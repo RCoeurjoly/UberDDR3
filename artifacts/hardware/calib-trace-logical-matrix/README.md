@@ -6,3 +6,4 @@ Rows in this directory are hardware-in-the-loop tests for trace-instrumented DDR
 | --- | --- | ---: | --- | --- | --- |
 | baseline-seed2.json | trace observer baseline | 2 | none | pass | Previously failing seed2 passes after observer perturbation; no abort, trace valid=false because calibration completed. |
 | baseline-seed6.json | trace observer baseline | 6 | none | pass | Previously failing seed6 passes after observer perturbation; no abort, trace valid=false because calibration completed. |
+| baseline-seed11.json | trace observer baseline | 11 | none | fail | Reproduces reason-2 CHECK_STARTING_DATA lane0 failure; abort snapshot valid, but new trace payload stayed valid=false and needs persistence fix. |
