@@ -2705,7 +2705,7 @@ module ddr3_controller #(
             analyze_data_search_best_offset <= 6'd0;
             analyze_data_search_best_distance <= 6'd0;
             analyze_data_search_best_word <= 32'd0;
-            analyze_data_candidate_distance <= 6'd0;
+
             read_lane_data_shifted_distance <= 6'd0;
             analyze_data_adjusted_dq_target <= 0;
             write_by_byte_counter <= 0;
@@ -3341,9 +3341,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 data_start_index[lane] <= data_start_index[lane] + 8; //skip by 8 (basically we want to delay DQ since it was too early)
                                 if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
                                     debug_calib_search_entered <= 1'b1;
-                                    debug_calib_search_best_offset <= start_index_check[5:0];
-                                    debug_calib_search_best_distance <= read_lane_data_shifted_distance;
-                                    debug_calib_search_best_accepted <= (read_lane_data_shifted_distance <= 6'd12);
                                     if(((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) && (analyze_data_recenter_retry[lane] != 2'd3)) begin
                                         analyze_data_recenter_retry[lane] <= analyze_data_recenter_retry[lane] + 1'b1;
                                         data_start_index[lane] <= 0;
@@ -3361,6 +3358,14 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                                                     + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
                                         dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
                                     end
+                                    else if(analyze_data_recenter_retry[lane] != 2'd3) begin
+                                        analyze_data_search_offset_q <= 6'd0;
+                                        analyze_data_search_window <= read_lane_data;
+                                        analyze_data_search_best_offset <= 6'd0;
+                                        analyze_data_search_best_distance <= 6'd32;
+                                        analyze_data_search_best_word <= read_lane_data[0 +: 32];
+                                        state_calibrate <= ANALYZE_DATA_SEARCH;
+                                    end
                                     else begin
                                         reset_from_calibrate <= 1'b1;
                                         calib_abort_snapshot_valid <= 1'b1;
@@ -3376,8 +3381,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
                                         calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
                                         calib_abort_snapshot_read_lane_data <= read_lane_data;
-                                        calib_abort_snapshot_best_offset <= start_index_check[5:0];
-                                        calib_abort_snapshot_best_distance <= read_lane_data_shifted_distance;
+                                        calib_abort_snapshot_best_offset <= analyze_data_search_best_offset;
+                                        calib_abort_snapshot_best_distance <= analyze_data_search_best_distance;
                                         calib_abort_snapshot_best_accepted <= 1'b0;
                                     end
                                 end
@@ -3439,13 +3444,74 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
 
 
  ANALYZE_DATA_SEARCH: begin
-                            // Legacy state value kept for compatibility with existing encodings. The
-                            // active contradiction rescue is now handled directly in ANALYZE_DATA.
-                            state_calibrate <= ANALYZE_DATA;
+                            if(hamming32(analyze_data_search_window[analyze_data_search_offset_q +: 32] ^ write_pattern[0 +: 32]) < analyze_data_search_best_distance) begin
+                                analyze_data_search_best_offset <= analyze_data_search_offset_q;
+                                analyze_data_search_best_distance <= hamming32(analyze_data_search_window[analyze_data_search_offset_q +: 32] ^ write_pattern[0 +: 32]);
+                                analyze_data_search_best_word <= analyze_data_search_window[analyze_data_search_offset_q +: 32];
+                            end
+                            if(analyze_data_search_offset_q == 6'd32) begin
+                                state_calibrate <= ANALYZE_DATA_SEARCH_DONE;
+                            end
+                            else begin
+                                analyze_data_search_offset_q <= analyze_data_search_offset_q + 6'd8;
+                            end
                         end
 
  ANALYZE_DATA_SEARCH_DONE: begin
-                            state_calibrate <= ANALYZE_DATA;
+                            debug_calib_search_best_offset <= analyze_data_search_best_offset;
+                            debug_calib_search_best_distance <= analyze_data_search_best_distance;
+                            debug_calib_search_best_accepted <= (analyze_data_search_best_distance <= 6'd6) &&
+                                                                 (analyze_data_search_best_offset + 6'd8 >= start_index_check) &&
+                                                                 (analyze_data_search_best_offset <= start_index_check + 6'd8);
+                            if((analyze_data_search_best_distance <= 6'd6) &&
+                               (analyze_data_search_best_offset + 6'd8 >= start_index_check) &&
+                               (analyze_data_search_best_offset <= start_index_check + 6'd8)) begin
+                                if(analyze_data_recenter_retry[lane] == 2'd0) begin
+                                    analyze_data_recenter_retry[lane] <= 2'd1;
+                                    data_start_index[lane] <= 0;
+                                    start_index_check <= analyze_data_search_best_offset;
+                                    if(analyze_data_search_best_offset > start_index_check) begin
+                                        dq_target_index[lane] <= dq_target_index[lane] + ((analyze_data_search_best_offset - start_index_check) >> 3);
+                                    end
+                                    else if(dq_target_index[lane] > ((start_index_check - analyze_data_search_best_offset) >> 3)) begin
+                                        dq_target_index[lane] <= dq_target_index[lane] - ((start_index_check - analyze_data_search_best_offset) >> 3);
+                                    end
+                                    else begin
+                                        dq_target_index[lane] <= 0;
+                                    end
+                                    check_starting_data_half_step_retry <= 1'b0;
+                                    state_calibrate <= ISSUE_WRITE_1;
+                                    delay_before_read_data <= 10;
+                                end
+                                else begin
+                                    analyze_data_recenter_retry[lane] <= 0;
+                                    lane_read_dq_early[lane] <= 1'b1;
+                                    check_starting_data_half_step_retry <= 1'b0;
+                                    state_calibrate <= BITSLIP_DQS_TRAIN_3;
+                                    added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
+                                                                + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
+                                    dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
+                                end
+                            end
+                            else begin
+                                reset_from_calibrate <= 1'b1;
+                                calib_abort_snapshot_valid <= 1'b1;
+                                calib_abort_snapshot_reason <= 4'd1;
+                                calib_abort_snapshot_lane <= lane;
+                                calib_abort_snapshot_state <= ANALYZE_DATA;
+                                calib_abort_snapshot_instruction <= instruction_address;
+                                calib_abort_snapshot_start_index_check <= start_index_check;
+                                calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                                calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                                calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
+                                calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                calib_abort_snapshot_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
+                                calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                calib_abort_snapshot_read_lane_data <= analyze_data_search_window;
+                                calib_abort_snapshot_best_offset <= analyze_data_search_best_offset;
+                                calib_abort_snapshot_best_distance <= analyze_data_search_best_distance;
+                                calib_abort_snapshot_best_accepted <= 1'b0;
+                            end
                         end
 
                       // check when the 4 MSB of write_pattern {d0ad51c1} starts on read_lane_data (read_lane_data is just the concatenation of read_data_store of a specific lane)
