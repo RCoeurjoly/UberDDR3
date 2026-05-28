@@ -1,0 +1,4 @@
+plot,dat,gp,png
+root_cause_raw_3factor,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_raw_3factor.dat,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_raw_3factor.gp,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_raw_3factor.png
+root_cause_combined_score,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_combined_score.dat,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_combined_score.gp,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_combined_score.png
+root_cause_score_distribution,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_score_distribution.dat,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_score_distribution.gp,artifacts/statistical-sdf/root-cause-hypothesis-plots/root_cause_score_distribution.png
