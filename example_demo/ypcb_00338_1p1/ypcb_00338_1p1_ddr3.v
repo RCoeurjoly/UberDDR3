@@ -39,6 +39,7 @@ module ypcb_00338_1p1_ddr3 (
     wire [63:0] debug_startup;
     wire [31:0] debug_idelay;
     wire [63:0] debug_calib_abort;
+    wire [319:0] debug_calib_trace;
     wire debug_phy_sync_rst;
     wire [2:0] debug_phy_status;
     wire [7:0] debug_phy_startup;
@@ -139,6 +140,7 @@ module ypcb_00338_1p1_ddr3 (
         .o_debug_startup(debug_startup),
         .o_debug_idelay(debug_idelay),
         .o_debug_calib_abort(debug_calib_abort),
+        .o_debug_calib_trace(debug_calib_trace),
         .o_debug_phy_sync_rst(debug_phy_sync_rst),
         .o_debug_phy_status(debug_phy_status),
         .o_debug_phy_startup(debug_phy_startup),
@@ -150,7 +152,8 @@ module ypcb_00338_1p1_ddr3 (
     );
 
     assign jtag_debug_payload = {
-        448'd0,
+        128'd0,
+        debug_calib_trace,
         bist_counts,
         78'd0,
         debug_calib_abort,

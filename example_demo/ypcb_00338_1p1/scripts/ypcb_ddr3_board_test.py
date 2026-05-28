@@ -302,6 +302,7 @@ def decode_payload(payload, bit_count):
     idelay_data_cntvalueout_raw = field(payload, 226, 5 * DQ_BITS * BYTE_LANES)
     debug_calib_abort = field(payload, 306, 64)
     bist_counts = field(payload, 448, 64)
+    debug_calib_trace = field(payload, 512, 320)
     debug8 = bist_counts
 
     idelay_data_cntvalueout = [
@@ -400,6 +401,50 @@ def decode_payload(payload, bit_count):
         "data_start_index": field(debug_calib_abort, 41, 8),
     }
 
+    trace_event = field(debug_calib_trace, 1, 4)
+    calib_trace_debug = {
+        "valid": bool(field(debug_calib_trace, 0, 1)),
+        "event": trace_event,
+        "event_name": {
+            0: "none",
+            1: "analyze_data_match",
+            2: "analyze_data_mismatch",
+            3: "analyze_data_enter_check_starting_data",
+            4: "check_starting_data_match_first_assumption",
+            5: "check_starting_data_match_second_assumption",
+            6: "check_starting_data_mismatch_advance",
+            7: "check_starting_data_reached_end_first_assumption",
+            8: "check_starting_data_abort",
+            9: "analyze_data_abort",
+        }.get(trace_event, "unknown"),
+        "lane": field(debug_calib_trace, 5, 8),
+        "data_start_index": field(debug_calib_trace, 13, 8),
+        "dq_target_index": field(debug_calib_trace, 21, 8),
+        "start_index_check": field(debug_calib_trace, 29, 8),
+        "lane_write_dq_late": bool(field(debug_calib_trace, 37, 1)),
+        "lane_read_dq_early": bool(field(debug_calib_trace, 38, 1)),
+        "write_pattern_matches": bool(field(debug_calib_trace, 39, 1)),
+        "shifted_match": bool(field(debug_calib_trace, 40, 1)),
+        "bitslip_counter": field(debug_calib_trace, 41, 3),
+        "shift_read_pipe": field(debug_calib_trace, 44, 2),
+        "read_lane_data": field(debug_calib_trace, 56, 64),
+        "read_lane_data_hex": f"0x{field(debug_calib_trace, 56, 64):016x}",
+        "read_lane_data_shifted": field(debug_calib_trace, 120, 32),
+        "read_lane_data_shifted_hex": f"0x{field(debug_calib_trace, 120, 32):08x}",
+        "expected_word": field(debug_calib_trace, 152, 32),
+        "expected_word_hex": f"0x{field(debug_calib_trace, 152, 32):08x}",
+        "expected_lane": field(debug_calib_trace, 184, 64),
+        "expected_lane_hex": f"0x{field(debug_calib_trace, 184, 64):016x}",
+        "last_valid_start_index": field(debug_calib_trace, 248, 8),
+        "first_invalid_start_index": field(debug_calib_trace, 256, 8),
+        "last_valid_data_start_index": field(debug_calib_trace, 264, 8),
+        "first_invalid_data_start_index": field(debug_calib_trace, 272, 8),
+        "requested_data_tap": field(debug_calib_trace, 280, 5),
+        "requested_dqs_tap": field(debug_calib_trace, 285, 5),
+        "actual_data_tap": field(debug_calib_trace, 290, 5),
+        "actual_dqs_tap": field(debug_calib_trace, 295, 5),
+    }
+
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -418,11 +463,13 @@ def decode_payload(payload, bit_count):
         "debug_calib_gate": debug_calib_gate,
         "debug_idelay": debug_idelay,
         "debug_calib_abort": debug_calib_abort,
+        "debug_calib_trace": debug_calib_trace,
         "startup_debug": startup_debug,
         "calib_gate_debug": calib_gate_debug,
         "idelay_debug": idelay_debug,
         "phy_debug": phy_debug,
         "abort_debug": abort_debug,
+        "calib_trace_debug": calib_trace_debug,
     }
     reasons = []
     if decoded["magic"] != MAGIC:

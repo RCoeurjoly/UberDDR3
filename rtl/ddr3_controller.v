@@ -168,6 +168,7 @@ module ddr3_controller #(
         output	wire	[63:0]	o_debug_startup,
         output	wire	[31:0]	o_debug_idelay,
         output	wire	[63:0]	o_debug_calib_abort,
+        output	wire	[319:0]	o_debug_calib_trace,
         output	wire	[63:0]	o_bist_counts,
 //        output	wire	[31:0]	o_debug2,
 //        output	wire	[31:0]	o_debug3
@@ -607,7 +608,7 @@ module ddr3_controller #(
     reg[wb_data_bits-1:0] read_data_store = 0;
     reg[127:0] write_pattern = 0;
     reg[63:0] write_pattern_lane = 0;
-    reg[$clog2(64):0] data_start_index[LANES-1:0];   
+    reg[$clog2(64):0] data_start_index[LANES-1:0];
     reg[LANES-1:0] lane_write_dq_late = 0;    
     reg[LANES-1:0] lane_read_dq_early = 0;    
     reg[4:0] odelay_data_cntvaluein[LANES-1:0]; 
@@ -696,6 +697,30 @@ module ddr3_controller #(
     reg calib_abort_snapshot_lane_read_dq_early = 0;
     reg[7:0] calib_abort_snapshot_dq_target_index = 0;
     reg[7:0] calib_abort_snapshot_data_start_index = 0;
+    reg debug_calib_trace_valid = 0;
+    reg[3:0] debug_calib_trace_event = 0;
+    reg[7:0] debug_calib_trace_lane = 0;
+    reg[7:0] debug_calib_trace_data_start_index = 0;
+    reg[7:0] debug_calib_trace_dq_target_index = 0;
+    reg[7:0] debug_calib_trace_start_index_check = 0;
+    reg debug_calib_trace_lane_write_dq_late = 0;
+    reg debug_calib_trace_lane_read_dq_early = 0;
+    reg debug_calib_trace_write_pattern_matches = 0;
+    reg debug_calib_trace_shifted_match = 0;
+    reg[2:0] debug_calib_trace_bitslip_counter = 0;
+    reg[1:0] debug_calib_trace_shift_read_pipe = 0;
+    reg[63:0] debug_calib_trace_read_lane_data = 0;
+    reg[31:0] debug_calib_trace_read_lane_data_shifted = 0;
+    reg[31:0] debug_calib_trace_expected_word = 0;
+    reg[63:0] debug_calib_trace_expected_lane = 0;
+    reg[7:0] debug_calib_trace_last_valid_start_index = 0;
+    reg[7:0] debug_calib_trace_first_invalid_start_index = 0;
+    reg[7:0] debug_calib_trace_last_valid_data_start_index = 0;
+    reg[7:0] debug_calib_trace_first_invalid_data_start_index = 0;
+    reg[4:0] debug_calib_trace_requested_data_tap = 0;
+    reg[4:0] debug_calib_trace_requested_dqs_tap = 0;
+    reg[4:0] debug_calib_trace_actual_data_tap = 0;
+    reg[4:0] debug_calib_trace_actual_dqs_tap = 0;
     integer debug_lane;
     integer debug_dq;
     // test calibration 
@@ -931,6 +956,32 @@ module ddr3_controller #(
     end
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
 
+    task capture_calib_trace;
+        input[3:0] event_code;
+        begin
+            debug_calib_trace_valid <= 1'b1;
+            debug_calib_trace_event <= event_code;
+            debug_calib_trace_lane <= { {(8-lanes_clog2){1'b0}}, lane };
+            debug_calib_trace_data_start_index <= {1'b0, data_start_index[lane]};
+            debug_calib_trace_dq_target_index <= {2'b0, dq_target_index[lane]};
+            debug_calib_trace_start_index_check <= {2'b0, start_index_check};
+            debug_calib_trace_lane_write_dq_late <= lane_write_dq_late[lane];
+            debug_calib_trace_lane_read_dq_early <= lane_read_dq_early[lane];
+            debug_calib_trace_write_pattern_matches <= write_pattern_matches;
+            debug_calib_trace_shifted_match <= (read_lane_data_shifted == write_pattern[0 +: 32]);
+            debug_calib_trace_bitslip_counter <= bitslip_counter;
+            debug_calib_trace_shift_read_pipe <= shift_read_pipe;
+            debug_calib_trace_read_lane_data <= read_lane_data;
+            debug_calib_trace_read_lane_data_shifted <= read_lane_data_shifted;
+            debug_calib_trace_expected_word <= write_pattern[0 +: 32];
+            debug_calib_trace_expected_lane <= write_pattern_lane;
+            debug_calib_trace_requested_data_tap <= o_phy_idelay_data_cntvaluein;
+            debug_calib_trace_requested_dqs_tap <= o_phy_idelay_dqs_cntvaluein;
+            debug_calib_trace_actual_data_tap <= i_phy_idelay_data_cntvalueout[5*(lane*DQ_BITS) +: 5];
+            debug_calib_trace_actual_dqs_tap <= i_phy_idelay_dqs_cntvalueout[5*lane +: 5];
+        end
+    endtask
+
     always @(posedge i_controller_clk) begin
         if(!i_rst_n) begin
             debug_state_ever_nonzero <= 1'b0;
@@ -972,6 +1023,30 @@ module ddr3_controller #(
             debug_calib_abort_lane_read_dq_early <= 1'b0;
             debug_calib_abort_dq_target_index <= 8'd0;
             debug_calib_abort_data_start_index <= 8'd0;
+            debug_calib_trace_valid <= 1'b0;
+            debug_calib_trace_event <= 4'd0;
+            debug_calib_trace_lane <= 8'd0;
+            debug_calib_trace_data_start_index <= 8'd0;
+            debug_calib_trace_dq_target_index <= 8'd0;
+            debug_calib_trace_start_index_check <= 8'd0;
+            debug_calib_trace_lane_write_dq_late <= 1'b0;
+            debug_calib_trace_lane_read_dq_early <= 1'b0;
+            debug_calib_trace_write_pattern_matches <= 1'b0;
+            debug_calib_trace_shifted_match <= 1'b0;
+            debug_calib_trace_bitslip_counter <= 3'd0;
+            debug_calib_trace_shift_read_pipe <= 2'd0;
+            debug_calib_trace_read_lane_data <= 64'd0;
+            debug_calib_trace_read_lane_data_shifted <= 32'd0;
+            debug_calib_trace_expected_word <= 32'd0;
+            debug_calib_trace_expected_lane <= 64'd0;
+            debug_calib_trace_last_valid_start_index <= 8'd0;
+            debug_calib_trace_first_invalid_start_index <= 8'd0;
+            debug_calib_trace_last_valid_data_start_index <= 8'd0;
+            debug_calib_trace_first_invalid_data_start_index <= 8'd0;
+            debug_calib_trace_requested_data_tap <= 5'd0;
+            debug_calib_trace_requested_dqs_tap <= 5'd0;
+            debug_calib_trace_actual_data_tap <= 5'd0;
+            debug_calib_trace_actual_dqs_tap <= 5'd0;
             for(debug_lane = 0; debug_lane < LANES; debug_lane = debug_lane + 1) begin
                 debug_expected_data_tap[debug_lane] <= 5'd0;
                 debug_expected_dqs_tap[debug_lane] <= 5'd0;
@@ -2843,7 +2918,7 @@ module ddr3_controller #(
                         // find the bit where the DQS starts to be issued (by finding when the pattern 10'b01_01_01_01_00 starts)
          ANALYZE_DQS: if(dqs_store[dqs_start_index +: 10] == 10'b01_01_01_01_00) begin
                          //increase dqs_start_index_repeat when index is the same as before   
-                        dqs_start_index_repeat <= (dqs_start_index == dqs_start_index_stored)? dqs_start_index_repeat + 1: 0;   
+                        dqs_start_index_repeat <= (dqs_start_index == dqs_start_index_stored)? dqs_start_index_repeat + 1: 0;
                          //the same dqs_start_index_repeat appeared REPEAT_DQS_ANALYZE times in a row, thus we can trust the value we got is accurate and not affected by glitch
                          if(dqs_start_index_repeat == REPEAT_DQS_ANALYZE) begin
                              // since we already know the starting bit when the dqs (and dq since they are aligned) will come,
@@ -3249,7 +3324,9 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                         // burst0 will not be written but only starting on burst1
                         // if lane_write_dq_late is already set to 1 for this lane, then current lane should already be fixed without changing the data_start_index
         ANALYZE_DATA:   if(prep_done[1]) begin
-                            if(write_pattern_matches) begin   
+                            if(write_pattern_matches) begin
+                                capture_calib_trace(4'd1);
+                                debug_calib_trace_last_valid_data_start_index <= {1'b0, data_start_index[lane]};
                                 /* verilator lint_off WIDTH */
                                 if(lane == LANES - 1) begin
                                 /* verilator lint_on WIDTH */
@@ -3275,6 +3352,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 end
                             end 
                             else begin
+                                capture_calib_trace(4'd2);
+                                debug_calib_trace_first_invalid_data_start_index <= {1'b0, data_start_index[lane]};
                                 data_start_index[lane] <= data_start_index[lane] + 8; //skip by 8 (basically we want to delay DQ since it was too early)
                                 if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin // both assumption is wrong so we reset the controller
                                     reset_from_calibrate <= 1;
@@ -3288,11 +3367,13 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
                                     calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
                                     calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                    capture_calib_trace(4'd9);
                                 end
                                 // first assumption (write DQ is late) is wrong so we repeat write-read with data_start_index back to 0
                                 else if(lane_write_dq_late[lane]) begin 
                                     data_start_index[lane] <= 0; // set delay to outgoing stage2_data back to zero
                                     if(data_start_index[lane] == 0) begin // if already set to zero then we already did write-read with default zero data_start_index, so we go to CHECK_STARTING_DATA to try second assumtpion
+                                        capture_calib_trace(4'd3);
                                         state_calibrate <= CHECK_STARTING_DATA;
                                         `ifdef UART_DEBUG_ALIGN
                                             uart_start_send <= 1'b1;
@@ -3314,6 +3395,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 else if(data_start_index[lane] == 56) begin 
                                     data_start_index[lane] <= 0;     
                                     start_index_check <= 0;
+                                    capture_calib_trace(4'd3);
                                     state_calibrate <= CHECK_STARTING_DATA;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
@@ -3348,9 +3430,11 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
  CHECK_STARTING_DATA: if(prep_done[1]) begin
                             /* verilator lint_off WIDTHTRUNC */
                             if(read_lane_data_shifted == write_pattern[0 +: 32]) begin
+                                debug_calib_trace_last_valid_start_index <= {2'b0, start_index_check};
                             /* verilator lint_on WIDTHTRUNC */
                                 // first assumption: controller DQ is late WHEN WRITING(THUS WE NEED TO CALIBRATE data_start_index of outgoing stage2_data)
                                 if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not  yet set so we know this first assunmption is not yet tested
+                                    capture_calib_trace(4'd4);
                                     state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
                                     data_start_index[lane] <= 64 - start_index_check; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, so we subtract from 64 so the burst we will be forwarded to the tip of stage2_data
                                     lane_write_dq_late[lane] <= 1'b1;
@@ -3363,6 +3447,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 end
                                 // if first assumption is not the fix then second assmption: controller reads the DQ too early (THUS WE NEED TO CALIBRATE INCOMING DQ SIGNAL starting from bitslip training)
                                 else begin 
+                                    capture_calib_trace(4'd5);
                                     lane_read_dq_early[lane] <= 1'b1; // set to 1 to see later what lanes has this problem
                                     state_calibrate <= BITSLIP_DQS_TRAIN_3;
                                     added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] } 
@@ -3377,11 +3462,14 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 end
                             end
                             else begin
+                                capture_calib_trace(4'd6);
+                                debug_calib_trace_first_invalid_start_index <= {2'b0, start_index_check};
                                 start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
                                 dq_target_index[lane] <= dq_target_index[lane] + 2;
                                 if(start_index_check == 48)begin // start_index_check is now outside the possible values
                                     // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
                                     if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not yet set so we know this first assunmption is not yet tested
+                                        capture_calib_trace(4'd7);
                                         state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
                                         data_start_index[lane] <= 1; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, since assumption is we are 1 controller cycle early then data_start_index is 64 
                                         lane_write_dq_late[lane] <= 1'b1;
@@ -3404,6 +3492,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
                                         calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
                                         calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                        capture_calib_trace(4'd8);
                                     end
                                 end
                             `ifdef UART_DEBUG_ALIGN
@@ -4193,6 +4282,33 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         debug_calib_abort_lane,
         debug_calib_abort_reason,
         debug_calib_abort_seen
+    };
+    assign o_debug_calib_trace = {
+        20'd0,
+        debug_calib_trace_actual_dqs_tap,
+        debug_calib_trace_actual_data_tap,
+        debug_calib_trace_requested_dqs_tap,
+        debug_calib_trace_requested_data_tap,
+        debug_calib_trace_first_invalid_data_start_index,
+        debug_calib_trace_last_valid_data_start_index,
+        debug_calib_trace_first_invalid_start_index,
+        debug_calib_trace_last_valid_start_index,
+        debug_calib_trace_expected_lane,
+        debug_calib_trace_expected_word,
+        debug_calib_trace_read_lane_data_shifted,
+        debug_calib_trace_read_lane_data,
+        debug_calib_trace_shift_read_pipe,
+        debug_calib_trace_bitslip_counter,
+        debug_calib_trace_shifted_match,
+        debug_calib_trace_write_pattern_matches,
+        debug_calib_trace_lane_read_dq_early,
+        debug_calib_trace_lane_write_dq_late,
+        debug_calib_trace_start_index_check,
+        debug_calib_trace_dq_target_index,
+        debug_calib_trace_data_start_index,
+        debug_calib_trace_lane,
+        debug_calib_trace_event,
+        debug_calib_trace_valid
     };
     assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign o_debug2 = {debug_trigger,i_phy_iserdes_data[62:32]};
