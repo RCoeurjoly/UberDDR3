@@ -1023,30 +1023,8 @@ module ddr3_controller #(
             debug_calib_abort_lane_read_dq_early <= 1'b0;
             debug_calib_abort_dq_target_index <= 8'd0;
             debug_calib_abort_data_start_index <= 8'd0;
-            debug_calib_trace_valid <= 1'b0;
-            debug_calib_trace_event <= 4'd0;
-            debug_calib_trace_lane <= 8'd0;
-            debug_calib_trace_data_start_index <= 8'd0;
-            debug_calib_trace_dq_target_index <= 8'd0;
-            debug_calib_trace_start_index_check <= 8'd0;
-            debug_calib_trace_lane_write_dq_late <= 1'b0;
-            debug_calib_trace_lane_read_dq_early <= 1'b0;
-            debug_calib_trace_write_pattern_matches <= 1'b0;
-            debug_calib_trace_shifted_match <= 1'b0;
-            debug_calib_trace_bitslip_counter <= 3'd0;
-            debug_calib_trace_shift_read_pipe <= 2'd0;
-            debug_calib_trace_read_lane_data <= 64'd0;
-            debug_calib_trace_read_lane_data_shifted <= 32'd0;
-            debug_calib_trace_expected_word <= 32'd0;
-            debug_calib_trace_expected_lane <= 64'd0;
-            debug_calib_trace_last_valid_start_index <= 8'd0;
-            debug_calib_trace_first_invalid_start_index <= 8'd0;
-            debug_calib_trace_last_valid_data_start_index <= 8'd0;
-            debug_calib_trace_first_invalid_data_start_index <= 8'd0;
-            debug_calib_trace_requested_data_tap <= 5'd0;
-            debug_calib_trace_requested_dqs_tap <= 5'd0;
-            debug_calib_trace_actual_data_tap <= 5'd0;
-            debug_calib_trace_actual_dqs_tap <= 5'd0;
+            // Calibration trace registers are intentionally not reset here.
+            // They are single-writer sticky debug state owned by the calibration FSM.
             for(debug_lane = 0; debug_lane < LANES; debug_lane = debug_lane + 1) begin
                 debug_expected_data_tap[debug_lane] <= 5'd0;
                 debug_expected_dqs_tap[debug_lane] <= 5'd0;
