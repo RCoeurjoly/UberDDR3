@@ -1,0 +1,11 @@
+set terminal pngcairo size 1200,720 enhanced font 'DejaVu Sans,10'
+set output 'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps.png'
+set datafile separator comma
+set key outside right top
+set grid
+set xlabel 'Experiment index'
+set ylabel 'Feature value (ps)'
+set title 'direct_max__idelay_data_cntvaluein__lane0__dq7__ctrl_2__endpoint__value_ps'
+plot \
+  'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps.dat' using 1:4 with points pt 7 ps 1.2 lc rgb '#1a9850' title 'pass', \
+  'baseline_abort2_vs_pass_direct_direct_max_idelay_data_cntvaluein_lane0_dq7_ctrl_2_endpoint_value_ps.dat' using 1:5 with points pt 7 ps 1.2 lc rgb '#d73027' title 'fail'
