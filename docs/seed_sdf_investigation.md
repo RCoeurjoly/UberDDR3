@@ -982,3 +982,32 @@ controller clock target. Seeds 2 and 6 were not tested in this gate because the
 multi-build stopped after the seed3 timing failure. The next patch should keep
 the same logical behavior but remove the extra per-lane contradiction counter,
 preferably reusing existing retry state.
+
+### Reduced contradiction-retry gate: 2026-05-29
+
+The first contradiction retry (`e1ae1e2`) rescued seed5 but added enough logic to
+break timing on seed3. A reduced version (`3ea4648`) removed the new per-lane
+contradiction counter and reused the existing invalid-window retry budget.
+
+| RTL commit | seed | build | hardware result | signature |
+| --- | ---: | --- | --- | --- |
+| `3ea4648` | 5 | pass timing | fail | reason 6 `analyze_data_invalid_window_exhausted`, lane0, `start_index_check=0`, `data_start_index=0`, `dq_target_index=36`, shifted `0xffffffff`, window `0x51ffffffffffffff`, data taps `23/24`, DQS taps `0/1` |
+| `3ea4648` | 3 | pass timing | pass | `calib_complete=true`, `bist_done=true`, no abort, data taps `25/26`, DQS taps `2/3` |
+
+Conclusion: the reduced implementation is timing-clean and preserves the seed3
+pass control, but it is not logically equivalent to the seed5-rescuing version.
+Reusing `analyze_data_invalid_retry` consumes the retry budget on the wrong class
+of recovery and seed5 returns to the all-ones invalid-window exhausted bucket.
+The next implementation should keep a separate contradiction-retry decision, but
+encode it without adding a new timing-heavy per-lane counter on the controller
+critical path. A promising shape is to fold the retry into the existing
+`ANALYZE_DATA_SEARCH` / `ANALYZE_DATA_SEARCH_DONE` state flow so the terminal
+both-assumptions branch only redirects into the existing search/recenter machine,
+with one shared small retry bit or state tag rather than extra per-lane compare
+logic in the hot combinational cone.
+
+Artifacts:
+
+- hardware result seed5: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/seed-5.json`
+- hardware result seed3: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/seed-3.json`
+- summary: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/summary.csv`
