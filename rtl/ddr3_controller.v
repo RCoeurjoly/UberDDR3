@@ -3798,6 +3798,16 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             state_calibrate <= ISSUE_WRITE_1;
                                             delay_before_read_data <= 10;
                                         end
+                                        else if(!check_starting_data_half_step_retry) begin
+                                            check_starting_data_invalid_seen <= 1'b0;
+                                            check_starting_data_first_invalid_index <= 6'd0;
+                                            check_starting_data_last_valid_index <= 6'd0;
+                                            check_starting_data_invalid_count <= 4'd0;
+                                            check_starting_data_half_step_retry <= 1'b1;
+                                            start_index_check <= 6'd8;
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
+                                        end
                                         else begin
                                             reset_from_calibrate <= 1'b1;
                                             calib_abort_snapshot_valid <= 1'b1;
