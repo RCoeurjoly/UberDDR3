@@ -219,5 +219,18 @@
     "solution_candidates": "Keep pure classification and explicit invalid state. Extend bounded candidate-window recovery only enough to address seed16; add all-ones versus all-zero debug bits; consider phase localparams and a smaller/pipelined implementation before promotion.",
     "status": "tested_mixed_phased_recovery_not_final",
     "type": "solution"
+  },
+  {
+    "evidence_against": "It does not fix seed16: seed16 still fails reason 6 at lane0 dq_target_index=48/data_start_index=8. It also regresses known/pass controls seed5, seed6, and seed3 to reason 6, with seed5/6 at dq_target_index=4 and seed3 at dq_target_index=61. Therefore broadening phase 2 half-step scanning is not a final fix and should be reverted or superseded.",
+    "evidence_for": "The patch preserves seed12 and seed20 recovery from SO-011 and seed27 still passes; this suggests shifted-target recovery is not universally harmful.",
+    "hardware_signature": "Expected: seed16 recovers and seeds 12/20/5/6/27/3 remain passing. Observed: seeds 12,20,27 pass; seeds 16,5,6,3 fail reason 6 analyze_data_invalid_window_exhausted.",
+    "hypothesis": "Phase-2 shifted-target half-step scanning at dq_target_index - 2 completes the classified invalid-sample recovery and fixes seed16 without regressing controls.",
+    "id": "SO-012",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA_INVALID_SAMPLE, check_starting_data_invalid_phase, check_starting_data_half_step_retry, start_index_check, dq_target_index, data_start_index, lane0 invalid-window detector.",
+    "next_test": "Do not sweep this variant. Revert/supersede the phase-2 half-step extension and add polarity/trajectory instrumentation or a less perturbing candidate selector that does not move known-pass controls into terminal invalid-window states.",
+    "sdf_json_signature": "No SDF acceptance gate was used for this RTL policy test. The result is an algorithmic calibration-policy intervention; later SDF/JSON can compare the newly regressed controls against the same seed passes at commit 16beffe.",
+    "solution_candidates": "Keep pure classifier and explicit invalid state. Prefer minimal all-ones/all-zero polarity plus recovery-trajectory observer, then design a deterministic valid-window transition policy; avoid further branch-local candidate broadening without evidence.",
+    "status": "tested_rejected_regresses_controls",
+    "type": "solution"
   }
 ]

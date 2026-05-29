@@ -1178,3 +1178,41 @@ Artifacts:
 - matrix: `artifacts/hardware/phased-invalid-recovery-classified-heldout-gate1/matrix.csv`
 - canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
 - hypothesis ledger row: `SO-011` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`
+
+### Phase-2 shifted-target half-scan rejection: 2026-05-29
+
+Commit `f3e0093` extends the phase-2 invalid-sample recovery so the shifted
+`dq_target_index - 2` candidate scans both coarse indices and half-step indices
+before terminal abort. The intent was to fix the remaining seed16 failure from
+SO-011 without changing the successful rows.
+
+Focused held-out HIL gate for commit `f3e0093`, poll-count `200`, poll-interval
+`0.1`:
+
+| seed | role | result | signature |
+| ---: | --- | --- | --- |
+| 12 | prior reason-6 rescued control | pass | calibration and BIST complete |
+| 16 | phase-2 target-minus-2 failure target | fail | reason 6, lane0, `dq_target_index=48`, `data_start_index=8` |
+| 20 | prior reason-6 rescued control | pass | calibration and BIST complete |
+| 5 | known-pass regression control | fail | reason 6, lane0, `dq_target_index=4`, `data_start_index=8` |
+| 6 | SO-009 regression control | fail | reason 6, lane0, `dq_target_index=4`, `data_start_index=8`, wrong read seen |
+| 27 | SO-009 regression control | pass | calibration and BIST complete |
+| 3 | known-pass control | fail | reason 6, lane0, `dq_target_index=61`, `data_start_index=8` |
+
+Conclusion: reject this patch as a general fix. It does not fix seed16 and it
+regresses seed5, seed6, and seed3. The phase-2 half-step extension is too
+perturbing as a policy change. The useful result is that the pure classifier and
+explicit invalid state remain the right structure, but the recovery policy needs
+more precise evidence before it chooses a new candidate.
+
+Next RTL move: revert or supersede only the phase-2 half-step extension, keep
+pure classification, and add either invalid polarity/trajectory instrumentation
+or a less perturbing candidate selector that validates a real transition before
+changing `dq_target_index`.
+
+Artifacts:
+
+- manifest: `artifacts/hardware/phase2-shifted-target-halfscan-heldout-gate1/manifest.csv`
+- matrix: `artifacts/hardware/phase2-shifted-target-halfscan-heldout-gate1/matrix.csv`
+- canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
+- hypothesis ledger row: `SO-012` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`
