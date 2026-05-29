@@ -3680,14 +3680,17 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 if(check_starting_data_invalid_count != 4'hf) begin
                                     check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
                                 end
-                                debug_calib_search_best_offset <= {check_starting_data_invalid_phase, check_starting_data_sample_invalid_all_zero, check_starting_data_sample_invalid_all_ones, check_starting_data_half_step_retry, check_starting_data_seen_valid};
+                                debug_calib_search_best_offset <= {check_starting_data_invalid_phase, read_lane_data_shifted_all_zero, read_lane_data_shifted_all_ones, check_starting_data_half_step_retry, check_starting_data_seen_valid};
                                 debug_calib_search_best_distance <= dq_target_index[lane][5:0];
                                 debug_calib_search_best_accepted <= check_starting_data_seen_valid;
                                 debug_calib_search_entered <= 1'b0;
                                 state_calibrate <= CHECK_STARTING_DATA_INVALID_SAMPLE;
                             end
-                            else begin
+                            else if(check_starting_data_sample_valid_nonmatch) begin
                                 state_calibrate <= CHECK_STARTING_DATA_VALID_NONMATCH;
+                            end
+                            else begin
+                                state_calibrate <= CHECK_STARTING_DATA;
                             end
                         end
                     else begin
@@ -3890,7 +3893,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     start_index_check <= start_index_check + 16;
                                     state_calibrate <= CHECK_STARTING_DATA;
                                 end
-                            end
                             end
 
 
