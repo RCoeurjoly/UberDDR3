@@ -3930,7 +3930,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         read_data_store[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8] };
             write_pattern_lane <= write_pattern[ (lane_write_dq_late[lane]? 0 : data_start_index[lane])  +: 64];
             read_lane_data_shifted <= read_lane_data[start_index_check +: 32];
-            read_lane_data_shifted_invalid <= (&read_lane_data_shifted) || !(|read_lane_data_shifted);
+            read_lane_data_shifted_invalid <= (&read_lane_data[start_index_check +: 32]) || !(|read_lane_data[start_index_check +: 32]);
             read_lane_data_shifted_distance <= hamming32(read_lane_data_shifted ^ write_pattern[0 +: 32]);
             write_pattern_matches <= write_pattern_lane == read_lane_data;
 
