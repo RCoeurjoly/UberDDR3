@@ -395,6 +395,7 @@ def decode_payload(payload, bit_count):
             3: "idelay_load_error",
             4: "check_starting_data_forced_read_realign",
             5: "instruction_13_startup_watchdog",
+            6: "analyze_data_invalid_window_exhausted",
             15: "unexpected_reset_from_calibrate_state",
         }.get(abort_reason, "unknown"),
         "lane": field(debug_calib_abort, 5, 4),
