@@ -974,3 +974,11 @@ Artifacts:
 
 - hardware result: `artifacts/hardware/analyze-data-contradiction-retry-gate1/seed-5.json`
 - summary: `artifacts/hardware/analyze-data-contradiction-retry-gate1/summary.csv`
+
+Regression note: the first bounded contradiction-retry RTL (`e1ae1e2`) is too
+large as written. Seed5 builds at 95.47 MHz and passes hardware, but the known
+pass-control seed3 fails nextpnr timing at 79.68 MHz against the 83.33 MHz
+controller clock target. Seeds 2 and 6 were not tested in this gate because the
+multi-build stopped after the seed3 timing failure. The next patch should keep
+the same logical behavior but remove the extra per-lane contradiction counter,
+preferably reusing existing retry state.

@@ -1,0 +1,5 @@
+experiment,rtl_commit,seed,build_result,controller_clk_mhz,target_mhz,notes
+analyze-data-contradiction-retry-gate1,e1ae1e2,5,pass,95.47,83.33,"Built and hardware passed; see artifacts/hardware/analyze-data-contradiction-retry-gate1/seed-5.json."
+analyze-data-contradiction-retry-gate1,e1ae1e2,3,fail_timing,79.68,83.33,"Known pass-control seed fails nextpnr timing after the bounded contradiction retry patch; patch is functionally promising but too heavy as written."
+analyze-data-contradiction-retry-gate1,e1ae1e2,2,not_built,,83.33,"Multi-build stopped after seed3 timing failure before final bitstream path became valid."
+analyze-data-contradiction-retry-gate1,e1ae1e2,6,not_built,,83.33,"Multi-build stopped after seed3 timing failure before final bitstream path became valid."
