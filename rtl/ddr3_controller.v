@@ -402,7 +402,8 @@ module ddr3_controller #(
                 ANALYZE_DATA_SEARCH = 25,
                 ANALYZE_DATA_SEARCH_DONE = 26,
                 ANALYZE_DATA_INVALID_WINDOW_RECENTER = 27,
-                WAIT_IDELAY_LOAD = 28;
+                CHECK_STARTING_DATA_INVALID_SAMPLE = 28,
+                WAIT_IDELAY_LOAD = 29;
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
@@ -2777,7 +2778,8 @@ module ddr3_controller #(
             calib_abort_snapshot_valid <= 1'b0;
             reset_after_rank_1 <= 0; // reset for dual rank
             prep_done <= 0;
-            if(state_calibrate != CHECK_STARTING_DATA) begin
+            if(state_calibrate != CHECK_STARTING_DATA &&
+               state_calibrate != CHECK_STARTING_DATA_INVALID_SAMPLE) begin
                 check_starting_data_seen_valid <= 1'b0;
                 check_starting_data_invalid_seen <= 1'b0;
                 check_starting_data_first_invalid_index <= 6'd0;
@@ -3688,7 +3690,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             end
                             else if(read_lane_data_shifted_invalid) begin
                                 // Invalid all-zero/all-one windows are not evidence for either write-late
-                                // or read-early. Scan the bounded candidate set without moving target taps.
+                                // or read-early. Let the explicit invalid-sample state decide whether to
+                                // continue scanning, retry, or abort without changing phase from this sample.
                                 if(!check_starting_data_invalid_seen) begin
                                     check_starting_data_first_invalid_index <= start_index_check;
                                 end
@@ -3696,74 +3699,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 if(check_starting_data_invalid_count != 4'hf) begin
                                     check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
                                 end
-                                start_index_check <= start_index_check + 16;
-                                if((!check_starting_data_half_step_retry && start_index_check == 48) ||
-                                   (check_starting_data_half_step_retry && start_index_check == 56)) begin
-                                    if(!check_starting_data_seen_valid) begin
-                                        if(check_starting_data_invalid_retry[lane] != 2'd3) begin
-                                            check_starting_data_invalid_retry[lane] <= check_starting_data_invalid_retry[lane] + 1'b1;
-                                            start_index_check <= 0;
-                                            check_starting_data_half_step_retry <= 1'b0;
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
-                                        end
-                                        else if(!check_starting_data_half_step_retry) begin
-                                            // Invalid-only coarse scans are not directional evidence. Try the
-                                            // bounded half-step candidate set before declaring the lane failed,
-                                            // but do not update write-late/read-early assumptions and do not
-                                            // change read phase from invalid samples alone.
-                                            check_starting_data_invalid_retry[lane] <= 0;
-                                            check_starting_data_seen_valid <= 1'b0;
-                                            check_starting_data_invalid_seen <= 1'b0;
-                                            check_starting_data_first_invalid_index <= 6'd0;
-                                            check_starting_data_last_valid_index <= 6'd0;
-                                            check_starting_data_invalid_count <= 4'd0;
-                                            check_starting_data_half_step_retry <= 1'b1;
-                                            start_index_check <= 6'd8;
-                                            dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
-                                        end
-                                        else begin
-                                            reset_from_calibrate <= 1'b1;
-                                            calib_abort_snapshot_valid <= 1'b1;
-                                            calib_abort_snapshot_reason <= 4'd6;
-                                            calib_abort_snapshot_lane <= lane;
-                                            calib_abort_snapshot_state <= CHECK_STARTING_DATA;
-                                            calib_abort_snapshot_instruction <= instruction_address;
-                                            calib_abort_snapshot_start_index_check <= start_index_check;
-                                            calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                                            calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
-                                            calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
-                                            calib_abort_snapshot_data_start_index <= data_start_index[lane];
-                                            calib_abort_snapshot_shifted_match <= 1'b0;
-                                            calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
-                                            calib_abort_snapshot_read_lane_data <= read_lane_data;
-                                            calib_abort_snapshot_best_offset <= check_starting_data_last_valid_index;
-                                            calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
-                                            calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
-                                        end
-                                    end
-                                    else if(!lane_write_dq_late[lane]) begin
-                                        state_calibrate <= ISSUE_WRITE_1;
-                                        data_start_index[lane] <= 1;
-                                        lane_write_dq_late[lane] <= 1'b1;
-                                        check_starting_data_half_step_retry <= 1'b0;
-                                    end
-                                    else if(!check_starting_data_half_step_retry) begin
-                                        check_starting_data_half_step_retry <= 1'b1;
-                                        start_index_check <= 6'd8;
-                                        dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
-                                    end
-                                    else begin
-                                        lane_read_dq_early[lane] <= 1'b1;
-                                        check_starting_data_half_step_retry <= 1'b0;
-                                        state_calibrate <= BITSLIP_DQS_TRAIN_3;
-                                        added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
-                                                                    + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
-                                        dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
-                                    end
-                                end
+                                state_calibrate <= CHECK_STARTING_DATA_INVALID_SAMPLE;
                             end
                             else begin
                                 check_starting_data_seen_valid <= 1'b1;
@@ -3775,7 +3711,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
                                     if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not yet set so we know this first assunmption is not yet tested
                                         state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
-                                        data_start_index[lane] <= 1; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, since assumption is we are 1 controller cycle early then data_start_index is 64 
+                                        data_start_index[lane] <= 1; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, since assumption is we are 1 controller cycle early then data_start_index is 64
                                         lane_write_dq_late[lane] <= 1'b1;
                                         check_starting_data_half_step_retry <= 1'b0;
                                         `ifdef UART_DEBUG_ALIGN
@@ -3819,10 +3755,86 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                     else begin
                         prep_done <= {prep_done[0],1'b1};
                     end
-      
+
+ CHECK_STARTING_DATA_INVALID_SAMPLE: begin
+                                if((!check_starting_data_half_step_retry && start_index_check == 48) ||
+                                   (check_starting_data_half_step_retry && start_index_check == 56)) begin
+                                    if(!check_starting_data_seen_valid) begin
+                                        if(check_starting_data_invalid_retry[lane] != 2'd3) begin
+                                            check_starting_data_invalid_retry[lane] <= check_starting_data_invalid_retry[lane] + 1'b1;
+                                            start_index_check <= 0;
+                                            check_starting_data_half_step_retry <= 1'b0;
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
+                                        end
+                                        else if(!check_starting_data_half_step_retry) begin
+                                            // Invalid-only coarse scans are not directional evidence. Try the
+                                            // bounded half-step candidate set before declaring the lane failed,
+                                            // but do not update write-late/read-early assumptions and do not
+                                            // change read phase from invalid samples alone.
+                                            check_starting_data_invalid_retry[lane] <= 0;
+                                            check_starting_data_seen_valid <= 1'b0;
+                                            check_starting_data_invalid_seen <= 1'b0;
+                                            check_starting_data_first_invalid_index <= 6'd0;
+                                            check_starting_data_last_valid_index <= 6'd0;
+                                            check_starting_data_invalid_count <= 4'd0;
+                                            check_starting_data_half_step_retry <= 1'b1;
+                                            start_index_check <= 6'd8;
+                                            dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
+                                        end
+                                        else begin
+                                            reset_from_calibrate <= 1'b1;
+                                            calib_abort_snapshot_valid <= 1'b1;
+                                            calib_abort_snapshot_reason <= 4'd6;
+                                            calib_abort_snapshot_lane <= lane;
+                                            calib_abort_snapshot_state <= CHECK_STARTING_DATA_INVALID_SAMPLE;
+                                            calib_abort_snapshot_instruction <= instruction_address;
+                                            calib_abort_snapshot_start_index_check <= start_index_check;
+                                            calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                                            calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                                            calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
+                                            calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                            calib_abort_snapshot_shifted_match <= 1'b0;
+                                            calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                            calib_abort_snapshot_read_lane_data <= read_lane_data;
+                                            calib_abort_snapshot_best_offset <= check_starting_data_last_valid_index;
+                                            calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
+                                            calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
+                                        end
+                                    end
+                                    else if(!lane_write_dq_late[lane]) begin
+                                        state_calibrate <= ISSUE_WRITE_1;
+                                        data_start_index[lane] <= 1;
+                                        lane_write_dq_late[lane] <= 1'b1;
+                                        check_starting_data_half_step_retry <= 1'b0;
+                                    end
+                                    else if(!check_starting_data_half_step_retry) begin
+                                        check_starting_data_half_step_retry <= 1'b1;
+                                        start_index_check <= 6'd8;
+                                        dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                        state_calibrate <= CHECK_STARTING_DATA;
+                                    end
+                                    else begin
+                                        lane_read_dq_early[lane] <= 1'b1;
+                                        check_starting_data_half_step_retry <= 1'b0;
+                                        state_calibrate <= BITSLIP_DQS_TRAIN_3;
+                                        added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
+                                                                    + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
+                                        dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
+                                    end
+                                end
+                                else begin
+                                    start_index_check <= start_index_check + 16;
+                                    state_calibrate <= CHECK_STARTING_DATA;
+                                end
+                            end
+
+
 BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to capture the DQ correctly
                         if(i_phy_iserdes_bitslip_reference[lane*serdes_ratio*2 +: 8] == dqs_bitslip_arrangement[7:0]) begin
-                             state_calibrate <= ISSUE_WRITE_1; //finished bitslip calibration so we can now issue again new write and then read 
+                             state_calibrate <= ISSUE_WRITE_1; //finished bitslip calibration so we can now issue again new write and then read
                              added_read_pipe_max <= added_read_pipe_max > added_read_pipe[lane]? added_read_pipe_max:added_read_pipe[lane];
                         end
                         else begin
