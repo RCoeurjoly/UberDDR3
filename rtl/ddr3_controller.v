@@ -628,6 +628,7 @@ module ddr3_controller #(
     reg[1:0] analyze_data_invalid_retry[LANES-1:0];
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
+    reg read_lane_data_shifted_invalid = 0;
     reg odelay_cntvalue_halfway = 0;
     reg initial_calibration_done = 0;
     reg final_calibration_done = 0;
@@ -2671,6 +2672,7 @@ module ddr3_controller #(
             write_pattern <= 0;
             write_pattern_lane <= 0;
             read_lane_data_shifted <= 0;
+            read_lane_data_shifted_invalid <= 1'b0;
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
             dqs_start_index_stored <= 0;
@@ -3357,7 +3359,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             end 
                             else begin
                                 data_start_index[lane] <= data_start_index[lane] + 8; //skip by 8 (basically we want to delay DQ since it was too early)
-                                if(((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) &&
+                                if(read_lane_data_shifted_invalid &&
                                    (analyze_data_invalid_retry[lane] != 2'd3)) begin
                                     analyze_data_invalid_retry[lane] <= analyze_data_invalid_retry[lane] + 1'b1;
                                     analyze_data_search_invalid <= 1'b0;
@@ -3370,7 +3372,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     state_calibrate <= ISSUE_WRITE_1;
                                     delay_before_read_data <= 10;
                                 end
-                                else if((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) begin
+                                else if(read_lane_data_shifted_invalid) begin
                                     reset_from_calibrate <= 1'b1;
                                     calib_abort_snapshot_valid <= 1'b1;
                                     calib_abort_snapshot_reason <= 4'd6;
@@ -3391,7 +3393,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 end
                                 else if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
                                     debug_calib_search_entered <= 1'b1;
-                                    if(((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) && (analyze_data_invalid_retry[lane] != 2'd3)) begin
+                                    if(read_lane_data_shifted_invalid && (analyze_data_invalid_retry[lane] != 2'd3)) begin
                                         analyze_data_search_offset_q <= 6'd0;
                                         analyze_data_search_window <= read_lane_data;
                                         analyze_data_search_best_offset <= 6'd0;
@@ -3928,6 +3930,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         read_data_store[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8] };
             write_pattern_lane <= write_pattern[ (lane_write_dq_late[lane]? 0 : data_start_index[lane])  +: 64];
             read_lane_data_shifted <= read_lane_data[start_index_check +: 32];
+            read_lane_data_shifted_invalid <= (&read_lane_data_shifted) || !(|read_lane_data_shifted);
             read_lane_data_shifted_distance <= hamming32(read_lane_data_shifted ^ write_pattern[0 +: 32]);
             write_pattern_matches <= write_pattern_lane == read_lane_data;
 
@@ -5481,8 +5484,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
                         if($past(state_calibrate) == ANALYZE_DATA && $past(prep_done[1]) &&
                            !$past(write_pattern_matches) &&
-                           (($past(read_lane_data_shifted) == 32'hffff_ffff) ||
-                            ($past(read_lane_data_shifted) == 32'h0000_0000)) &&
+                           $past(read_lane_data_shifted_invalid) &&
                            ($past(analyze_data_invalid_retry[lane]) != 2'd3)) begin
                             assert(!reset_from_calibrate);
                             assert(state_calibrate == ISSUE_WRITE_1);
