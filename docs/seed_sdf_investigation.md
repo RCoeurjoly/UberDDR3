@@ -948,3 +948,29 @@ Artifacts:
 
 - hardware result: `artifacts/hardware/invalid-window-retry-gate2/seed-5.json`
 - summary: `artifacts/hardware/invalid-window-retry-gate2/summary.csv`
+
+### ANALYZE_DATA contradiction retry gate: 2026-05-29
+
+The seed5 failure after the aligned invalid-window retry was not an all-ones/all-zeroes
+window. It was a nontrivial mismatch with both calibration assumptions set:
+`lane_write_dq_late=1` and `lane_read_dq_early=1`. That means the saturated-window
+classifier was too narrow for this bucket.
+
+A bounded per-lane contradiction retry was added in `ANALYZE_DATA`: when the
+contradiction path would otherwise reset, the FSM may clear both assumptions,
+reset `data_start_index` and `start_index_check`, and rerun `CHECK_STARTING_DATA`.
+After three such retries, the old reason-1 abort remains in place.
+
+| RTL commit | seed | result | signature |
+| --- | ---: | --- | --- |
+| `e1ae1e2` | 5 | pass | `calib_complete=true`, `bist_done=true`, `wrong_read_data=0`, no abort, data taps `24/25`, DQS taps `1/2` |
+
+Conclusion: seed5 is rescued by treating the both-assumptions contradiction as a
+recoverable calibration-search ambiguity rather than an immediate terminal error.
+This is a stronger RTL-level solution hypothesis than the previous saturated-window
+retry, but it still needs regression testing on known failing and known passing seeds.
+
+Artifacts:
+
+- hardware result: `artifacts/hardware/analyze-data-contradiction-retry-gate1/seed-5.json`
+- summary: `artifacts/hardware/analyze-data-contradiction-retry-gate1/summary.csv`
