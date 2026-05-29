@@ -631,7 +631,6 @@ module ddr3_controller #(
     reg[5:0] check_starting_data_last_valid_index = 0;
     reg[3:0] check_starting_data_invalid_count = 0;
     reg[1:0] check_starting_data_invalid_retry[LANES-1:0];
-    reg check_starting_data_invalid_phase_escape[LANES-1:0];
     reg[1:0] analyze_data_recenter_retry[LANES-1:0];
     reg[1:0] analyze_data_invalid_retry[LANES-1:0];
     reg[1:0] analyze_data_contradiction_retry = 0;
@@ -2758,7 +2757,6 @@ module ddr3_controller #(
                 analyze_data_recenter_retry[index] <= 0;
                 analyze_data_invalid_retry[index] <= 0;
                 check_starting_data_invalid_retry[index] <= 0;
-                check_starting_data_invalid_phase_escape[index] <= 1'b0;
             end
         end
         else begin
@@ -3373,7 +3371,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     data_start_index[lane+1] <= 0;
                                     analyze_data_recenter_retry[lane+1] <= 0;
                                     analyze_data_invalid_retry[lane+1] <= 0;
-                                    check_starting_data_invalid_phase_escape[lane+1] <= 1'b0;
                                     analyze_data_contradiction_retry <= 2'd0;
                                     state_calibrate <= ANALYZE_DATA;
                                     `ifdef UART_DEBUG_ALIGN
@@ -3658,7 +3655,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             if(read_lane_data_shifted == write_pattern[0 +: 32]) begin
                             /* verilator lint_on WIDTHTRUNC */
                                 check_starting_data_invalid_retry[lane] <= 0;
-                                check_starting_data_invalid_phase_escape[lane] <= 1'b0;
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
                                 // first assumption: controller DQ is late WHEN WRITING(THUS WE NEED TO CALIBRATE data_start_index of outgoing stage2_data)
@@ -3711,23 +3707,22 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             state_calibrate <= ISSUE_WRITE_1;
                                             delay_before_read_data <= 10;
                                         end
-                                        else if(!check_starting_data_invalid_phase_escape[lane]) begin
-                                            check_starting_data_invalid_phase_escape[lane] <= 1'b1;
+                                        else if(!check_starting_data_half_step_retry) begin
+                                            // Invalid-only coarse scans are not directional evidence. Try the
+                                            // bounded half-step candidate set before declaring the lane failed,
+                                            // but do not update write-late/read-early assumptions and do not
+                                            // change read phase from invalid samples alone.
                                             check_starting_data_invalid_retry[lane] <= 0;
                                             check_starting_data_seen_valid <= 1'b0;
                                             check_starting_data_invalid_seen <= 1'b0;
                                             check_starting_data_first_invalid_index <= 6'd0;
                                             check_starting_data_last_valid_index <= 6'd0;
                                             check_starting_data_invalid_count <= 4'd0;
-                                            lane_write_dq_late[lane] <= 1'b0;
-                                            lane_read_dq_early[lane] <= 1'b1;
-                                            start_index_check <= 0;
-                                            data_start_index[lane] <= 0;
-                                            check_starting_data_half_step_retry <= 1'b0;
-                                            state_calibrate <= BITSLIP_DQS_TRAIN_3;
-                                            added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
-                                                                        + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
-                                            dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
+                                            check_starting_data_half_step_retry <= 1'b1;
+                                            start_index_check <= 6'd8;
+                                            dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
                                         end
                                         else begin
                                             reset_from_calibrate <= 1'b1;
