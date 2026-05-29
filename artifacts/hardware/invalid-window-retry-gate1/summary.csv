@@ -1,0 +1,2 @@
+seed,result,attempts,fail_reasons,abort_reason,abort_reason_name,lane,start_index_check,dq_target_index,data_start_index,shifted_hex,window_hex,data_taps,dqs_taps,bitstream_sha256,notes
+5,fail,200,"calib_incomplete;calib_state_not_done;bist_not_done",1,analyze_data_both_assumptions_failed,0,8,36,16,0xffffffff,0x3dffffffffffffff,"26 26 26 26 26 26 26 26 27 27 27 27 27 27 27 27","3 4",ccb8bfef1d24bf305ae28be1ed4ba7f00bacabedfd43206a5a2df75171021d2b,"invalid flag was misaligned; snapshot invalid but generic reason-1 abort fired"
