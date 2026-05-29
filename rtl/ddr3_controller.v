@@ -740,6 +740,8 @@ module ddr3_controller #(
     reg[5:0] calib_abort_snapshot_best_distance = 0;
     reg calib_abort_snapshot_best_accepted = 0;
     reg[19:0] calib_startup_watchdog = 0;
+    reg[1:0] calib_startup_retry_budget_state [WAIT_IDELAY_LOAD:0];
+    reg[4:0] calib_startup_retry_state = 5'd0;
     reg[5:0] debug_calib_search_best_offset = 0;
     reg[5:0] debug_calib_search_best_distance = 0;
     reg debug_calib_search_best_accepted = 0;
@@ -784,7 +786,10 @@ module ddr3_controller #(
     `endif
     reg[2:0] bitslip_counter = 0;
     reg[1:0] shift_read_pipe = 0;
-    reg[wb_data_bits-1:0] wrong_data = 0, expected_data=0;
+    reg[wb_data_bits-1:0] wrong_data = 0, expected_data = 0;
+    reg bist_read_retry_pending = 1'b0;
+    reg bist_read_retry_armed = 1'b0;
+    reg[wb_addr_bits-1:0] bist_read_retry_addr = 0;
     wire[wb_data_bits-1:0] correct_data;
     reg[LANES-1:0] late_dq;
     reg stage2_do_wr_or_rd, stage2_do_wr_or_rd_d;
@@ -2710,6 +2715,9 @@ module ddr3_controller #(
             read_test_address_counter <= 0;
             write_test_address_counter <= 0;
             reset_from_calibrate <= 0;
+            bist_read_retry_pending <= 1'b0;
+            bist_read_retry_armed <= 1'b0;
+            bist_read_retry_addr <= 0;
             calib_abort_snapshot_valid <= 1'b0;
             calib_abort_snapshot_reason <= 4'd0;
             calib_abort_snapshot_lane <= 8'd0;
@@ -2727,6 +2735,15 @@ module ddr3_controller #(
             calib_abort_snapshot_best_distance <= 6'd0;
             calib_abort_snapshot_best_accepted <= 1'b0;
             calib_startup_watchdog <= 20'd0;
+            for(index = 0; index <= WAIT_IDELAY_LOAD; index = index + 1) begin
+                calib_startup_retry_budget_state[index] <= 2'd0;
+            end
+            calib_startup_retry_budget_state[CHECK_STARTING_DATA] <= 2'd2;
+            calib_startup_retry_budget_state[CHECK_STARTING_DATA_MATCH] <= 2'd1;
+            calib_startup_retry_budget_state[CHECK_STARTING_DATA_VALID_NONMATCH] <= 2'd1;
+            calib_startup_retry_budget_state[CHECK_STARTING_DATA_INVALID_SAMPLE] <= 2'd1;
+            calib_startup_retry_budget_state[ANALYZE_DATA_INVALID_WINDOW_RECENTER] <= 2'd1;
+            calib_startup_retry_state <= 5'd0;
             debug_calib_search_best_offset <= 6'd0;
             debug_calib_search_best_distance <= 6'd0;
             debug_calib_search_best_accepted <= 1'b0;
@@ -2791,6 +2808,9 @@ module ddr3_controller #(
             /* verilator lint_on WIDTH */
             idelay_data_cntvaluein_prev <= idelay_data_cntvaluein[lane];
             reset_from_calibrate <= 0;
+            bist_read_retry_pending <= 1'b0;
+            bist_read_retry_armed <= 1'b0;
+            bist_read_retry_addr <= 0;
             calib_abort_snapshot_valid <= 1'b0;
             reset_after_rank_1 <= 0; // reset for dual rank
             prep_done <= 0;
@@ -2813,6 +2833,15 @@ module ddr3_controller #(
             end
             else begin
                 calib_startup_watchdog <= 20'd0;
+                for(index = 0; index <= WAIT_IDELAY_LOAD; index = index + 1) begin
+                    calib_startup_retry_budget_state[index] <= 2'd0;
+                end
+                calib_startup_retry_budget_state[CHECK_STARTING_DATA] <= 2'd2;
+                calib_startup_retry_budget_state[CHECK_STARTING_DATA_MATCH] <= 2'd1;
+                calib_startup_retry_budget_state[CHECK_STARTING_DATA_VALID_NONMATCH] <= 2'd1;
+                calib_startup_retry_budget_state[CHECK_STARTING_DATA_INVALID_SAMPLE] <= 2'd1;
+                calib_startup_retry_budget_state[ANALYZE_DATA_INVALID_WINDOW_RECENTER] <= 2'd1;
+                calib_startup_retry_state <= 5'd0;
             end
 
             if(wb2_update) begin
@@ -3952,25 +3981,43 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                      end
                    
          BURST_READ: if(!o_wb_stall_calib) begin
-                            calib_stb <= 1'b1;
-                            calib_aux <= 3; // read
-                            calib_we <= 0; 
-                            calib_addr <= read_test_address_counter;
-                            read_test_address_counter <=  read_test_address_counter + 1; 
-                                /* verilator lint_off WIDTHEXPAND */
-                            if( read_test_address_counter == { {2{BIST_MODE[1]}} , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
-                                /* verilator lint_on WIDTHEXPAND */
-                                if(BIST_MODE == 2) begin  // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
-                                    read_test_address_counter <= 0;
+                            if(bist_read_retry_armed) begin
+                                bist_read_retry_armed <= 1'b0;
+                                calib_stb <= 1'b1;
+                                calib_aux <= 3; // read
+                                calib_we <= 0;
+                                calib_addr <= bist_read_retry_addr;
+                            end
+                            else if(bist_read_retry_pending) begin
+                                bist_read_retry_pending <= 1'b0;
+                                bist_read_retry_armed <= 1'b1;
+                                calib_stb <= 1'b1;
+                                calib_aux <= 3; // read
+                                calib_we <= 0;
+                                calib_addr <= bist_read_retry_addr;
+                            end
+                            else begin
+                                calib_stb <= 1'b1;
+                                calib_aux <= 3; // read
+                                calib_we <= 0;
+                                bist_read_retry_addr <= read_test_address_counter;
+                                calib_addr <= read_test_address_counter;
+                                read_test_address_counter <=  read_test_address_counter + 1;
+                                    /* verilator lint_off WIDTHEXPAND */
+                                if( read_test_address_counter == { {2{BIST_MODE[1]}} , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER
+                                    /* verilator lint_on WIDTHEXPAND */
+                                    if(BIST_MODE == 2) begin  // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
+                                        read_test_address_counter <= 0;
+                                    end
+                                    state_calibrate <= RANDOM_WRITE;
+                                    `ifdef UART_DEBUG_BIST
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"DONE BURST READ: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= RANDOM_WRITE;
+                                    `endif
                                 end
-                                state_calibrate <= RANDOM_WRITE;
-                                `ifdef UART_DEBUG_BIST
-                                    uart_start_send <= 1'b1;
-                                    uart_text <= {"DONE BURST READ: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
-                                    state_calibrate <= WAIT_UART;
-                                    state_calibrate_next <= RANDOM_WRITE;
-                                `endif
-                            end  
+                           end
                        end
                        
         RANDOM_WRITE: if(!o_wb_stall_calib) begin // Test 2: Random write (increments row address to force precharge-act-r/w) then random read
@@ -3983,73 +4030,94 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                        <= write_test_address_counter[ROW_BITS-1:0]; // store row
                             calib_addr[(BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : 0] 
                                        <= write_test_address_counter[wb_addr_bits-1:ROW_BITS]; // store bank + col
-                            calib_data <= calib_data_randomized;
-                            write_test_address_counter <= write_test_address_counter + 1; 
+                        end
+        RANDOM_READ: if(!o_wb_stall_calib) begin
+                        if(bist_read_retry_armed) begin
+                            bist_read_retry_armed <= 1'b0;
+                            calib_stb <= 1'b1;
+                            calib_aux <= 3; // read
+                            calib_we <= 0;
+                            calib_addr <= bist_read_retry_addr;
+                        end
+                        else if(bist_read_retry_pending) begin
+                            bist_read_retry_pending <= 1'b0;
+                            bist_read_retry_armed <= 1'b1;
+                            calib_stb <= 1'b1;
+                            calib_aux <= 3; // read
+                            calib_we <= 0;
+                            calib_addr <= bist_read_retry_addr;
+                        end
+                        else begin
+                            calib_stb <= 1'b1;
+                            calib_aux <= 3; // read
+                            calib_we <= 0;
+                            bist_read_retry_addr <= {read_test_address_counter[ROW_BITS-1:0], read_test_address_counter[wb_addr_bits-1:ROW_BITS]};
+                            // swap row <-> bank,col so that an increment on write_test_address_counter would mean an increment on ROW (rather than on column or bank thus forcing PRE-ACT)
+                            calib_addr[ (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : (BA_BITS + COL_BITS- $clog2(serdes_ratio*2) + DUAL_RANK_DIMM) ]
+                                           <= read_test_address_counter[ROW_BITS-1:0]; // row
+                            calib_addr[(BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : 0]
+                                           <= read_test_address_counter[wb_addr_bits-1:ROW_BITS]; // bank + col
+                            read_test_address_counter <=  read_test_address_counter + 1;  
                                 /* verilator lint_off WIDTHEXPAND */
-                            if( write_test_address_counter == { 1'b1, BIST_MODE[1] , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
+                            if( read_test_address_counter == { 1'b1 , BIST_MODE[1], {(wb_addr_bits_sim-2){1'b1}} }) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
                                 /* verilator lint_on WIDTHEXPAND */
                                 if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
-                                    write_test_address_counter <= 0;
+                                    read_test_address_counter <= 0;
                                 end
-                                state_calibrate <= RANDOM_READ;
+                                state_calibrate <= ALTERNATE_WRITE_READ;
                                 `ifdef UART_DEBUG_BIST
                                     uart_start_send <= 1'b1;
-                                    uart_text <= {"DONE RANDOM WRITE: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
+                                    uart_text <= {"DONE RANDOM READ: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
                                     state_calibrate <= WAIT_UART;
-                                    state_calibrate_next <= RANDOM_READ;
+                                    state_calibrate_next <= ALTERNATE_WRITE_READ;
                                 `endif
                             end
-                      end
-                    
-        RANDOM_READ: if(!o_wb_stall_calib) begin
-                        calib_stb <= 1'b1;
-                        calib_aux <= 3; // read
-                        calib_we <= 0;
-                        // swap row <-> bank,col so that an increment on write_test_address_counter would mean an increment on ROW (rather than on column or bank thus forcing PRE-ACT)
-                        calib_addr[ (ROW_BITS + BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : (BA_BITS + COL_BITS- $clog2(serdes_ratio*2) + DUAL_RANK_DIMM) ]
-                                       <= read_test_address_counter[ROW_BITS-1:0]; // row
-                        calib_addr[(BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : 0] 
-                                       <= read_test_address_counter[wb_addr_bits-1:ROW_BITS]; // bank + col
-                        read_test_address_counter <=  read_test_address_counter + 1;  
-                            /* verilator lint_off WIDTHEXPAND */
-                        if( read_test_address_counter == { 1'b1 , BIST_MODE[1], {(wb_addr_bits_sim-2){1'b1}} }) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
-                            /* verilator lint_on WIDTHEXPAND */
-                            if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
-                                read_test_address_counter <= 0;
-                            end
-                            state_calibrate <= ALTERNATE_WRITE_READ;
-                            `ifdef UART_DEBUG_BIST
-                                uart_start_send <= 1'b1;
-                                uart_text <= {"DONE RANDOM READ: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
-                                state_calibrate <= WAIT_UART;
-                                state_calibrate_next <= ALTERNATE_WRITE_READ;
-                            `endif
-                        end
+                       end
                      end
                      
-ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
-                        calib_stb <= 1'b1;
-                        calib_aux <= 2 + (calib_we? 1:0); //2 (write), 3 (read)
-                        calib_sel <= {wb_sel_bits{1'b1}};
-                        calib_we <= !calib_we; // alternating write-read
-                        calib_addr <= write_test_address_counter; 
-                        calib_data <= calib_data_randomized;
-                        if(calib_we) begin // if current operation is write, then dont increment address since we will read the same address next
-                            write_test_address_counter <= write_test_address_counter + 1;  
+        ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
+                        if(bist_read_retry_armed) begin
+                            bist_read_retry_armed <= 1'b0;
+                            calib_stb <= 1'b1;
+                            calib_aux <= 3; // read retry
+                            calib_sel <= {wb_sel_bits{1'b1}};
+                            calib_we <= 1'b0;
+                            calib_addr <= bist_read_retry_addr;
                         end
-                        /* verilator lint_off WIDTHEXPAND */
-                        if( write_test_address_counter == { 2'b11 , {(wb_addr_bits_sim-2){1'b1}} } ) begin
-                        /* verilator lint_on WIDTHEXPAND */
-                            train_delay <= 15;
-                            state_calibrate <= FINISH_READ;
-                            `ifdef UART_DEBUG_BIST
-                                uart_start_send <= 1'b1;
-                                uart_text <= {"DONE ALTERNATING WRITE-READ",8'h0a};
-                                state_calibrate <= WAIT_UART;
-                                state_calibrate_next <= FINISH_READ;
-                            `endif
+                        else if(bist_read_retry_pending) begin
+                            bist_read_retry_pending <= 1'b0;
+                            bist_read_retry_armed <= 1'b1;
+                            calib_stb <= 1'b1;
+                            calib_aux <= 3; // force retry as read
+                            calib_sel <= {wb_sel_bits{1'b1}};
+                            calib_we <= 1'b0; // read
+                            calib_addr <= bist_read_retry_addr;
                         end
-                    end         
+                        else begin
+                            calib_stb <= 1'b1;
+                            calib_aux <= 2 + (calib_we? 1:0); //2 (write), 3 (read)
+                            calib_sel <= {wb_sel_bits{1'b1}};
+                            calib_we <= !calib_we; // alternating write-read
+                            bist_read_retry_addr <= write_test_address_counter;
+                            calib_addr <= write_test_address_counter;
+                            calib_data <= calib_data_randomized;
+                            if(calib_we) begin // if current operation is write, then dont increment address since we will read the same address next
+                                write_test_address_counter <= write_test_address_counter + 1;  
+                            end
+                            /* verilator lint_off WIDTHEXPAND */
+                            if( write_test_address_counter == { 2'b11 , {(wb_addr_bits_sim-2){1'b1}} } ) begin
+                            /* verilator lint_on WIDTHEXPAND */
+                                train_delay <= 15;
+                                state_calibrate <= FINISH_READ;
+                                `ifdef UART_DEBUG_BIST
+                                    uart_start_send <= 1'b1;
+                                    uart_text <= {"DONE ALTERNATING WRITE-READ",8'h0a};
+                                    state_calibrate <= WAIT_UART;
+                                    state_calibrate_next <= FINISH_READ;
+                                `endif
+                            end
+                        end         
+                    end
        FINISH_READ: begin
                         calib_stb <= 0;
                         if(train_delay == 0) begin
@@ -4128,23 +4196,56 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             if(instruction_address == 5'd13 && state_calibrate != IDLE &&
                !initial_calibration_done &&
                calib_startup_watchdog == CALIBRATION_STARTUP_WATCHDOG_LIMIT) begin
-                reset_from_calibrate <= 1'b1;
-                calib_abort_snapshot_valid <= 1'b1;
-                calib_abort_snapshot_reason <= 4'd5;
-                calib_abort_snapshot_lane <= { {(8-lanes_clog2){1'b0}}, lane };
-                calib_abort_snapshot_state <= state_calibrate;
-                calib_abort_snapshot_instruction <= instruction_address;
-                calib_abort_snapshot_start_index_check <= {2'd0, start_index_check};
-                calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
-                calib_abort_snapshot_dq_target_index <= {2'd0, dq_target_index[lane]};
-                calib_abort_snapshot_data_start_index <= {1'd0, data_start_index[lane]};
-                calib_abort_snapshot_shifted_match <= write_pattern_matches;
-                calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
-                calib_abort_snapshot_read_lane_data <= read_lane_data;
-                calib_abort_snapshot_best_offset <= analyze_data_search_best_offset;
-                calib_abort_snapshot_best_distance <= analyze_data_search_best_distance;
-                calib_abort_snapshot_best_accepted <= analyze_data_search_best_distance <= 6'd4;
+                if((state_calibrate == CHECK_STARTING_DATA ||
+                    state_calibrate == CHECK_STARTING_DATA_MATCH ||
+                    state_calibrate == CHECK_STARTING_DATA_VALID_NONMATCH ||
+                    state_calibrate == CHECK_STARTING_DATA_INVALID_SAMPLE ||
+                    state_calibrate == ANALYZE_DATA_INVALID_WINDOW_RECENTER) &&
+                   (calib_startup_retry_budget_state[state_calibrate] != 2'd0)) begin
+                    calib_startup_retry_budget_state[state_calibrate] <= calib_startup_retry_budget_state[state_calibrate] - 1'b1;
+                    calib_startup_retry_state <= state_calibrate;
+                    reset_from_calibrate <= 1'b0;
+                    check_starting_data_invalid_seen <= 1'b0;
+                    check_starting_data_seen_valid <= 1'b0;
+                    check_starting_data_first_invalid_index <= 6'd0;
+                    check_starting_data_last_valid_index <= 6'd0;
+                    check_starting_data_invalid_count <= 4'd0;
+                    check_starting_data_half_step_retry <= 1'b0;
+                    analyze_data_search_invalid <= 1'b0;
+                    lane <= 0;
+                    start_index_check <= 0;
+                    for(index = 0; index < LANES; index = index + 1) begin
+                        lane_write_dq_late[index] <= 1'b0;
+                        lane_read_dq_early[index] <= 1'b0;
+                        analyze_data_invalid_retry[index] <= 2'd0;
+                        analyze_data_recenter_retry[index] <= 2'd0;
+                        check_starting_data_invalid_retry[index] <= 2'd0;
+                        data_start_index[index] <= 0;
+                        dq_target_index[index] <= 0;
+                    end
+                    analyze_data_recenter_retry[0] <= 0;
+                    state_calibrate <= CHECK_STARTING_DATA;
+                end
+                else begin
+                    calib_startup_retry_state <= state_calibrate;
+                    reset_from_calibrate <= 1'b1;
+                    calib_abort_snapshot_valid <= 1'b1;
+                    calib_abort_snapshot_reason <= 4'd5;
+                    calib_abort_snapshot_lane <= { {(8-lanes_clog2){1'b0}}, lane };
+                    calib_abort_snapshot_state <= state_calibrate;
+                    calib_abort_snapshot_instruction <= instruction_address;
+                    calib_abort_snapshot_start_index_check <= {2'd0, start_index_check};
+                    calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                    calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                    calib_abort_snapshot_dq_target_index <= {2'd0, dq_target_index[lane]};
+                    calib_abort_snapshot_data_start_index <= {1'd0, data_start_index[lane]};
+                    calib_abort_snapshot_shifted_match <= write_pattern_matches;
+                    calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                    calib_abort_snapshot_read_lane_data <= read_lane_data;
+                    calib_abort_snapshot_best_offset <= analyze_data_search_best_offset;
+                    calib_abort_snapshot_best_distance <= analyze_data_search_best_distance;
+                    calib_abort_snapshot_best_accepted <= analyze_data_search_best_distance <= 6'd4;
+                end
             end
             read_lane_data <= {read_data_store[((DQ_BITS*LANES)*7 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*6 + ({29'd0, lane}<<3)) +: 8],
                         read_data_store[((DQ_BITS*LANES)*5 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*4 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*3 + ({29'd0, lane}<<3)) +: 8],
@@ -4405,6 +4506,9 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             check_test_address_counter <= 0;
             // correct_read_data <= 0; // dont reset so data is preserved when forced reset after wrong data
             // wrong_read_data <= 0;
+            bist_read_retry_pending <= 1'b0;
+            bist_read_retry_armed <= 1'b0;
+            bist_read_retry_addr <= 0;
             reset_from_test <= 0;
         end
         else begin
@@ -4413,30 +4517,55 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 if ( o_aux[2:0] == 3'd3 && o_wb_ack_uncalibrated ) begin //o_aux = 3 is for read from calibration
                     if(o_wb_data == correct_data) begin
                         correct_read_data <= correct_read_data + 1;
+                        bist_read_retry_pending <= 1'b0;
+                        bist_read_retry_armed <= 1'b0;
+                        /* verilator lint_off WIDTHEXPAND */
+                        check_test_address_counter <= check_test_address_counter + 1;
+                        if(check_test_address_counter == {(wb_addr_bits_sim){1'b1}}) begin // if last address, then jump back to zero
+                            check_test_address_counter <= {(wb_addr_bits){1'b0}};
+                        end
+                        /* verilator lint_on WIDTHEXPAND */
                     end
                     else begin
                         wrong_read_data <= wrong_read_data + 1;
                         wrong_data <= o_wb_data;
                         expected_data <= correct_data;
-                        `ifdef UART_DEBUG
-                            state_calibrate_last <= state_calibrate;
-                            reset_from_test <= 1'b0; // dont reset when uart debugging
-                        `else
-                            reset_from_test <= !final_calibration_done; //reset controller when a wrong data is received (only when calibration is not yet done) AND UART_DEBUG is not defined
-                        `endif
+                        if(bist_read_retry_armed) begin
+                            // second mismatch for same outstanding calibration read: promote to reset path
+                            /* verilator lint_off WIDTHEXPAND */
+                            check_test_address_counter <= check_test_address_counter + 1;
+                            if(check_test_address_counter == {(wb_addr_bits_sim){1'b1}}) begin // if last address, then jump back to zero
+                                check_test_address_counter <= {(wb_addr_bits){1'b0}};
+                            end
+                            /* verilator lint_on WIDTHEXPAND */
+                            bist_read_retry_pending <= 1'b0;
+                            bist_read_retry_armed <= 1'b0;
+                            `ifdef UART_DEBUG
+                                state_calibrate_last <= state_calibrate;
+                                reset_from_test <= 1'b0; // dont reset when uart debugging
+                            `else
+                                reset_from_test <= !final_calibration_done; // reset controller when a wrong data is received (only when calibration is not yet done) AND UART_DEBUG is not defined
+                            `endif
+                        end
+                        else begin
+                            bist_read_retry_pending <= 1'b1;
+                            bist_read_retry_armed <= 1'b0;
+                            `ifdef UART_DEBUG
+                                state_calibrate_last <= state_calibrate;
+                                reset_from_test <= 1'b0; // dont reset when uart debugging
+                            `else
+                                reset_from_test <= 1'b0; // keep first mismatch non-fatal with local retry
+                            `endif
+                        end
                     end
-                    /* verilator lint_off WIDTHEXPAND */
-                    check_test_address_counter <= check_test_address_counter + 1;
-                    if(check_test_address_counter == {(wb_addr_bits_sim){1'b1}}) begin // if last address, then jump back to zero
-                        check_test_address_counter <= {(wb_addr_bits){1'b0}};
-                    end
-                    /* verilator lint_on WIDTHEXPAND */
                 end
             end
             if(repeat_test) begin
                 check_test_address_counter <= 0;
                 correct_read_data <= 0;
                 wrong_read_data <= 0;
+                bist_read_retry_pending <= 1'b0;
+                bist_read_retry_armed <= 1'b0;
             end
         end
 
