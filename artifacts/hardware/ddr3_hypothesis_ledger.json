@@ -232,5 +232,18 @@
     "solution_candidates": "Keep pure classifier and explicit invalid state. Prefer minimal all-ones/all-zero polarity plus recovery-trajectory observer, then design a deterministic valid-window transition policy; avoid further branch-local candidate broadening without evidence.",
     "status": "tested_rejected_regresses_controls",
     "type": "solution"
+  },
+  {
+    "evidence_against": "Seed5 and seed6 regress, and seed12 is still failing. Seed5 moved into analyze_data_both_assumptions_failed rather than invalid-window exhaustion, while seed6/12 still hit all-ones invalid windows. Therefore neutral rescan plus clamping is not a final bullet-proof policy.",
+    "evidence_for": "Seed16, the prior SO-011/SO-012 stubborn row, now passes calibration and BIST. Seed3, seed20, and seed27 also pass, so the patch is not globally destructive.",
+    "hardware_signature": "Expected: seed16 recovers and seeds 5/6/3/12/20/27 remain passing. Observed held-out gate with poll-count 200 and poll-interval 0.1: seeds 16,3,20,27 pass; seeds 5,6,12 fail. Seed5 fails reason 1 analyze_data_both_assumptions_failed at lane0 dq_target_index=58 data_start_index=32. Seed6 fails reason 6 invalid-window lane1 dq_target_index=48 data_start_index=8 with shifted 0xffffffff. Seed12 fails reason 6 lane0 dq_target_index=63 data_start_index=8 with shifted 0xffffffff.",
+    "hypothesis": "Neutral invalid-only recovery with clamped dq_target arithmetic fixes the remaining CHECK_STARTING_DATA invalid-window bucket without regressing controls.",
+    "id": "SO-013",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA classifier, CHECK_STARTING_DATA_INVALID_SAMPLE, clamped dq_target_index arithmetic, read_lane_data_shifted invalid/all-ones/all-zero observer, lane_write_dq_late/lane_read_dq_early assumptions.",
+    "next_test": "Use the new failure split to design a smaller deterministic valid-window policy: preserve the part that rescues seed16, but prevent terminal all-ones invalid windows and contradictory assumptions from advancing without a validated transition. Retest only seeds 5,6,12,16 plus controls 3,20,27.",
+    "sdf_json_signature": "No SDF acceptance gate was used for this RTL policy test. The HIL JSON signature is now more informative: seed16 can pass with neutral recovery, while failing rows still show all-ones/invalid-window or contradictory assumptions after calibration reset.",
+    "solution_candidates": "Keep pure classifier and explicit invalid state. Add an explicit transition-seeking recovery state that records whether a valid non-all-ones/all-zero sample was ever seen before accepting assumptions; do not mutate dq_target on invalid-only evidence; handle reason-1 both-assumptions as an invalid evidence problem when the sampled window contains dominant invalid/edge data.",
+    "status": "tested_mixed_rejected_as_final_fix",
+    "type": "solution"
   }
 ]

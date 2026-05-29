@@ -1236,3 +1236,30 @@ The intended next HIL gate remains focused: seeds 16, 5, 6, 3, 12, 20, and 27.
 The success criterion is not only pass/fail; if a row still fails, the new JSON
 should show whether the failure was all-ones or all-zero, which phase exhausted,
 and whether any valid sample was seen before terminal recovery.
+
+
+### Invalid-only recovery trajectory guard held-out gate: 2026-05-29
+
+The held-out gate was built from RTL commit `7c3a065` and tested with
+`--poll-count 200 --poll-interval 0.1`.
+
+| seed | result | abort reason | lane | dq_target | data_start | shifted |
+| ---: | --- | --- | ---: | ---: | ---: | --- |
+| 16 | pass | none | 0 | 0 | 0 | 0x00000000 |
+| 5 | fail | 1 analyze_data_both_assumptions_failed | 0 | 58 | 32 | 0x3d917729 |
+| 6 | fail | 6 analyze_data_invalid_window_exhausted | 1 | 48 | 8 | 0xffffffff |
+| 3 | pass | none | 0 | 0 | 0 | 0x00000000 |
+| 12 | fail | 6 analyze_data_invalid_window_exhausted | 0 | 63 | 8 | 0xffffffff |
+| 20 | pass | none | 0 | 0 | 0 | 0x00000000 |
+| 27 | pass | none | 0 | 0 | 0 | 0x00000000 |
+
+Conclusion: SO-013 is a mixed result and is rejected as a final fix. It rescues
+seed16 and preserves seeds 3, 20, and 27, but regresses seed5/6 and leaves seed12
+failing. The failure split is informative: the policy still allows all-ones
+invalid windows or contradictory assumptions to become terminal evidence.
+
+Next RTL direction: keep the pure classifier and explicit invalid state, but add
+a deterministic transition-seeking recovery state. Invalid-only evidence should
+not mutate `dq_target_index`, set `lane_write_dq_late`, set
+`lane_read_dq_early`, or terminally abort until the FSM has either observed a
+valid transition or exhausted a bounded transition-search sequence.
