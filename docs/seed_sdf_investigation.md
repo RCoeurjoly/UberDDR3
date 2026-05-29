@@ -922,3 +922,29 @@ Next test:
 2. Reject candidate bitstreams before programming unless signed DQS-vs-DQ and LD-vs-CNTVALUEIN features move into the accepted band.
 3. Hardware-test held-out seeds only after the intended SDF signature moves.
 
+
+### Invalid-window retry gate: 2026-05-29
+
+The all-ones invalid-window case was targeted with a small RTL retry in `ANALYZE_DATA`.
+The first build registered the invalid-window flag from the prior-cycle shifted word;
+seed5 still failed with reason 1 and an all-ones snapshot, proving the flag was
+misaligned with the decision cycle.
+
+After aligning the flag to the same indexed 32-bit slice that will be captured in
+`read_lane_data_shifted`, seed5 builds and meets timing. The hardware result is:
+
+| RTL commit | seed | result | signature |
+| --- | ---: | --- | --- |
+| `fe5e6ec` | 5 | fail | reason 1 `analyze_data_both_assumptions_failed`, lane0, `start_index_check=0`, `data_start_index=24`, `dq_target_index=35`, shifted `0xf12c3d91`, expected `0xd0ad51c1`, window `0xdbcfd275f12c3d91`, data taps `24/26`, DQS taps `1/3` |
+
+Conclusion: the aligned invalid-window retry is no longer looking at stale data,
+but seed5 is not currently an all-zeros/all-ones invalid-window failure. It is a
+nontrivial mismatch where the algorithm has set both early and late assumptions
+and then aborts. The next RTL change should handle this bucket explicitly, likely
+by adding a bounded local re-center/search around the contradiction path rather
+than treating only saturated read windows as invalid.
+
+Artifacts:
+
+- hardware result: `artifacts/hardware/invalid-window-retry-gate2/seed-5.json`
+- summary: `artifacts/hardware/invalid-window-retry-gate2/summary.csv`
