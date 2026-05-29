@@ -2792,12 +2792,14 @@ module ddr3_controller #(
             if(state_calibrate != CHECK_STARTING_DATA &&
                state_calibrate != CHECK_STARTING_DATA_INVALID_SAMPLE &&
                state_calibrate != CHECK_STARTING_DATA_MATCH &&
-               state_calibrate != CHECK_STARTING_DATA_VALID_NONMATCH) begin
+               state_calibrate != CHECK_STARTING_DATA_VALID_NONMATCH &&
+               state_calibrate != ANALYZE_DATA_INVALID_WINDOW_RECENTER) begin
                 check_starting_data_seen_valid <= 1'b0;
                 check_starting_data_invalid_seen <= 1'b0;
                 check_starting_data_first_invalid_index <= 6'd0;
                 check_starting_data_last_valid_index <= 6'd0;
                 check_starting_data_invalid_count <= 4'd0;
+                check_starting_data_invalid_retry[lane] <= 2'd0;
             end
             if(instruction_address == 5'd13 && state_calibrate != IDLE && !initial_calibration_done) begin
                 if(calib_startup_watchdog != CALIBRATION_STARTUP_WATCHDOG_LIMIT) begin
@@ -3671,6 +3673,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     check_starting_data_first_invalid_index <= start_index_check;
                                 end
                                 check_starting_data_invalid_seen <= 1'b1;
+                                check_starting_data_invalid_retry[lane] <= 2'd0;
                                 if(check_starting_data_invalid_count != 4'hf) begin
                                     check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
                                 end
@@ -3774,12 +3777,11 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             `endif
                             end
 
- CHECK_STARTING_DATA_INVALID_SAMPLE: begin
+                            CHECK_STARTING_DATA_INVALID_SAMPLE: begin
                                 if((!check_starting_data_half_step_retry && start_index_check == 48) ||
                                    (check_starting_data_half_step_retry && start_index_check == 56)) begin
                                     if(!check_starting_data_seen_valid) begin
-                                        // Invalid-only scans are not directional evidence. Move through a
-                                        // bounded candidate set instead of re-reading the same candidate.
+                                        // Invalid-only scans are not directional evidence. Keep retries bounded.
                                         if(check_starting_data_invalid_phase == 2'd0) begin
                                             check_starting_data_invalid_phase <= 2'd1;
                                             check_starting_data_invalid_seen <= 1'b0;
@@ -3792,20 +3794,50 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             delay_before_read_data <= 10;
                                         end
                                         else if(check_starting_data_invalid_phase == 2'd1) begin
-                                            // Two invalid-only scans have no directional information. Do
-                                            // not mutate dq_target_index here; bounded neutral rescans keep
-                                            // the trajectory observable without wrapping toward 0/63.
+                                            // Neutral first attempt exhausted: retry on a shifted target.
                                             if(check_starting_data_invalid_retry[lane] != 2'd3) begin
                                                 check_starting_data_invalid_retry[lane] <= check_starting_data_invalid_retry[lane] + 1'b1;
-                                                check_starting_data_invalid_phase <= 2'd0;
+                                                check_starting_data_invalid_phase <= 2'd2;
                                                 check_starting_data_invalid_seen <= 1'b0;
                                                 check_starting_data_first_invalid_index <= 6'd0;
                                                 check_starting_data_last_valid_index <= 6'd0;
                                                 check_starting_data_invalid_count <= 4'd0;
                                                 check_starting_data_half_step_retry <= 1'b0;
                                                 start_index_check <= 6'd0;
+                                                dq_target_index[lane] <= dq_target_sub_clamped(dq_target_index[lane], 6'd2);
                                                 state_calibrate <= ISSUE_WRITE_1;
                                                 delay_before_read_data <= 10;
+                                            end
+                                            else begin
+                                                reset_from_calibrate <= 1'b1;
+                                                calib_abort_snapshot_valid <= 1'b1;
+                                                calib_abort_snapshot_reason <= 4'd6;
+                                                calib_abort_snapshot_lane <= lane;
+                                                calib_abort_snapshot_state <= CHECK_STARTING_DATA_INVALID_SAMPLE;
+                                                calib_abort_snapshot_instruction <= instruction_address;
+                                                calib_abort_snapshot_start_index_check <= start_index_check;
+                                                calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                                                calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                                                calib_abort_snapshot_dq_target_index <= dq_target_sub_clamped(dq_target_index[lane], 6'd2);
+                                                calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                                calib_abort_snapshot_shifted_match <= 1'b0;
+                                                calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                                calib_abort_snapshot_read_lane_data <= read_lane_data;
+                                                calib_abort_snapshot_best_offset <= {4'd0, check_starting_data_invalid_phase};
+                                                calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
+                                                calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
+                                            end
+                                        end
+                                        else if(check_starting_data_invalid_phase == 2'd2) begin
+                                            // phase-2 retries coarse then half-step at shifted target.
+                                            if(!check_starting_data_half_step_retry) begin
+                                                check_starting_data_half_step_retry <= 1'b1;
+                                                check_starting_data_first_invalid_index <= 6'd0;
+                                                check_starting_data_last_valid_index <= 6'd0;
+                                                check_starting_data_invalid_count <= 4'd0;
+                                                check_starting_data_invalid_seen <= 1'b0;
+                                                start_index_check <= 6'd8;
+                                                state_calibrate <= CHECK_STARTING_DATA;
                                             end
                                             else begin
                                                 reset_from_calibrate <= 1'b1;
@@ -3826,25 +3858,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                                 calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
                                                 calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
                                             end
-                                        end
-                                        else begin
-                                            reset_from_calibrate <= 1'b1;
-                                            calib_abort_snapshot_valid <= 1'b1;
-                                            calib_abort_snapshot_reason <= 4'd6;
-                                            calib_abort_snapshot_lane <= lane;
-                                            calib_abort_snapshot_state <= CHECK_STARTING_DATA_INVALID_SAMPLE;
-                                            calib_abort_snapshot_instruction <= instruction_address;
-                                            calib_abort_snapshot_start_index_check <= start_index_check;
-                                            calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
-                                            calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
-                                            calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
-                                            calib_abort_snapshot_data_start_index <= data_start_index[lane];
-                                            calib_abort_snapshot_shifted_match <= 1'b0;
-                                            calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
-                                            calib_abort_snapshot_read_lane_data <= read_lane_data;
-                                            calib_abort_snapshot_best_offset <= {4'd0, check_starting_data_invalid_phase};
-                                            calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
-                                            calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
                                         end
                                     end
                                     else if(!lane_write_dq_late[lane]) begin
@@ -3874,6 +3887,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     start_index_check <= start_index_check + 16;
                                     state_calibrate <= CHECK_STARTING_DATA;
                                 end
+                            end
                             end
 
 
@@ -5692,7 +5706,12 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                  
             end
             `ifndef FORMAL_CALIBRATION_FAILURES
-                assume(state_calibrate != CHECK_STARTING_DATA && state_calibrate != BITSLIP_DQS_TRAIN_3); //this state should not be used (only for ddr3 with problems on DQ-DQS alignment)
+                assume(state_calibrate != CHECK_STARTING_DATA &&
+                       state_calibrate != CHECK_STARTING_DATA_MATCH &&
+                       state_calibrate != CHECK_STARTING_DATA_VALID_NONMATCH &&
+                       state_calibrate != CHECK_STARTING_DATA_INVALID_SAMPLE &&
+                       state_calibrate != ANALYZE_DATA_INVALID_WINDOW_RECENTER &&
+                       state_calibrate != BITSLIP_DQS_TRAIN_3); //these states should not be used (only for ddr3 with problems on DQ-DQS alignment)
             `endif
         end
 
