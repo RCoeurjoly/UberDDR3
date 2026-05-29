@@ -1037,3 +1037,33 @@ Artifacts:
 - hardware result seed5: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/seed-5.json`
 - hardware result seed3: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/seed-3.json`
 - summary: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/summary.csv`
+
+
+### Scalar contradiction retry held-out gate 1
+
+Commit `7f94ca0` was then tested on held-out former failing seeds
+`2, 6, 12, 16, 23, 27` plus known-pass controls `1, 3`. All bitstreams built
+successfully and were tested on YPCB with `--poll-count 200 --poll-interval 0.1`.
+
+| RTL commit | seed | role | build | hardware result | signature |
+| --- | ---: | --- | --- | --- | --- |
+| `7f94ca0` | 2 | former fail | pass timing | pass | 62 attempts, no abort, data taps `25/26`, DQS taps `2/3` |
+| `7f94ca0` | 6 | former fail | pass timing | pass | 62 attempts, no abort, data taps `25/26`, DQS taps `2/3` |
+| `7f94ca0` | 12 | former fail | pass timing | pass | 63 attempts, no abort, data taps `26/27`, DQS taps `3/4` |
+| `7f94ca0` | 16 | former fail | pass timing | pass | 62 attempts, no abort, data taps `25/26`, DQS taps `2/3` |
+| `7f94ca0` | 23 | former fail | pass timing | pass | 62 attempts, no abort, data taps `25/26`, DQS taps `2/3` |
+| `7f94ca0` | 27 | former fail | pass timing | fail | `analyze_data_invalid_window_exhausted`, lane 0, `start_index_check=0`, `dq_target_index=36`, shifted `0xffffffff`, window `0x51ffffffffffffff`, data taps `25/27`, DQS taps `2/4` |
+| `7f94ca0` | 1 | pass control | pass timing | pass | 62 attempts, no abort, data taps `25/26`, DQS taps `2/3` |
+| `7f94ca0` | 3 | pass control | pass timing | pass | 63 attempts, no abort, data taps `26/27`, DQS taps `3/4` |
+
+Conclusion: the scalar contradiction retry is a strong general calibration
+robustness improvement, not only a seed5 rescue. It fixes five of six held-out
+former failing seeds and preserves both pass controls. It does not fix the seed27
+all-ones invalid-window-exhausted class, so that class should remain a separate
+logical bug bucket rather than being folded into the contradiction-retry fix.
+
+Artifacts:
+
+- manifest: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/manifest.csv`
+- status: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/sweep_status.csv`
+- summary: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/summary.csv`
