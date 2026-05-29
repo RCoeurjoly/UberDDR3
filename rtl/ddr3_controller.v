@@ -643,11 +643,13 @@ module ddr3_controller #(
     reg read_lane_data_shifted_invalid = 0;
     reg read_lane_data_shifted_all_ones = 0;
     reg read_lane_data_shifted_all_zero = 0;
+    wire check_starting_data_window_in_range = (start_index_check <= 6'd32);
+    wire check_starting_data_search_terminal =
+        (!check_starting_data_half_step_retry && start_index_check == 6'd32) ||
+        ( check_starting_data_half_step_retry && start_index_check == 6'd24);
+    wire[31:0] read_lane_data_shifted_safe = read_lane_window_at(read_lane_data, start_index_check);
     wire check_starting_data_sample_match = (read_lane_data_shifted == write_pattern[0 +: 32]);
-    wire check_starting_data_sample_invalid_all_ones = read_lane_data_shifted_all_ones;
-    wire check_starting_data_sample_invalid_all_zero = read_lane_data_shifted_all_zero;
-    wire check_starting_data_sample_invalid = check_starting_data_sample_invalid_all_ones ||
-                                      check_starting_data_sample_invalid_all_zero;
+    wire check_starting_data_sample_invalid = read_lane_data_shifted_invalid;
     wire check_starting_data_sample_valid_nonmatch = !check_starting_data_sample_match && !check_starting_data_sample_invalid;
     reg odelay_cntvalue_halfway = 0;
     reg initial_calibration_done = 0;
@@ -3408,16 +3410,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 end
                                 else if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
                                     debug_calib_search_entered <= 1'b1;
-                                    if(read_lane_data_shifted_invalid && (analyze_data_invalid_retry[lane] != 2'd3)) begin
-                                        analyze_data_search_offset_q <= 6'd0;
-                                        analyze_data_search_window <= read_lane_data;
-                                        analyze_data_search_best_offset <= 6'd0;
-                                        analyze_data_search_best_distance <= 6'd32;
-                                        analyze_data_search_best_word <= read_lane_data[0 +: 32];
-                                        analyze_data_search_invalid <= 1'b1;
-                                        state_calibrate <= ANALYZE_DATA_SEARCH;
-                                    end
-                                    else if(read_lane_data_shifted_distance <= 6'd12) begin
+                                    if(read_lane_data_shifted_distance <= 6'd12) begin
                                         analyze_data_recenter_retry[lane] <= 0;
                                         analyze_data_invalid_retry[lane] <= 0;
                                         lane_read_dq_early[lane] <= 1'b1;
@@ -3735,10 +3728,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
  CHECK_STARTING_DATA_VALID_NONMATCH: begin
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
-                                start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
-                                dq_target_index[lane] <= dq_target_add_clamped(dq_target_index[lane], 6'd2);
-                                if((!check_starting_data_half_step_retry && start_index_check == 48) ||
-                                   (check_starting_data_half_step_retry && start_index_check == 56))begin // start_index_check is now outside the possible values
+                                if(check_starting_data_search_terminal) begin
                                     // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
                                     if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not yet set so we know this first assunmption is not yet tested
                                         state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
@@ -3753,8 +3743,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         `endif
                                     end
                                     else if(!check_starting_data_half_step_retry) begin
-                                        // Normal search checks 0,16,32,48. Marginal seeds can land between
-                                        // those windows, so run one bounded half-step pass at 8,24,40,56.
+                                        // Normal search checks 0,16,32. Run one bounded half-step pass at 8,24.
                                         check_starting_data_half_step_retry <= 1'b1;
                                         start_index_check <= 6'd8;
                                         dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
@@ -3773,8 +3762,13 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
                                     end
                                 end
-                            `ifdef UART_DEBUG_ALIGN
                                 else begin
+                                    start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
+                                    dq_target_index[lane] <= dq_target_add_clamped(dq_target_index[lane], 6'd2);
+                                    state_calibrate <= CHECK_STARTING_DATA;
+                                end
+                            `ifdef UART_DEBUG_ALIGN
+                                if(!check_starting_data_search_terminal) begin
                                     uart_start_send <= 1'b1;
                                     uart_text <= {"state=CHECK_STARTING_DATA_VALID_NONMATCH, start_index_check=", hex_to_ascii(start_index_check[5:4]), hex_to_ascii(start_index_check[3:0]),8'h0a};
                                     state_calibrate <= WAIT_UART;
@@ -3784,8 +3778,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             end
 
                             CHECK_STARTING_DATA_INVALID_SAMPLE: begin
-                                if((!check_starting_data_half_step_retry && start_index_check == 48) ||
-                                   (check_starting_data_half_step_retry && start_index_check == 56)) begin
+                                if(!check_starting_data_window_in_range || check_starting_data_search_terminal) begin
                                     if(!check_starting_data_seen_valid) begin
                                         // Invalid-only scans are not directional evidence. Keep retries bounded.
                                         if(check_starting_data_invalid_phase == 2'd0) begin
@@ -4157,10 +4150,10 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         read_data_store[((DQ_BITS*LANES)*5 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*4 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*3 + ({29'd0, lane}<<3)) +: 8],
                         read_data_store[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8] };
             write_pattern_lane <= write_pattern[ (lane_write_dq_late[lane]? 0 : data_start_index[lane])  +: 64];
-            read_lane_data_shifted <= read_lane_data[start_index_check +: 32];
-            read_lane_data_shifted_all_ones <= &read_lane_data[start_index_check +: 32];
-            read_lane_data_shifted_all_zero <= !(|read_lane_data[start_index_check +: 32]);
-            read_lane_data_shifted_invalid <= (&read_lane_data[start_index_check +: 32]) || !(|read_lane_data[start_index_check +: 32]);
+            read_lane_data_shifted <= read_lane_data_shifted_safe;
+            read_lane_data_shifted_all_ones <= &read_lane_data_shifted_safe;
+            read_lane_data_shifted_all_zero <= !(|read_lane_data_shifted_safe);
+            read_lane_data_shifted_invalid <= !check_starting_data_window_in_range;
             read_lane_data_shifted_distance <= hamming32(read_lane_data_shifted ^ write_pattern[0 +: 32]);
             write_pattern_matches <= write_pattern_lane == read_lane_data;
 
@@ -4740,6 +4733,21 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             for(bit_index = 0; bit_index < 32; bit_index = bit_index + 1) begin
                 hamming32 = hamming32 + value[bit_index];
             end
+        end
+    endfunction
+
+    function [31:0] read_lane_window_at;
+        input [63:0] lane_data;
+        input [5:0] start_index;
+        begin
+            case(start_index)
+                6'd0: read_lane_window_at = lane_data[0 +: 32];
+                6'd8: read_lane_window_at = lane_data[8 +: 32];
+                6'd16: read_lane_window_at = lane_data[16 +: 32];
+                6'd24: read_lane_window_at = lane_data[24 +: 32];
+                6'd32: read_lane_window_at = lane_data[32 +: 32];
+                default: read_lane_window_at = 32'd0;
+            endcase
         end
     endfunction
 
@@ -5726,7 +5734,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                     if(!$past(past_sync_rst_controller)) begin
                         if($past(state_calibrate) == CHECK_STARTING_DATA_VALID_NONMATCH &&
                            $past(lane_write_dq_late[lane]) && !$past(check_starting_data_half_step_retry) &&
-                           ($past(start_index_check) == 6'd48)) begin
+                           ($past(start_index_check) == 6'd32)) begin
                             assert(!reset_from_calibrate);
                             assert(state_calibrate == CHECK_STARTING_DATA);
                             assert(check_starting_data_half_step_retry);
@@ -5735,7 +5743,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
                         if($past(state_calibrate) == CHECK_STARTING_DATA_VALID_NONMATCH &&
                            $past(lane_write_dq_late[lane]) && $past(check_starting_data_half_step_retry) &&
-                           ($past(start_index_check) == 6'd56)) begin
+                           ($past(start_index_check) == 6'd24)) begin
                             assert(!reset_from_calibrate);
                             assert(state_calibrate == BITSLIP_DQS_TRAIN_3);
                             assert(lane_read_dq_early[lane]);
