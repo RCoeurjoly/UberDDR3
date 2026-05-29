@@ -193,5 +193,18 @@
     "solution_candidates": "Keep the SO-008 valid-window gate as the better base. Replace the BITSLIP escape with a bounded candidate search, clamped dq_target policy, or neutral invalid-only resample that does not perturb read phase until a valid transition is observed.",
     "status": "tested_mixed_rejected_as_general_fix",
     "type": "solution"
+  },
+  {
+    "evidence_against": "It is still not bullet-proof: seeds 12, 16, and 20 all fail with reason 6, lane0, dq_target_index=48, data_start_index=8, reset_from_calibrate_ever, sync_rst_reasserted_after_release, and phy_reset_reasserted_after_release. Therefore the state split is good structure but the recovery policy is incomplete.",
+    "evidence_for": "The explicit state split fixes the prior seed5 regression while preserving seed6 and seed27 passes; seeds 2, 11, and 3 also pass calibration and BIST with poll-count 200 and poll-interval 0.1.",
+    "hardware_signature": "Expected: SO-008/SO-009 regressions recover without damaging historical failing seeds or pass controls. Observed held-out gate: seeds 5, 6, 27, 2, 11, and 3 pass; seeds 12, 16, and 20 fail reason 6 analyze_data_invalid_window_exhausted.",
+    "hypothesis": "CHECK_STARTING_DATA all-ones/all-zero invalid samples should be represented as an explicit FSM state so detection is separated from recovery policy.",
+    "id": "SO-010",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA, CHECK_STARTING_DATA_INVALID_SAMPLE, read_lane_data_shifted_invalid, start_index_check, dq_target_index, data_start_index, lane_write_dq_late, lane_read_dq_early.",
+    "next_test": "Instrument or refine the explicit invalid-sample state policy for the shared seed12/16/20 lane0 dq_target_index=48 bucket; compare failed rows against passing seed5/6/27 at the same commit before sweeping broader seeds.",
+    "sdf_json_signature": "No SDF acceptance gate was used for this RTL policy test. The result is an algorithmic calibration-policy intervention; later SDF/JSON should compare the three reason-6 failures against the six passes at the same RTL commit.",
+    "solution_candidates": "Keep the detection/handling split. Replace the current bounded half-step exhaustion policy with a deterministic candidate-window selection or transition-seeking state that records valid-window evidence before resetting calibration; avoid another branch-local blind escape.",
+    "status": "tested_mixed_explicit_state_not_final",
+    "type": "solution"
   }
 ]

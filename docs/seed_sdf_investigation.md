@@ -1077,3 +1077,52 @@ Artifacts:
 - status: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/sweep_status.csv`
 - summary: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/summary.csv`
 - seed27 repeatability: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/seed27_repeatability.csv`
+
+### Explicit CHECK_STARTING_DATA invalid-sample state: 2026-05-29
+
+The previous bounded invalid-sample scan commit did not make the state explicit:
+it still mixed invalid sample detection and recovery policy inside
+`CHECK_STARTING_DATA`. Commit `7bd3125` corrects that structure by adding the
+sibling FSM state `CHECK_STARTING_DATA_INVALID_SAMPLE`.
+
+The split is now intentional:
+
+- `CHECK_STARTING_DATA` detects and records `read_lane_data_shifted_invalid`.
+- `CHECK_STARTING_DATA_INVALID_SAMPLE` owns the scan/retry/abort policy.
+
+This is architecturally cleaner because all-ones/all-zero samples are no longer
+allowed to directly update early/late alignment assumptions. They are classified
+first, then policy decides whether to scan another candidate, retry the coarse
+read/write sample, try the bounded half-step candidate, or terminate with reason
+6.
+
+Focused held-out HIL gate for commit `7bd3125`, poll-count `200`, poll-interval
+`0.1`:
+
+| seed | role | result | signature |
+| ---: | --- | --- | --- |
+| 5 | known-pass regression control | pass | prior SO-008 seed5 regression fixed |
+| 6 | SO-009 regression control | pass | prior SO-009 seed6 regression fixed |
+| 27 | SO-009 regression control | pass | prior SO-009 seed27 regression fixed |
+| 2 | historical fail | pass | calibration and BIST complete |
+| 11 | historical fail | pass | calibration and BIST complete |
+| 12 | historical fail | fail | reason 6, lane0, `dq_target_index=48`, `data_start_index=8`, reset to state 0 |
+| 16 | historical fail | fail | reason 6, lane0, `dq_target_index=48`, `data_start_index=8`, reset to state 0 |
+| 20 | historical fail | fail | reason 6, lane0, `dq_target_index=48`, `data_start_index=8`, reset to state 0 |
+| 3 | known-pass control | pass | calibration and BIST complete |
+
+Conclusion: the explicit state split is the right RTL structure and resolves the
+seed5/seed6/seed27 policy conflict, but it is not yet the final solution. The
+remaining failures are now a clean shared bucket: seeds 12/16/20 all terminate as
+lane0 reason-6 invalid-window exhaustion at `dq_target_index=48`,
+`data_start_index=8`, then reset to state 0. The next patch should preserve the
+state split and refine the recovery policy for that bucket. It should not be
+another branch-local escape; it should be a deterministic candidate-window or
+transition-seeking policy inside `CHECK_STARTING_DATA_INVALID_SAMPLE`.
+
+Artifacts:
+
+- manifest: `artifacts/hardware/explicit-invalid-sample-state-heldout-gate1/manifest.csv`
+- matrix: `artifacts/hardware/explicit-invalid-sample-state-heldout-gate1/matrix.csv`
+- canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
+- hypothesis ledger row: `SO-010` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`
