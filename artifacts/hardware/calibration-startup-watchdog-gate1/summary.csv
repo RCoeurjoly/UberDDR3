@@ -1,0 +1,5 @@
+seed,prior_role,result,attempts,fail_reasons,abort_seen,abort_reason,abort_reason_name,lane,start_index_check,dq_target_index,data_start_index,shifted_hex,window_hex,data_taps,dqs_taps,bitstream_sha256
+2,historical_fail,pass,62,,false,0,none,0,0,0,0,0x00000000,0x0000000000000000,"26 26 26 26 26 26 26 26 27 27 27 27 27 27 27 27","3 4",7121b76eb60447e5f7203d3c31e6445c1a8105d6b07ddab51486fd046ce53147
+6,historical_fail,pass,62,,false,0,none,0,0,0,0,0x00000000,0x0000000000000000,"25 25 25 25 25 25 25 25 26 26 26 26 26 26 26 26","2 3",b8475a361fe2dea66326850b138ec723b06062b5309aea49d75a0ce0041677e2
+3,pass_control,pass,62,,false,0,none,0,0,0,0,0x00000000,0x0000000000000000,"25 25 25 25 25 25 25 25 26 26 26 26 26 26 26 26","2 3",6e162433b7f0961171723d2c2e936a5703677461247bb9b7f80a21c40b056ac2
+5,pass_control,fail,200,"calib_incomplete;calib_state_not_done;bist_not_done",true,1,analyze_data_both_assumptions_failed,0,8,36,8,0xffffffff,0x51ffffffffffffff,"24 24 24 24 24 24 24 24 25 25 25 25 25 25 25 25","1 2",6b9fbd784d4f679e4858587bade22652123e7b6cd2e14e037e8c52e091e213a5
