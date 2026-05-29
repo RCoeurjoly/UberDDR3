@@ -1,0 +1,4 @@
+experiment_id,seed,variant,bitstream_file
+seed27_late_invalid_window_recovery,27,analyze-data-invalid-window-recovery-late-only,/nix/store/g5mv4zga3z40gxv7sq5d7p5j2dq88k35-ypcb-ddr3-bitstream-seed-27/ypcb_00338_1p1_ddr3_openxc7.bit
+seed3_late_invalid_window_recovery_control,3,analyze-data-invalid-window-recovery-late-only,/nix/store/194pzyv28f6994w6hfxi764yvg1kqjja-ypcb-ddr3-bitstream-seed-3/ypcb_00338_1p1_ddr3_openxc7.bit
+seed23_late_invalid_window_recovery_control,23,analyze-data-invalid-window-recovery-late-only,/nix/store/carcdf9hijz4hz6fvg791xmqyam59j1d-ypcb-ddr3-bitstream-seed-23/ypcb_00338_1p1_ddr3_openxc7.bit
