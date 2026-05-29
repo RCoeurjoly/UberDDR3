@@ -3377,7 +3377,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     delay_before_read_data <= 10;
                                 end
                                 else if(read_lane_data_shifted_invalid) begin
-                                    if(analyze_data_contradiction_retry != 2'd3) begin
+                                    if((dq_target_index[lane] >= 6'd32) &&
+                                       (analyze_data_contradiction_retry != 2'd3)) begin
                                         analyze_data_contradiction_retry <= analyze_data_contradiction_retry + 1'b1;
                                         analyze_data_search_invalid <= 1'b0;
                                         analyze_data_invalid_retry[lane] <= 0;
@@ -5543,7 +5544,8 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                            !$past(write_pattern_matches) &&
                            $past(read_lane_data_shifted_invalid) &&
                            ($past(analyze_data_invalid_retry[lane]) == 2'd3) &&
-                           ($past(analyze_data_contradiction_retry) != 2'd3)) begin
+                           ($past(analyze_data_contradiction_retry) != 2'd3) &&
+                           ($past(dq_target_index[lane]) >= 6'd32)) begin
                             assert(!reset_from_calibrate);
                             assert(state_calibrate == CHECK_STARTING_DATA);
                             assert(!lane_write_dq_late[lane]);
