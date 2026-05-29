@@ -521,6 +521,59 @@ META
           };
         };
 
+        checks = {
+          icarus-compile = pkgs.runCommand "uberddr3-icarus-compile" {
+            nativeBuildInputs = [
+              pkgs.coreutils
+              pkgs.iverilog
+            ];
+          } "
+            cp -R ${src} src
+            chmod -R u+w src
+            cd src/testbench/icarus_sim
+            iverilog -o uberddr3_sim -g2012 -DNO_TEST_MODEL -DSIM_MODEL -s ddr3_dimm_micron_sim -I ../ ../ddr3_dimm_micron_sim.sv ../ddr3.sv ../models/IDELAYCTRL_model.v ../models/IDELAYE2_model.v ../models/IOBUF_DCIEN_model.v ../models/IOBUF_model.v ../models/IOBUFDS_DCIEN_model.v ../models/IOBUFDS_model.v ../models/ISERDESE2_model.v ../models/OBUFDS_model.v ../models/ODELAYE2_model.v ../models/OSERDESE2_model.v ../models/OBUF_model.v ../../rtl/ddr3_top.v ../../rtl/ddr3_controller.v ../../rtl/ddr3_phy.v ../ddr3_module.sv
+            mkdir -p $out
+            cp uberddr3_sim $out/
+            echo Icarus elaboration passed > $out/summary.txt
+          ";
+
+          formal-ecc = pkgs.runCommand "uberddr3-formal-ecc" {
+            nativeBuildInputs = [
+              pkgs.sby
+              pkgs.yosys
+              pkgs.boolector
+              pkgs.yices
+              pkgs.coreutils
+            ];
+          } "
+            cp -R ${src} src
+            chmod -R u+w src
+            cd src
+            sby -f -d formal-ecc formal/ecc.sby
+            mkdir -p \"$out\"
+            cp -R formal-ecc \"$out/\"
+          ";
+
+          formal-ddr3-singleconfig-bmc = pkgs.runCommand "uberddr3-formal-ddr3-singleconfig-bmc" {
+            nativeBuildInputs = [
+              pkgs.sby
+              pkgs.yosys
+              pkgs.boolector
+              pkgs.yices
+              pkgs.gnused
+              pkgs.coreutils
+            ];
+          } "
+            cp -R ${src} src
+            chmod -R u+w src
+            cd src
+            sed \"s|^mode prove$|mode bmc|\" formal/ddr3_singleconfig.sby > ddr3_singleconfig_bmc.sby
+            sby -f -d formal-ddr3-singleconfig-bmc ddr3_singleconfig_bmc.sby
+            mkdir -p \"$out\"
+            cp -R formal-ddr3-singleconfig-bmc \"$out/\"
+          ";
+        };
+
         packages = {
           sdf-toolkit = sdfToolkit;
           uberddr3-sdf-compare = uberddr3SdfCompare;
