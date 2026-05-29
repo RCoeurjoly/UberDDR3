@@ -403,7 +403,9 @@ module ddr3_controller #(
                 ANALYZE_DATA_SEARCH_DONE = 26,
                 ANALYZE_DATA_INVALID_WINDOW_RECENTER = 27,
                 CHECK_STARTING_DATA_INVALID_SAMPLE = 28,
-                WAIT_IDELAY_LOAD = 29;
+                CHECK_STARTING_DATA_MATCH = 29,
+                CHECK_STARTING_DATA_VALID_NONMATCH = 30,
+                WAIT_IDELAY_LOAD = 31;
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
@@ -639,6 +641,9 @@ module ddr3_controller #(
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
     reg read_lane_data_shifted_invalid = 0;
+    wire check_starting_data_sample_match = (read_lane_data_shifted == write_pattern[0 +: 32]);
+    wire check_starting_data_sample_invalid = read_lane_data_shifted_invalid;
+    wire check_starting_data_sample_valid_nonmatch = !check_starting_data_sample_match && !check_starting_data_sample_invalid;
     reg odelay_cntvalue_halfway = 0;
     reg initial_calibration_done = 0;
     reg final_calibration_done = 0;
@@ -2781,7 +2786,9 @@ module ddr3_controller #(
             reset_after_rank_1 <= 0; // reset for dual rank
             prep_done <= 0;
             if(state_calibrate != CHECK_STARTING_DATA &&
-               state_calibrate != CHECK_STARTING_DATA_INVALID_SAMPLE) begin
+               state_calibrate != CHECK_STARTING_DATA_INVALID_SAMPLE &&
+               state_calibrate != CHECK_STARTING_DATA_MATCH &&
+               state_calibrate != CHECK_STARTING_DATA_VALID_NONMATCH) begin
                 check_starting_data_seen_valid <= 1'b0;
                 check_starting_data_invalid_seen <= 1'b0;
                 check_starting_data_first_invalid_index <= 6'd0;
@@ -3652,12 +3659,31 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             end
                         end
 
-                      // check when the 4 MSB of write_pattern {d0ad51c1} starts on read_lane_data (read_lane_data is just the concatenation of read_data_store of a specific lane)
-                      // assumption here read_lane_data ~= 298cd0ad51c1XXXX is written: either because we write too late (thus we need to delay outgoing stage2_data) OR we read too early (thus we need to calibrate incoming iserdes_dq)
+                      // Classify the sampled CHECK_STARTING_DATA window first. The handler states
+                      // below are the only places that update alignment assumptions.
  CHECK_STARTING_DATA: if(prep_done[1]) begin
-                            /* verilator lint_off WIDTHTRUNC */
-                            if(read_lane_data_shifted == write_pattern[0 +: 32]) begin
-                            /* verilator lint_on WIDTHTRUNC */
+                            if(check_starting_data_sample_match) begin
+                                state_calibrate <= CHECK_STARTING_DATA_MATCH;
+                            end
+                            else if(check_starting_data_sample_invalid) begin
+                                if(!check_starting_data_invalid_seen) begin
+                                    check_starting_data_first_invalid_index <= start_index_check;
+                                end
+                                check_starting_data_invalid_seen <= 1'b1;
+                                if(check_starting_data_invalid_count != 4'hf) begin
+                                    check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
+                                end
+                                state_calibrate <= CHECK_STARTING_DATA_INVALID_SAMPLE;
+                            end
+                            else begin
+                                state_calibrate <= CHECK_STARTING_DATA_VALID_NONMATCH;
+                            end
+                        end
+                    else begin
+                        prep_done <= {prep_done[0],1'b1};
+                    end
+
+ CHECK_STARTING_DATA_MATCH: begin
                                 check_starting_data_invalid_retry[lane] <= 0;
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
@@ -3670,41 +3696,29 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     check_starting_data_half_step_retry <= 1'b0;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
-                                        uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing First Assumption",8'h0a};
+                                        uart_text <= {"state=CHECK_STARTING_DATA_MATCH, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing First Assumption",8'h0a};
                                         state_calibrate <= WAIT_UART;
                                         state_calibrate_next <= ISSUE_WRITE_1;
                                     `endif
                                 end
                                 // if first assumption is not the fix then second assmption: controller reads the DQ too early (THUS WE NEED TO CALIBRATE INCOMING DQ SIGNAL starting from bitslip training)
-                                else begin 
+                                else begin
                                     lane_read_dq_early[lane] <= 1'b1; // set to 1 to see later what lanes has this problem
                                     check_starting_data_half_step_retry <= 1'b0;
                                     state_calibrate <= BITSLIP_DQS_TRAIN_3;
-                                    added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] } 
+                                    added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
                                                                 + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0; // added_read_pipe can just be 1 or 0
                                     dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
-                                        uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing Second Assumption",8'h0a};
+                                        uart_text <= {"state=CHECK_STARTING_DATA_MATCH, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing Second Assumption",8'h0a};
                                         state_calibrate <= WAIT_UART;
                                         state_calibrate_next <= BITSLIP_DQS_TRAIN_3;
                                     `endif
                                 end
                             end
-                            else if(read_lane_data_shifted_invalid) begin
-                                // Invalid all-zero/all-one windows are not evidence for either write-late
-                                // or read-early. Let the explicit invalid-sample state decide whether to
-                                // continue scanning, retry, or abort without changing phase from this sample.
-                                if(!check_starting_data_invalid_seen) begin
-                                    check_starting_data_first_invalid_index <= start_index_check;
-                                end
-                                check_starting_data_invalid_seen <= 1'b1;
-                                if(check_starting_data_invalid_count != 4'hf) begin
-                                    check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
-                                end
-                                state_calibrate <= CHECK_STARTING_DATA_INVALID_SAMPLE;
-                            end
-                            else begin
+
+ CHECK_STARTING_DATA_VALID_NONMATCH: begin
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
                                 start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
@@ -3719,7 +3733,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         check_starting_data_half_step_retry <= 1'b0;
                                         `ifdef UART_DEBUG_ALIGN
                                             uart_start_send <= 1'b1;
-                                            uart_text <= {"state=CHECK_STARTING_DATA, Reached end, First Assumption: Write is 1 Controller cycle early",8'h0a};
+                                            uart_text <= {"state=CHECK_STARTING_DATA_VALID_NONMATCH, Reached end, First Assumption: Write is 1 Controller cycle early",8'h0a};
                                             state_calibrate <= WAIT_UART;
                                             state_calibrate_next <= ISSUE_WRITE_1;
                                         `endif
@@ -3748,16 +3762,12 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             `ifdef UART_DEBUG_ALIGN
                                 else begin
                                     uart_start_send <= 1'b1;
-                                    uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=", hex_to_ascii(start_index_check[5:4]), hex_to_ascii(start_index_check[3:0]),8'h0a};
+                                    uart_text <= {"state=CHECK_STARTING_DATA_VALID_NONMATCH, start_index_check=", hex_to_ascii(start_index_check[5:4]), hex_to_ascii(start_index_check[3:0]),8'h0a};
                                     state_calibrate <= WAIT_UART;
                                     state_calibrate_next <= CHECK_STARTING_DATA;
                                 end
                             `endif
                             end
-                        end
-                    else begin
-                        prep_done <= {prep_done[0],1'b1};
-                    end
 
  CHECK_STARTING_DATA_INVALID_SAMPLE: begin
                                 if((!check_starting_data_half_step_retry && start_index_check == 48) ||
@@ -5633,8 +5643,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             if(f_past_valid) begin
                 `ifdef FORMAL_CALIBRATION_FAILURES
                     if(!$past(past_sync_rst_controller)) begin
-                        if($past(state_calibrate) == CHECK_STARTING_DATA && $past(prep_done[1]) &&
-                           ($past(read_lane_data_shifted) != $past(write_pattern[0 +: 32])) &&
+                        if($past(state_calibrate) == CHECK_STARTING_DATA_VALID_NONMATCH &&
                            $past(lane_write_dq_late[lane]) && !$past(check_starting_data_half_step_retry) &&
                            ($past(start_index_check) == 6'd48)) begin
                             assert(!reset_from_calibrate);
@@ -5643,8 +5652,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             assert(start_index_check == 6'd8);
                         end
 
-                        if($past(state_calibrate) == CHECK_STARTING_DATA && $past(prep_done[1]) &&
-                           ($past(read_lane_data_shifted) != $past(write_pattern[0 +: 32])) &&
+                        if($past(state_calibrate) == CHECK_STARTING_DATA_VALID_NONMATCH &&
                            $past(lane_write_dq_late[lane]) && $past(check_starting_data_half_step_retry) &&
                            ($past(start_index_check) == 6'd56)) begin
                             assert(!reset_from_calibrate);
