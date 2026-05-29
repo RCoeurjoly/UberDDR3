@@ -5387,11 +5387,46 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 end
                  
             end
-            assume(state_calibrate != CHECK_STARTING_DATA && state_calibrate != BITSLIP_DQS_TRAIN_3); //this state should not be used (only for ddr3 with problems on DQ-DQS alignment)
+            `ifndef FORMAL_CALIBRATION_FAILURES
+                assume(state_calibrate != CHECK_STARTING_DATA && state_calibrate != BITSLIP_DQS_TRAIN_3); //this state should not be used (only for ddr3 with problems on DQ-DQS alignment)
+            `endif
         end
 
         always @(posedge i_controller_clk) begin
             if(f_past_valid) begin
+                `ifdef FORMAL_CALIBRATION_FAILURES
+                    if(!$past(past_sync_rst_controller)) begin
+                        if($past(state_calibrate) == CHECK_STARTING_DATA && $past(prep_done[1]) &&
+                           ($past(read_lane_data_shifted) != $past(write_pattern[0 +: 32])) &&
+                           $past(lane_write_dq_late[lane]) && !$past(check_starting_data_half_step_retry) &&
+                           ($past(start_index_check) == 6'd48)) begin
+                            assert(!reset_from_calibrate);
+                            assert(state_calibrate == CHECK_STARTING_DATA);
+                            assert(check_starting_data_half_step_retry);
+                            assert(start_index_check == 6'd8);
+                        end
+
+                        if($past(state_calibrate) == CHECK_STARTING_DATA && $past(prep_done[1]) &&
+                           ($past(read_lane_data_shifted) != $past(write_pattern[0 +: 32])) &&
+                           $past(lane_write_dq_late[lane]) && $past(check_starting_data_half_step_retry) &&
+                           ($past(start_index_check) == 6'd56)) begin
+                            assert(!reset_from_calibrate);
+                            assert(state_calibrate == BITSLIP_DQS_TRAIN_3);
+                            assert(lane_read_dq_early[lane]);
+                        end
+
+                        if($past(state_calibrate) == ANALYZE_DATA && $past(prep_done[1]) &&
+                           !$past(write_pattern_matches) &&
+                           $past(lane_write_dq_late[lane]) && $past(lane_read_dq_early[lane]) &&
+                           (($past(read_lane_data_shifted) == 32'hffff_ffff) ||
+                            ($past(read_lane_data_shifted) == 32'h0000_0000)) &&
+                           ($past(analyze_data_invalid_retry[lane]) != 2'd3)) begin
+                            assert(!reset_from_calibrate);
+                            assert(state_calibrate == ANALYZE_DATA_SEARCH);
+                            assert(analyze_data_search_invalid);
+                        end
+                    end
+                `endif
                 //switch from calibrate to done
                 if(state_calibrate == DONE_CALIBRATE && $past(state_calibrate) != DONE_CALIBRATE) begin
                     //assert($past(state_calibrate) == FINISH_READ);

@@ -1,0 +1,23 @@
+[options]
+mode bmc
+depth 8
+
+[engines]
+smtbmc
+
+[script]
+read -formal -D FORMAL_CALIBRATION_FAILURES ddr3_controller.v
+read -formal fwb_slave.v
+read -formal ecc_dec.sv
+read -formal ecc_enc.sv
+chparam -set LANES 2 ddr3_controller
+chparam -set CONTROLLER_CLK_PERIOD 12000 ddr3_controller
+chparam -set DDR3_CLK_PERIOD 3000 ddr3_controller
+chparam -set ODELAY_SUPPORTED 1 ddr3_controller
+prep -top ddr3_controller
+
+[files]
+./rtl/ddr3_controller.v
+./formal/fwb_slave.v
+./rtl/ecc/ecc_dec.sv
+./rtl/ecc/ecc_enc.sv

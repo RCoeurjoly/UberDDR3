@@ -572,6 +572,23 @@ META
             mkdir -p \"$out\"
             cp -R formal-ddr3-singleconfig-bmc \"$out/\"
           ";
+
+          formal-calibration-failures = pkgs.runCommand "uberddr3-formal-calibration-failures" {
+            nativeBuildInputs = [
+              pkgs.sby
+              pkgs.yosys
+              pkgs.boolector
+              pkgs.yices
+              pkgs.coreutils
+            ];
+          } "
+            cp -R ${src} src
+            chmod -R u+w src
+            cd src
+            sby -f -d formal-calibration-failures formal/ddr3_calibration_failures.sby
+            mkdir -p \"$out\"
+            cp -R formal-calibration-failures \"$out/\"
+          ";
         };
 
         packages = {
