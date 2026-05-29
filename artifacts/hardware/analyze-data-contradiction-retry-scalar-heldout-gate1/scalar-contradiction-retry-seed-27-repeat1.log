@@ -1,0 +1,11 @@
+repeat of exact seed27 scalar bitstream
+pass=False
+attempts=200
+bitstream_sha256=5c26d29ce319874c659d08ab5f4c15de78bfcda2eafe800164fb83a4635b08c2
+reason=6 analyze_data_invalid_window_exhausted
+lane=0
+start_index_check=0
+dq_target_index=36
+data_start_index=0
+shifted=0xffffffff
+window=0x51ffffffffffffff

@@ -1062,8 +1062,18 @@ former failing seeds and preserves both pass controls. It does not fix the seed2
 all-ones invalid-window-exhausted class, so that class should remain a separate
 logical bug bucket rather than being folded into the contradiction-retry fix.
 
+A repeat programming of the exact same seed27 bitstream reproduced the same
+logical failure: same bitstream SHA256, same reason 6
+`analyze_data_invalid_window_exhausted`, same lane 0, same
+`start_index_check=0`, same `dq_target_index=36`, same shifted value
+`0xffffffff`, and same window `0x51ffffffffffffff`. The final tap snapshot
+changed from data/DQS `25/27` and `2/4` to `25/26` and `2/3`, so the terminal
+failure signature is deterministic while the last observed tap values are not a
+reliable discriminator for this class.
+
 Artifacts:
 
 - manifest: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/manifest.csv`
 - status: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/sweep_status.csv`
 - summary: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/summary.csv`
+- seed27 repeatability: `artifacts/hardware/analyze-data-contradiction-retry-scalar-heldout-gate1/seed27_repeatability.csv`
