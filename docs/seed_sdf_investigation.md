@@ -1011,3 +1011,29 @@ Artifacts:
 - hardware result seed5: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/seed-5.json`
 - hardware result seed3: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/seed-3.json`
 - summary: `artifacts/hardware/analyze-data-contradiction-retry-reduced-gate1/summary.csv`
+
+### Scalar contradiction-retry gate: 2026-05-29
+
+The reduced retry (`3ea4648`) preserved seed3 but failed seed5 because it reused
+the invalid-window retry counter for the both-assumptions contradiction. A scalar
+counter version (`7df2c7b`) keeps the retry budget separate without restoring the
+larger per-lane state from `e1ae1e2`. Calibration operates on one lane at a time,
+so a single two-bit contradiction counter is sufficient for this state machine.
+
+| RTL commit | seed | build | hardware result | signature |
+| --- | ---: | --- | --- | --- |
+| `7df2c7b` | 5 | pass timing | pass | `calib_complete=true`, `bist_done=true`, `wrong_read_data=0`, no abort, data taps `26/27`, DQS taps `3/4` |
+| `7df2c7b` | 3 | pass timing | pass | `calib_complete=true`, `bist_done=true`, `wrong_read_data=0`, no abort, data taps `26/27`, DQS taps `3/4` |
+
+Conclusion: this is the first compact RTL variant in this gate that both rescues
+the seed5 `ANALYZE_DATA` contradiction/all-ones bucket and preserves the seed3
+known-pass control. It is still only a two-row gate. The next decisive test is a
+small held-out failing/pass-control set, especially seeds that previously covered
+no-abort/state-4 and reason-2/reason-6 classes. If those pass, this should become
+part of the combined candidate fix for a larger 1..30 or 1..60 regression.
+
+Artifacts:
+
+- hardware result seed5: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/seed-5.json`
+- hardware result seed3: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/seed-3.json`
+- summary: `artifacts/hardware/analyze-data-contradiction-retry-scalar-gate1/summary.csv`
