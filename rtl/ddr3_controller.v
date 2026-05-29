@@ -3346,8 +3346,22 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         data_start_index[lane] <= 0;
                                         start_index_check <= 0;
                                         check_starting_data_half_step_retry <= 1'b0;
-                                        state_calibrate <= ISSUE_WRITE_1;
-                                        delay_before_read_data <= 10;
+                                        if(analyze_data_recenter_retry[lane] == 2'd2) begin
+                                            o_phy_idelay_data_ld[lane] <= 1'b1;
+                                            o_phy_idelay_dqs_ld[lane] <= 1'b1;
+                                            `ifdef UBERDDR3_IDELAY_LOAD_HANDSHAKE
+                                                state_after_idelay_load <= ISSUE_WRITE_1;
+                                                idelay_load_delay_after_done <= 10;
+                                                state_calibrate <= WAIT_IDELAY_LOAD;
+                                            `else
+                                                state_calibrate <= ISSUE_WRITE_1;
+                                                delay_before_read_data <= 10;
+                                            `endif
+                                        end
+                                        else begin
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
+                                        end
                                     end
                                     else if(read_lane_data_shifted_distance <= 6'd12) begin
                                         analyze_data_recenter_retry[lane] <= 0;
