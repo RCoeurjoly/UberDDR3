@@ -626,6 +626,7 @@ module ddr3_controller #(
     reg stored_write_level_feedback = 0;
     reg[5:0] start_index_check = 0;
     reg check_starting_data_half_step_retry = 0;
+    reg[1:0] check_starting_data_invalid_phase = 0;
     reg check_starting_data_seen_valid = 0;
     reg check_starting_data_invalid_seen = 0;
     reg[5:0] check_starting_data_first_invalid_index = 0;
@@ -2735,6 +2736,7 @@ module ddr3_controller #(
             shift_read_pipe <= 0;
             bitslip_counter <= 0;
             check_starting_data_half_step_retry <= 1'b0;
+            check_starting_data_invalid_phase <= 2'd0;
             check_starting_data_seen_valid <= 1'b0;
             check_starting_data_invalid_seen <= 1'b0;
             check_starting_data_first_invalid_index <= 6'd0;
@@ -3659,6 +3661,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 check_starting_data_invalid_retry[lane] <= 0;
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
+                                check_starting_data_invalid_phase <= 2'd0;
                                 // first assumption: controller DQ is late WHEN WRITING(THUS WE NEED TO CALIBRATE data_start_index of outgoing stage2_data)
                                 if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not  yet set so we know this first assunmption is not yet tested
                                     state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
@@ -3760,27 +3763,28 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 if((!check_starting_data_half_step_retry && start_index_check == 48) ||
                                    (check_starting_data_half_step_retry && start_index_check == 56)) begin
                                     if(!check_starting_data_seen_valid) begin
-                                        if(check_starting_data_invalid_retry[lane] != 2'd3) begin
-                                            check_starting_data_invalid_retry[lane] <= check_starting_data_invalid_retry[lane] + 1'b1;
-                                            start_index_check <= 0;
-                                            check_starting_data_half_step_retry <= 1'b0;
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
-                                        end
-                                        else if(!check_starting_data_half_step_retry) begin
-                                            // Invalid-only coarse scans are not directional evidence. Try the
-                                            // bounded half-step candidate set before declaring the lane failed,
-                                            // but do not update write-late/read-early assumptions and do not
-                                            // change read phase from invalid samples alone.
-                                            check_starting_data_invalid_retry[lane] <= 0;
-                                            check_starting_data_seen_valid <= 1'b0;
+                                        // Invalid-only scans are not directional evidence. Move through a
+                                        // bounded candidate set instead of re-reading the same candidate.
+                                        if(check_starting_data_invalid_phase == 2'd0) begin
+                                            check_starting_data_invalid_phase <= 2'd1;
                                             check_starting_data_invalid_seen <= 1'b0;
                                             check_starting_data_first_invalid_index <= 6'd0;
                                             check_starting_data_last_valid_index <= 6'd0;
                                             check_starting_data_invalid_count <= 4'd0;
                                             check_starting_data_half_step_retry <= 1'b1;
                                             start_index_check <= 6'd8;
-                                            dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                            state_calibrate <= ISSUE_WRITE_1;
+                                            delay_before_read_data <= 10;
+                                        end
+                                        else if(check_starting_data_invalid_phase == 2'd1) begin
+                                            check_starting_data_invalid_phase <= 2'd2;
+                                            check_starting_data_invalid_seen <= 1'b0;
+                                            check_starting_data_first_invalid_index <= 6'd0;
+                                            check_starting_data_last_valid_index <= 6'd0;
+                                            check_starting_data_invalid_count <= 4'd0;
+                                            check_starting_data_half_step_retry <= 1'b0;
+                                            start_index_check <= 6'd0;
+                                            dq_target_index[lane] <= (dq_target_index[lane] > 2) ? (dq_target_index[lane] - 2) : 0;
                                             state_calibrate <= ISSUE_WRITE_1;
                                             delay_before_read_data <= 10;
                                         end
@@ -3799,7 +3803,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             calib_abort_snapshot_shifted_match <= 1'b0;
                                             calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
                                             calib_abort_snapshot_read_lane_data <= read_lane_data;
-                                            calib_abort_snapshot_best_offset <= check_starting_data_last_valid_index;
+                                            calib_abort_snapshot_best_offset <= {4'd0, check_starting_data_invalid_phase};
                                             calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
                                             calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
                                         end
@@ -3809,6 +3813,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         data_start_index[lane] <= 1;
                                         lane_write_dq_late[lane] <= 1'b1;
                                         check_starting_data_half_step_retry <= 1'b0;
+                                        check_starting_data_invalid_phase <= 2'd0;
                                     end
                                     else if(!check_starting_data_half_step_retry) begin
                                         check_starting_data_half_step_retry <= 1'b1;
@@ -3819,6 +3824,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     else begin
                                         lane_read_dq_early[lane] <= 1'b1;
                                         check_starting_data_half_step_retry <= 1'b0;
+                                        check_starting_data_invalid_phase <= 2'd0;
                                         state_calibrate <= BITSLIP_DQS_TRAIN_3;
                                         added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
                                                                     + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
