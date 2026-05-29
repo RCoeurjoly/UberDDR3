@@ -644,7 +644,10 @@ module ddr3_controller #(
     reg read_lane_data_shifted_all_ones = 0;
     reg read_lane_data_shifted_all_zero = 0;
     wire check_starting_data_sample_match = (read_lane_data_shifted == write_pattern[0 +: 32]);
-    wire check_starting_data_sample_invalid = read_lane_data_shifted_invalid;
+    wire check_starting_data_sample_invalid_all_ones = read_lane_data_shifted_all_ones;
+    wire check_starting_data_sample_invalid_all_zero = read_lane_data_shifted_all_zero;
+    wire check_starting_data_sample_invalid = check_starting_data_sample_invalid_all_ones ||
+                                      check_starting_data_sample_invalid_all_zero;
     wire check_starting_data_sample_valid_nonmatch = !check_starting_data_sample_match && !check_starting_data_sample_invalid;
     reg odelay_cntvalue_halfway = 0;
     reg initial_calibration_done = 0;
@@ -3677,7 +3680,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 if(check_starting_data_invalid_count != 4'hf) begin
                                     check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
                                 end
-                                debug_calib_search_best_offset <= {check_starting_data_invalid_phase, read_lane_data_shifted_all_zero, read_lane_data_shifted_all_ones, check_starting_data_half_step_retry, check_starting_data_seen_valid};
+                                debug_calib_search_best_offset <= {check_starting_data_invalid_phase, check_starting_data_sample_invalid_all_zero, check_starting_data_sample_invalid_all_ones, check_starting_data_half_step_retry, check_starting_data_seen_valid};
                                 debug_calib_search_best_distance <= dq_target_index[lane][5:0];
                                 debug_calib_search_best_accepted <= check_starting_data_seen_valid;
                                 debug_calib_search_entered <= 1'b0;
