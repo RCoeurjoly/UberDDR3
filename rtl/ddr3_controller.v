@@ -626,7 +626,6 @@ module ddr3_controller #(
     reg check_starting_data_half_step_retry = 0;
     reg[1:0] analyze_data_recenter_retry[LANES-1:0];
     reg[1:0] analyze_data_invalid_retry[LANES-1:0];
-    reg[1:0] analyze_data_contradiction_retry[LANES-1:0];
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
     reg read_lane_data_shifted_invalid = 0;
@@ -2743,7 +2742,6 @@ module ddr3_controller #(
                 dq_target_index[index] <= 0;
                 analyze_data_recenter_retry[index] <= 0;
                 analyze_data_invalid_retry[index] <= 0;
-                analyze_data_contradiction_retry[index] <= 0;
             end
         end
         else begin
@@ -3332,7 +3330,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
         ANALYZE_DATA:   if(prep_done[1]) begin
                             if(write_pattern_matches) begin
                                 analyze_data_invalid_retry[lane] <= 0;
-                                analyze_data_contradiction_retry[lane] <= 0;
                                 analyze_data_search_invalid <= 1'b0;
                                 /* verilator lint_off WIDTH */
                                 if(lane == LANES - 1) begin
@@ -3351,7 +3348,6 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     data_start_index[lane+1] <= 0;
                                     analyze_data_recenter_retry[lane+1] <= 0;
                                     analyze_data_invalid_retry[lane+1] <= 0;
-                                    analyze_data_contradiction_retry[lane+1] <= 0;
                                     state_calibrate <= ANALYZE_DATA;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
@@ -3426,8 +3422,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         state_calibrate <= ANALYZE_DATA_SEARCH;
                                     end
                                     else begin
-                                        if(analyze_data_contradiction_retry[lane] != 2'd3) begin
-                                            analyze_data_contradiction_retry[lane] <= analyze_data_contradiction_retry[lane] + 1'b1;
+                                        if(analyze_data_invalid_retry[lane] != 2'd3) begin
+                                            analyze_data_invalid_retry[lane] <= analyze_data_invalid_retry[lane] + 1'b1;
                                             analyze_data_search_invalid <= 1'b0;
                                             analyze_data_recenter_retry[lane] <= 0;
                                             lane_write_dq_late[lane] <= 1'b0;
@@ -3576,9 +3572,9 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 delay_before_read_data <= 10;
                             end
                             else begin
-                                if(analyze_data_contradiction_retry[lane] != 2'd3) begin
+                                if(analyze_data_invalid_retry[lane] != 2'd3) begin
                                     analyze_data_search_invalid <= 1'b0;
-                                    analyze_data_contradiction_retry[lane] <= analyze_data_contradiction_retry[lane] + 1'b1;
+                                    analyze_data_invalid_retry[lane] <= analyze_data_invalid_retry[lane] + 1'b1;
                                     analyze_data_recenter_retry[lane] <= 0;
                                     lane_write_dq_late[lane] <= 1'b0;
                                     lane_read_dq_early[lane] <= 1'b0;
