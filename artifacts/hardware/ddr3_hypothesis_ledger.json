@@ -180,5 +180,18 @@
     "solution_candidates": "Keep valid-window gating concept, but change policy from terminal invalid-window exhaustion to deterministic bounded resample/recenter that preserves known-pass seed5; consider smaller/pipelined CHECK_STARTING_DATA logic after seed5 is fixed.",
     "status": "tested_mixed_heldout_gate",
     "type": "solution"
+  },
+  {
+    "evidence_against": "Seeds 6 and 27 regress from pass under SO-008 to reason 6 all-ones invalid-window exhaustion. Seed6 fails with dq_target_index=61, data_start_index=8, window=0xd085ffffffffffff. Seed27 fails with dq_target_index=48, data_start_index=8, window=0x51ffffffffffffff.",
+    "evidence_for": "Seed5, the SO-008 known-pass regression, now passes calibration and BIST. Seeds 2, 11, 12, 16, 20, and pass control seed3 also pass with poll-count 200 and poll-interval 0.1.",
+    "hardware_signature": "Expected: seed5 reason-6 regression recovers and previous SO-008 passes stay passing. Observed: seed5 passes, but seeds 6 and 27 regress to reason 6 analyze_data_invalid_window_exhausted.",
+    "hypothesis": "A single invalid-only CHECK_STARTING_DATA phase escape through BITSLIP_DQS_TRAIN_3 fixes all-ones/all-zero invalid-window exhaustion without regressing held-out seeds.",
+    "id": "SO-009",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA invalid-only branch, check_starting_data_invalid_retry, check_starting_data_invalid_phase_escape, BITSLIP_DQS_TRAIN_3 fallback, lane0 dq_target_index/data_start_index.",
+    "next_test": "Do not broaden this phase escape. Compare SO-008 versus SO-009 deltas for seeds 5, 6, and 27; determine whether the escape pushes dq_target_index too far or should instead perform a clamped/neutral resample before retry.",
+    "sdf_json_signature": "No SDF acceptance gate was used; this is an RTL policy intervention. Later SDF/JSON comparison should focus on SO-008 pass versus SO-009 fail for seeds 6/27 and SO-008 fail versus SO-009 pass for seed5.",
+    "solution_candidates": "Keep the SO-008 valid-window gate as the better base. Replace the BITSLIP escape with a bounded candidate search, clamped dq_target policy, or neutral invalid-only resample that does not perturb read phase until a valid transition is observed.",
+    "status": "tested_mixed_rejected_as_general_fix",
+    "type": "solution"
   }
 ]
