@@ -1216,3 +1216,23 @@ Artifacts:
 - matrix: `artifacts/hardware/phase2-shifted-target-halfscan-heldout-gate1/matrix.csv`
 - canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
 - hypothesis ledger row: `SO-012` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`
+
+### Invalid-only recovery trajectory guard: 2026-05-29
+
+The follow-up RTL/debug variant after SO-012 keeps the pure
+`CHECK_STARTING_DATA` classifier and explicit invalid-sample state, but rejects
+the phase-2 half-step broadening that regressed seed3/5/6. It changes the
+policy in three narrow ways:
+
+- invalid-only coarse+half scans no longer mutate `dq_target_index`; they perform
+  a bounded neutral rescan instead
+- `dq_target_index` arithmetic now uses saturating add/sub helpers to avoid
+  wrapped targets such as 61 after small negative moves
+- HIL JSON decodes compact invalid trajectory fields from `debug_calib_search`:
+  `invalid_is_all_ones`, `invalid_is_all_zero`, `invalid_phase`,
+  `candidate_dq_target`, `candidate_start_index`, and `valid_seen_in_phase`
+
+The intended next HIL gate remains focused: seeds 16, 5, 6, 3, 12, 20, and 27.
+The success criterion is not only pass/fail; if a row still fails, the new JSON
+should show whether the failure was all-ones or all-zero, which phase exhausted,
+and whether any valid sample was seen before terminal recovery.

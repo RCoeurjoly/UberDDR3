@@ -641,6 +641,8 @@ module ddr3_controller #(
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
     reg read_lane_data_shifted_invalid = 0;
+    reg read_lane_data_shifted_all_ones = 0;
+    reg read_lane_data_shifted_all_zero = 0;
     wire check_starting_data_sample_match = (read_lane_data_shifted == write_pattern[0 +: 32]);
     wire check_starting_data_sample_invalid = read_lane_data_shifted_invalid;
     wire check_starting_data_sample_valid_nonmatch = !check_starting_data_sample_match && !check_starting_data_sample_invalid;
@@ -2688,6 +2690,8 @@ module ddr3_controller #(
             write_pattern_lane <= 0;
             read_lane_data_shifted <= 0;
             read_lane_data_shifted_invalid <= 1'b0;
+            read_lane_data_shifted_all_ones <= 1'b0;
+            read_lane_data_shifted_all_zero <= 1'b0;
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
             dqs_start_index_stored <= 0;
@@ -3594,13 +3598,10 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     data_start_index[lane] <= 0;
                                     start_index_check <= analyze_data_search_best_offset;
                                     if(analyze_data_search_best_offset > start_index_check) begin
-                                        dq_target_index[lane] <= dq_target_index[lane] + ((analyze_data_search_best_offset - start_index_check) >> 3);
-                                    end
-                                    else if(dq_target_index[lane] > ((start_index_check - analyze_data_search_best_offset) >> 3)) begin
-                                        dq_target_index[lane] <= dq_target_index[lane] - ((start_index_check - analyze_data_search_best_offset) >> 3);
+                                        dq_target_index[lane] <= dq_target_add_clamped(dq_target_index[lane], ((analyze_data_search_best_offset - start_index_check) >> 3));
                                     end
                                     else begin
-                                        dq_target_index[lane] <= 0;
+                                        dq_target_index[lane] <= dq_target_sub_clamped(dq_target_index[lane], ((start_index_check - analyze_data_search_best_offset) >> 3));
                                     end
                                     check_starting_data_half_step_retry <= 1'b0;
                                     state_calibrate <= ISSUE_WRITE_1;
@@ -3673,6 +3674,10 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 if(check_starting_data_invalid_count != 4'hf) begin
                                     check_starting_data_invalid_count <= check_starting_data_invalid_count + 1'b1;
                                 end
+                                debug_calib_search_best_offset <= {check_starting_data_invalid_phase, read_lane_data_shifted_all_zero, read_lane_data_shifted_all_ones, check_starting_data_half_step_retry, check_starting_data_seen_valid};
+                                debug_calib_search_best_distance <= dq_target_index[lane][5:0];
+                                debug_calib_search_best_accepted <= check_starting_data_seen_valid;
+                                debug_calib_search_entered <= 1'b0;
                                 state_calibrate <= CHECK_STARTING_DATA_INVALID_SAMPLE;
                             end
                             else begin
@@ -3722,7 +3727,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 check_starting_data_seen_valid <= 1'b1;
                                 check_starting_data_last_valid_index <= start_index_check;
                                 start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
-                                dq_target_index[lane] <= dq_target_index[lane] + 2;
+                                dq_target_index[lane] <= dq_target_add_clamped(dq_target_index[lane], 6'd2);
                                 if((!check_starting_data_half_step_retry && start_index_check == 48) ||
                                    (check_starting_data_half_step_retry && start_index_check == 56))begin // start_index_check is now outside the possible values
                                     // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
@@ -3787,26 +3792,40 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             delay_before_read_data <= 10;
                                         end
                                         else if(check_starting_data_invalid_phase == 2'd1) begin
-                                            check_starting_data_invalid_phase <= 2'd2;
-                                            check_starting_data_invalid_seen <= 1'b0;
-                                            check_starting_data_first_invalid_index <= 6'd0;
-                                            check_starting_data_last_valid_index <= 6'd0;
-                                            check_starting_data_invalid_count <= 4'd0;
-                                            check_starting_data_half_step_retry <= 1'b0;
-                                            start_index_check <= 6'd0;
-                                            dq_target_index[lane] <= (dq_target_index[lane] > 2) ? (dq_target_index[lane] - 2) : 0;
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
-                                        end
-                                        else if(!check_starting_data_half_step_retry) begin
-                                            check_starting_data_invalid_seen <= 1'b0;
-                                            check_starting_data_first_invalid_index <= 6'd0;
-                                            check_starting_data_last_valid_index <= 6'd0;
-                                            check_starting_data_invalid_count <= 4'd0;
-                                            check_starting_data_half_step_retry <= 1'b1;
-                                            start_index_check <= 6'd8;
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
+                                            // Two invalid-only scans have no directional information. Do
+                                            // not mutate dq_target_index here; bounded neutral rescans keep
+                                            // the trajectory observable without wrapping toward 0/63.
+                                            if(check_starting_data_invalid_retry[lane] != 2'd3) begin
+                                                check_starting_data_invalid_retry[lane] <= check_starting_data_invalid_retry[lane] + 1'b1;
+                                                check_starting_data_invalid_phase <= 2'd0;
+                                                check_starting_data_invalid_seen <= 1'b0;
+                                                check_starting_data_first_invalid_index <= 6'd0;
+                                                check_starting_data_last_valid_index <= 6'd0;
+                                                check_starting_data_invalid_count <= 4'd0;
+                                                check_starting_data_half_step_retry <= 1'b0;
+                                                start_index_check <= 6'd0;
+                                                state_calibrate <= ISSUE_WRITE_1;
+                                                delay_before_read_data <= 10;
+                                            end
+                                            else begin
+                                                reset_from_calibrate <= 1'b1;
+                                                calib_abort_snapshot_valid <= 1'b1;
+                                                calib_abort_snapshot_reason <= 4'd6;
+                                                calib_abort_snapshot_lane <= lane;
+                                                calib_abort_snapshot_state <= CHECK_STARTING_DATA_INVALID_SAMPLE;
+                                                calib_abort_snapshot_instruction <= instruction_address;
+                                                calib_abort_snapshot_start_index_check <= start_index_check;
+                                                calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                                                calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                                                calib_abort_snapshot_dq_target_index <= dq_target_index[lane];
+                                                calib_abort_snapshot_data_start_index <= data_start_index[lane];
+                                                calib_abort_snapshot_shifted_match <= 1'b0;
+                                                calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                                                calib_abort_snapshot_read_lane_data <= read_lane_data;
+                                                calib_abort_snapshot_best_offset <= {4'd0, check_starting_data_invalid_phase};
+                                                calib_abort_snapshot_best_distance <= {2'd0, check_starting_data_invalid_count};
+                                                calib_abort_snapshot_best_accepted <= check_starting_data_seen_valid;
+                                            end
                                         end
                                         else begin
                                             reset_from_calibrate <= 1'b1;
@@ -3838,7 +3857,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     else if(!check_starting_data_half_step_retry) begin
                                         check_starting_data_half_step_retry <= 1'b1;
                                         start_index_check <= 6'd8;
-                                        dq_target_index[lane] <= (dq_target_index[lane] > 5) ? (dq_target_index[lane] - 5) : 0;
+                                        dq_target_index[lane] <= dq_target_sub_clamped(dq_target_index[lane], 6'd5);
                                         state_calibrate <= CHECK_STARTING_DATA;
                                     end
                                     else begin
@@ -4120,6 +4139,8 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         read_data_store[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8] };
             write_pattern_lane <= write_pattern[ (lane_write_dq_late[lane]? 0 : data_start_index[lane])  +: 64];
             read_lane_data_shifted <= read_lane_data[start_index_check +: 32];
+            read_lane_data_shifted_all_ones <= &read_lane_data[start_index_check +: 32];
+            read_lane_data_shifted_all_zero <= !(|read_lane_data[start_index_check +: 32]);
             read_lane_data_shifted_invalid <= (&read_lane_data[start_index_check +: 32]) || !(|read_lane_data[start_index_check +: 32]);
             read_lane_data_shifted_distance <= hamming32(read_lane_data_shifted ^ write_pattern[0 +: 32]);
             write_pattern_matches <= write_pattern_lane == read_lane_data;
@@ -4666,6 +4687,32 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
 
     /******************************************************* Functions *******************************************************/
+    function [5:0] dq_target_add_clamped;
+        input [5:0] base;
+        input [5:0] delta;
+        begin
+            if(base >= (6'd63 - delta)) begin
+                dq_target_add_clamped = 6'd63;
+            end
+            else begin
+                dq_target_add_clamped = base + delta;
+            end
+        end
+    endfunction
+
+    function [5:0] dq_target_sub_clamped;
+        input [5:0] base;
+        input [5:0] delta;
+        begin
+            if(base > delta) begin
+                dq_target_sub_clamped = base - delta;
+            end
+            else begin
+                dq_target_sub_clamped = 6'd0;
+            end
+        end
+    endfunction
+
     function [5:0] hamming32;
         input [31:0] value;
         integer bit_index;

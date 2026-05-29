@@ -385,6 +385,7 @@ def decode_payload(payload, bit_count):
     abort_reason = field(debug_calib_abort, 1, 4)
     abort_read_lane_data_shifted = field(debug_calib_abort, 32, 32)
     abort_expected_word = 0xD0AD51C1
+    invalid_trajectory = field(debug_calib_search, 0, 6)
     abort_debug = {
         "seen": bool(field(debug_calib_abort, 0, 1)),
         "reason": abort_reason,
@@ -415,6 +416,13 @@ def decode_payload(payload, bit_count):
         "best_distance": field(debug_calib_search, 6, 6),
         "best_accepted": bool(field(debug_calib_search, 12, 1)),
         "search_entered": bool(field(debug_calib_search, 13, 1)),
+        "invalid_is_all_ones": bool(field(invalid_trajectory, 2, 1)),
+        "invalid_is_all_zero": bool(field(invalid_trajectory, 3, 1)),
+        "invalid_phase": field(invalid_trajectory, 4, 2),
+        "invalid_half_step": bool(field(invalid_trajectory, 1, 1)),
+        "valid_seen_in_phase": bool(field(invalid_trajectory, 0, 1)),
+        "candidate_dq_target": field(debug_calib_search, 6, 6),
+        "candidate_start_index": field(debug_calib_abort, 21, 6),
         "xor_with_expected": abort_read_lane_data_shifted ^ abort_expected_word,
         "xor_with_expected_hex": f"0x{(abort_read_lane_data_shifted ^ abort_expected_word):08x}",
         "state_calibrate": None,
