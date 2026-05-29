@@ -624,6 +624,7 @@ module ddr3_controller #(
     reg[5:0] start_index_check = 0;
     reg check_starting_data_half_step_retry = 0;
     reg[1:0] analyze_data_recenter_retry[LANES-1:0];
+    reg[1:0] analyze_data_invalid_retry[LANES-1:0];
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
     reg odelay_cntvalue_halfway = 0;
@@ -723,6 +724,7 @@ module ddr3_controller #(
     reg[5:0] analyze_data_search_best_offset = 0;
     reg[5:0] analyze_data_search_best_distance = 0;
     reg[31:0] analyze_data_search_best_word = 0;
+    reg analyze_data_search_invalid = 0;
     reg[5:0] analyze_data_candidate_distance = 0;
     reg[5:0] read_lane_data_shifted_distance = 0;
     reg[$clog2(STORED_DQS_SIZE*8):0] analyze_data_adjusted_dq_target = 0;
@@ -2705,6 +2707,7 @@ module ddr3_controller #(
             analyze_data_search_best_offset <= 6'd0;
             analyze_data_search_best_distance <= 6'd0;
             analyze_data_search_best_word <= 32'd0;
+            analyze_data_search_invalid <= 1'b0;
 
             read_lane_data_shifted_distance <= 6'd0;
             analyze_data_adjusted_dq_target <= 0;
@@ -2733,6 +2736,7 @@ module ddr3_controller #(
                 idelay_dqs_cntvaluein[index] <= DQS_INITIAL_IDELAY_TAP[4:0];
                 dq_target_index[index] <= 0;
                 analyze_data_recenter_retry[index] <= 0;
+                analyze_data_invalid_retry[index] <= 0;
             end
         end
         else begin
@@ -3312,6 +3316,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                         // if lane_write_dq_late is already set to 1 for this lane, then current lane should already be fixed without changing the data_start_index
         ANALYZE_DATA:   if(prep_done[1]) begin
                             if(write_pattern_matches) begin
+                                analyze_data_invalid_retry[lane] <= 0;
+                                analyze_data_search_invalid <= 1'b0;
                                 /* verilator lint_off WIDTH */
                                 if(lane == LANES - 1) begin
                                 /* verilator lint_on WIDTH */
@@ -3328,6 +3334,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     lane <= lane + 1;
                                     data_start_index[lane+1] <= 0;
                                     analyze_data_recenter_retry[lane+1] <= 0;
+                                    analyze_data_invalid_retry[lane+1] <= 0;
                                     state_calibrate <= ANALYZE_DATA;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
@@ -3341,24 +3348,18 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 data_start_index[lane] <= data_start_index[lane] + 8; //skip by 8 (basically we want to delay DQ since it was too early)
                                 if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
                                     debug_calib_search_entered <= 1'b1;
-                                    if(((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) && (analyze_data_recenter_retry[lane] != 2'd3)) begin
-                                        analyze_data_recenter_retry[lane] <= analyze_data_recenter_retry[lane] + 1'b1;
-                                        data_start_index[lane] <= 0;
-                                        start_index_check <= 0;
-                                        check_starting_data_half_step_retry <= 1'b0;
-                                        if(analyze_data_recenter_retry[lane] == 2'd2) begin
-                                            analyze_data_recenter_retry[lane] <= 0;
-                                            lane_write_dq_late[lane] <= 1'b0;
-                                            lane_read_dq_early[lane] <= 1'b0;
-                                            state_calibrate <= CHECK_STARTING_DATA;
-                                        end
-                                        else begin
-                                            state_calibrate <= ISSUE_WRITE_1;
-                                            delay_before_read_data <= 10;
-                                        end
+                                    if(((read_lane_data_shifted == 32'hffff_ffff) || (read_lane_data_shifted == 32'h0000_0000)) && (analyze_data_invalid_retry[lane] != 2'd3)) begin
+                                        analyze_data_search_offset_q <= 6'd0;
+                                        analyze_data_search_window <= read_lane_data;
+                                        analyze_data_search_best_offset <= 6'd0;
+                                        analyze_data_search_best_distance <= 6'd32;
+                                        analyze_data_search_best_word <= read_lane_data[0 +: 32];
+                                        analyze_data_search_invalid <= 1'b1;
+                                        state_calibrate <= ANALYZE_DATA_SEARCH;
                                     end
                                     else if(read_lane_data_shifted_distance <= 6'd12) begin
                                         analyze_data_recenter_retry[lane] <= 0;
+                                        analyze_data_invalid_retry[lane] <= 0;
                                         lane_read_dq_early[lane] <= 1'b1;
                                         check_starting_data_half_step_retry <= 1'b0;
                                         state_calibrate <= BITSLIP_DQS_TRAIN_3;
@@ -3372,6 +3373,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         analyze_data_search_best_offset <= 6'd0;
                                         analyze_data_search_best_distance <= 6'd32;
                                         analyze_data_search_best_word <= read_lane_data[0 +: 32];
+                                        analyze_data_search_invalid <= 1'b0;
                                         state_calibrate <= ANALYZE_DATA_SEARCH;
                                     end
                                     else begin
@@ -3474,6 +3476,8 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                             if((analyze_data_search_best_distance <= 6'd6) &&
                                (analyze_data_search_best_offset + 6'd8 >= start_index_check) &&
                                (analyze_data_search_best_offset <= start_index_check + 6'd8)) begin
+                                analyze_data_search_invalid <= 1'b0;
+                                analyze_data_invalid_retry[lane] <= 0;
                                 if(analyze_data_recenter_retry[lane] == 2'd0) begin
                                     analyze_data_recenter_retry[lane] <= 2'd1;
                                     data_start_index[lane] <= 0;
@@ -3501,7 +3505,16 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                     dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
                                 end
                             end
+                            else if(analyze_data_search_invalid && (analyze_data_invalid_retry[lane] != 2'd3)) begin
+                                analyze_data_search_invalid <= 1'b0;
+                                analyze_data_invalid_retry[lane] <= analyze_data_invalid_retry[lane] + 1'b1;
+                                data_start_index[lane] <= 0;
+                                check_starting_data_half_step_retry <= 1'b0;
+                                state_calibrate <= ISSUE_WRITE_1;
+                                delay_before_read_data <= 10;
+                            end
                             else begin
+                                analyze_data_search_invalid <= 1'b0;
                                 reset_from_calibrate <= 1'b1;
                                 calib_abort_snapshot_valid <= 1'b1;
                                 calib_abort_snapshot_reason <= 4'd1;
