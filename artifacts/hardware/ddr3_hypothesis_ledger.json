@@ -169,16 +169,16 @@
     "type": "solution"
   },
   {
-    "evidence_against": "Small n=3 gate only. It has not yet been tested on the other known failing classes such as seed2, seed6, seed11, seed12, seed16, or seed20, and it may still carry timing/area risk because CHECK_STARTING_DATA logic grew.",
-    "evidence_for": "The focused gate used committed RTL c4710f2 and passed seed27, the deterministic all-ones invalid-window failure; seed3, the known-pass control regressed by SO-007; and seed23, the prior explicit-state pass case. All three returned pass with calibration complete and BIST done.",
-    "hardware_signature": "Expected: deterministic invalid-window failures recover, known-pass controls remain passing, and no new reason-6 all-ones regression appears. Observed gate: seeds 27, 3, and 23 all pass calibration and BIST with poll-count 200 and poll-interval 0.1.",
+    "evidence_against": "Held-out known-pass control seed5 fails with reason 6 analyze_data_invalid_window_exhausted, lane0, all-ones read window, start_index_check=0, dq_target_index=6, data_start_index=8. Therefore the valid-window gate is promising for historical failures but is not yet a bullet-proof final RTL fix.",
+    "evidence_for": "Focused gate passed seeds 27, 3, and 23. Held-out gate at commit 9267551 passes all seven historical failing seeds tested here: 2, 6, 11, 12, 16, 20, and 27, plus pass control seed3. These rows all complete calibration and BIST with poll-count 200 and poll-interval 0.1.",
+    "hardware_signature": "Expected: deterministic invalid-window failures recover, known-pass controls remain passing, and no new reason-6 all-ones regression appears. Observed held-out gate: seeds 2, 6, 11, 12, 16, 20, 27, and 3 pass; known-pass control seed5 regresses to reason 6 analyze_data_invalid_window_exhausted.",
     "hypothesis": "CHECK_STARTING_DATA should ignore all-ones/all-zero read windows as invalid evidence and only update alignment assumptions after seeing a real valid window or bounded valid mismatch.",
     "id": "SO-008",
     "narrow_cells_or_paths": "CHECK_STARTING_DATA read_lane_data_shifted classification, start_index_check, dq_target_index, lane_write_dq_late, lane_read_dq_early, and the all-zero/all-one invalid-window detector.",
-    "next_test": "Build and HIL-test the compact held-out set seed2, seed6, seed11, seed12, seed16, seed20, seed27 plus known-pass controls seed3 and seed5. If those pass, run the full 1..30 baseline failing/pass control matrix before promoting the RTL.",
+    "next_test": "Compare seed5 failing bitstream against passing seed3/held-out failures using SDF/JSON and minimal abort fields, then refine CHECK_STARTING_DATA so invalid all-ones/all-zero windows do not poison known-pass placements. Retest seed5 plus the same held-out set before any full 1..30 sweep.",
     "sdf_json_signature": "No SDF acceptance gate was used for this RTL-only policy. SDF/JSON remains useful for later held-out failures, but this intervention targets algorithmic interpretation of sampled windows rather than routed delay directly.",
-    "solution_candidates": "Promote this valid-window policy as the main RTL fix only after held-out seeds pass; then simplify/pipeline the implementation if timing margins shrink. Keep SDF/JSON analysis for any remaining failure buckets.",
-    "status": "active_promising_small_gate",
+    "solution_candidates": "Keep valid-window gating concept, but change policy from terminal invalid-window exhaustion to deterministic bounded resample/recenter that preserves known-pass seed5; consider smaller/pipelined CHECK_STARTING_DATA logic after seed5 is fixed.",
+    "status": "tested_mixed_heldout_gate",
     "type": "solution"
   }
 ]
