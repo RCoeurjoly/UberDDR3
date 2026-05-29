@@ -291,6 +291,7 @@ module ddr3_controller #(
     localparam DELAY_MAX_VALUE = ps_to_cycles(INITIAL_CKE_LOW); //Largest possible delay needed by the reset and refresh sequence
     localparam DELAY_COUNTER_WIDTH= $clog2(DELAY_MAX_VALUE); //Bitwidth needed by the maximum possible delay, this will be the delay counter width
     localparam CALIBRATION_DELAY = 2; // must be >= 2
+    localparam[19:0] CALIBRATION_STARTUP_WATCHDOG_LIMIT = 20'hfffff;
     localparam tXSDLL = nCK_to_cycles(512); // cycles (controller) Exit Self Refresh to commands requiring a locked DLL
     localparam tXSDLL_tRFC = tXSDLL - ps_to_cycles(tRFC); // cycles (controller) Time before refresh after exit from self-refresh
     localparam tCKE = max(3, ps_to_nCK(7500) ); // nCK CKE minimum pulse width
@@ -715,6 +716,7 @@ module ddr3_controller #(
     reg[5:0] calib_abort_snapshot_best_offset = 0;
     reg[5:0] calib_abort_snapshot_best_distance = 0;
     reg calib_abort_snapshot_best_accepted = 0;
+    reg[19:0] calib_startup_watchdog = 0;
     reg[5:0] debug_calib_search_best_offset = 0;
     reg[5:0] debug_calib_search_best_distance = 0;
     reg debug_calib_search_best_accepted = 0;
@@ -2698,6 +2700,7 @@ module ddr3_controller #(
             calib_abort_snapshot_best_offset <= 6'd0;
             calib_abort_snapshot_best_distance <= 6'd0;
             calib_abort_snapshot_best_accepted <= 1'b0;
+            calib_startup_watchdog <= 20'd0;
             debug_calib_search_best_offset <= 6'd0;
             debug_calib_search_best_distance <= 6'd0;
             debug_calib_search_best_accepted <= 1'b0;
@@ -2757,6 +2760,14 @@ module ddr3_controller #(
             calib_abort_snapshot_valid <= 1'b0;
             reset_after_rank_1 <= 0; // reset for dual rank
             prep_done <= 0;
+            if(instruction_address == 5'd13 && state_calibrate != IDLE && !initial_calibration_done) begin
+                if(calib_startup_watchdog != CALIBRATION_STARTUP_WATCHDOG_LIMIT) begin
+                    calib_startup_watchdog <= calib_startup_watchdog + 1'b1;
+                end
+            end
+            else begin
+                calib_startup_watchdog <= 20'd0;
+            end
 
             if(wb2_update) begin
                 odelay_data_cntvaluein[wb2_write_lane] <=  wb2_phy_odelay_data_ld[wb2_write_lane]? wb2_phy_odelay_data_cntvaluein : odelay_data_cntvaluein[wb2_write_lane];
@@ -3859,6 +3870,27 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         `ifdef FORMAL_COVER
             state_calibrate <= DONE_CALIBRATE;
         `endif
+            if(instruction_address == 5'd13 && state_calibrate != IDLE &&
+               !initial_calibration_done &&
+               calib_startup_watchdog == CALIBRATION_STARTUP_WATCHDOG_LIMIT) begin
+                reset_from_calibrate <= 1'b1;
+                calib_abort_snapshot_valid <= 1'b1;
+                calib_abort_snapshot_reason <= 4'd5;
+                calib_abort_snapshot_lane <= { {(8-lanes_clog2){1'b0}}, lane };
+                calib_abort_snapshot_state <= state_calibrate;
+                calib_abort_snapshot_instruction <= instruction_address;
+                calib_abort_snapshot_start_index_check <= {2'd0, start_index_check};
+                calib_abort_snapshot_lane_write_dq_late <= lane_write_dq_late[lane];
+                calib_abort_snapshot_lane_read_dq_early <= lane_read_dq_early[lane];
+                calib_abort_snapshot_dq_target_index <= {2'd0, dq_target_index[lane]};
+                calib_abort_snapshot_data_start_index <= {1'd0, data_start_index[lane]};
+                calib_abort_snapshot_shifted_match <= write_pattern_matches;
+                calib_abort_snapshot_read_lane_data_shifted <= read_lane_data_shifted;
+                calib_abort_snapshot_read_lane_data <= read_lane_data;
+                calib_abort_snapshot_best_offset <= analyze_data_search_best_offset;
+                calib_abort_snapshot_best_distance <= analyze_data_search_best_distance;
+                calib_abort_snapshot_best_accepted <= analyze_data_search_best_distance <= 6'd4;
+            end
             read_lane_data <= {read_data_store[((DQ_BITS*LANES)*7 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*6 + ({29'd0, lane}<<3)) +: 8],
                         read_data_store[((DQ_BITS*LANES)*5 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*4 + ({29'd0, lane}<<3)) +: 8], read_data_store[((DQ_BITS*LANES)*3 + ({29'd0, lane}<<3)) +: 8],
                         read_data_store[((DQ_BITS*LANES)*2 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*1 + ({29'd0, lane}<<3)) +: 8],read_data_store[((DQ_BITS*LANES)*0 + ({29'd0, lane}<<3)) +: 8] };
