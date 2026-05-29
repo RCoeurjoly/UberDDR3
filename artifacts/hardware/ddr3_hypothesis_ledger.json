@@ -154,5 +154,18 @@
     "solution_candidates": "RTL shadow/register CNTVALUEIN before LD with explicit load/readback sequencing; soft lane0 byte-lane locality/floorplan for DQS/DQ CNTVALUEIN and LD cones; SDF-gated acceptance criteria before hardware; avoid exact BEL locks as final solution.",
     "status": "active_signed_order_hypothesis_strengthened_shifted",
     "type": "cause_effect"
+  },
+  {
+    "evidence_against": "It does not rescue the deterministic seed27 all-ones invalid-window failure and it regresses seed3, a known-pass control, to reason 6 with lane0 start_index_check=0, dq_target_index=14, data_start_index=8, all-ones read window. Seed27 still fails reason 6 with dq_target_index=12. Therefore this is not a bullet-proof RTL fix.",
+    "evidence_for": "The explicit state changes behavior enough to rescue seed23, which previously failed under related invalid-window recovery attempts; formal calibration-failure check and icarus compile pass.",
+    "hardware_signature": "Expected: seed27 invalid-window failure recovers and known-pass controls remain passing. Observed: seed27 fails reason 6, seed3 known-pass control regresses to reason 6, seed23 passes.",
+    "hypothesis": "Moving ANALYZE_DATA all-ones/all-zero invalid-window handling into an explicit bounded recenter state fixes the remaining invalid-window class without collateral regressions.",
+    "id": "SO-007",
+    "narrow_cells_or_paths": "ANALYZE_DATA invalid-window branch, analyze_data_invalid_retry, analyze_data_contradiction_retry, lane0 data_start_index/start_index_check/dq_target_index, all-ones/all-zero read_lane_data_shifted classification.",
+    "next_test": "Stop broadening branch-local invalid-window escapes. Either instrument the actual read-window evolution before the terminal all-ones condition with minimal sticky fields, or implement a smaller deterministic calibration policy that validates real transitions/windows before accepting or retrying a candidate.",
+    "sdf_json_signature": "No SDF acceptance gate was applied for this RTL-only intervention; bitstreams are committed and matrix rows identify exact hashes for later SDF/JSON inspection if needed.",
+    "solution_candidates": "Replace blind recenter retries with explicit valid-window/transition detection and bounded candidate search; keep the state split only if later policy passes controls; consider SDF/JSON comparison of seed3 regression versus seed23 pass to identify collateral physical change.",
+    "status": "tested_rejected_as_general_fix",
+    "type": "solution"
   }
 ]

@@ -1,0 +1,4 @@
+experiment_id,seed,variant,rtl_commit,bitstream_file,bitstream_store_path,role
+explicit-invalid-window-recenter-seed-27,27,analyze-data-invalid-window-recenter-state,da9e638,/nix/store/x9i1ipwnxwd3k8px9dxbwsxcd1g2zmng-ypcb-ddr3-bitstream-seed-27/ypcb_00338_1p1_ddr3_openxc7.bit,/nix/store/x9i1ipwnxwd3k8px9dxbwsxcd1g2zmng-ypcb-ddr3-bitstream-seed-27,heldout_former_fail
+explicit-invalid-window-recenter-seed-3,3,analyze-data-invalid-window-recenter-state,da9e638,/nix/store/k16yjldz9kblzkqaj5dxkfkhvb2x3sxl-ypcb-ddr3-bitstream-seed-3/ypcb_00338_1p1_ddr3_openxc7.bit,/nix/store/k16yjldz9kblzkqaj5dxkfkhvb2x3sxl-ypcb-ddr3-bitstream-seed-3,known_pass_control
+explicit-invalid-window-recenter-seed-23,23,analyze-data-invalid-window-recenter-state,da9e638,/nix/store/bk1qyimz2hsmgrijdgrgjgl26bpd56lz-ypcb-ddr3-bitstream-seed-23/ypcb_00338_1p1_ddr3_openxc7.bit,/nix/store/bk1qyimz2hsmgrijdgrgjgl26bpd56lz-ypcb-ddr3-bitstream-seed-23,heldout_former_fail_control
