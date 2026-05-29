@@ -1126,3 +1126,55 @@ Artifacts:
 - matrix: `artifacts/hardware/explicit-invalid-sample-state-heldout-gate1/matrix.csv`
 - canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
 - hypothesis ledger row: `SO-010` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`
+
+### Classified phased invalid-sample recovery: 2026-05-29
+
+Commit `16beffe` keeps the explicit invalid-sample state and also makes
+`CHECK_STARTING_DATA` a pure classifier. It dispatches to explicit match,
+valid-nonmatch, or invalid-sample handler states, so invalid all-ones/all-zero
+samples do not directly update `lane_write_dq_late`, `lane_read_dq_early`, or
+`data_start_index`.
+
+The invalid handler uses a bounded recovery policy:
+
+- phase 0: coarse scan at the current `dq_target_index`
+- phase 1: half-step scan at the current `dq_target_index`
+- phase 2: coarse scan at `dq_target_index - 2`
+- terminal abort only after the shifted-target scan has no valid sample
+
+Focused held-out HIL gate for commit `16beffe`, poll-count `200`, poll-interval
+`0.1`:
+
+| seed | role | result | signature |
+| ---: | --- | --- | --- |
+| 12 | explicit-state reason-6 shared bucket | pass | calibration and BIST complete |
+| 16 | explicit-state reason-6 shared bucket | fail | reason 6, lane0, state17, instruction22, `start_index_check=0`, `dq_target_index=4`, `data_start_index=8` |
+| 20 | explicit-state reason-6 shared bucket | pass | calibration and BIST complete |
+| 5 | known-pass regression control | pass | calibration and BIST complete |
+| 6 | SO-009 regression control | pass | calibration and BIST complete |
+| 27 | SO-009 regression control | pass | calibration and BIST complete |
+| 3 | known-pass control | pass | calibration and BIST complete |
+
+Conclusion: this is a strong improvement over the explicit-state-only policy:
+seeds 12 and 20 recover, and the prior pass/regression controls stay passing.
+It is still not final. Seed16 remains a reason-6 invalid-window failure, but the
+failure moved from the shared `dq_target_index=48`, `data_start_index=8` bucket
+to `dq_target_index=4`, `data_start_index=8` after phased recovery. That means
+pure classification is doing useful work, but the phase-2 recovery is too narrow
+or lacks enough observability to choose the right next candidate.
+
+Next RTL move: keep pure classification and the explicit invalid state. Refine
+only the recovery policy for seed16, preferably with one of these minimal
+changes before any broad sweep:
+
+- add all-ones versus all-zero debug bits to distinguish invalid sample polarity
+- make phase 2 scan both coarse and half-step indices at `dq_target_index - 2`
+- add a bounded `dq_target_index + 2` phase only if seed16 evidence suggests the
+  target was shifted in the wrong direction
+
+Artifacts:
+
+- manifest: `artifacts/hardware/phased-invalid-recovery-classified-heldout-gate1/manifest.csv`
+- matrix: `artifacts/hardware/phased-invalid-recovery-classified-heldout-gate1/matrix.csv`
+- canonical matrix rows appended to `artifacts/hardware/ddr3_causality_matrix.csv`
+- hypothesis ledger row: `SO-011` in `artifacts/hardware/ddr3_hypothesis_ledger.csv`

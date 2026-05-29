@@ -206,5 +206,18 @@
     "solution_candidates": "Keep the detection/handling split. Replace the current bounded half-step exhaustion policy with a deterministic candidate-window selection or transition-seeking state that records valid-window evidence before resetting calibration; avoid another branch-local blind escape.",
     "status": "tested_mixed_explicit_state_not_final",
     "type": "solution"
+  },
+  {
+    "evidence_against": "Seed16 still fails with reason 6, lane0, state17, instruction22, start_index_check=0, dq_target_index=4, data_start_index=8, reset_from_calibrate_ever/reset_from_test_ever/sync_rst/phy_reset reassertion, and wrong_read_seen. Therefore target-minus-2 coarse recovery is not the final policy.",
+    "evidence_for": "At rtl commit 16beffe with poll-count 200 and poll-interval 0.1, the classified phased policy rescues seed12 and seed20 from the prior explicit-state reason-6 bucket and keeps prior control/pass rows seed5, seed6, seed27, and seed3 passing calibration and BIST.",
+    "hardware_signature": "Expected: seeds 12/16/20 reason-6 shared bucket recover and controls seeds 5/6/27/3 stay passing. Observed: seeds 12,20,5,6,27,3 pass; seed16 still fails reason 6 analyze_data_invalid_window_exhausted.",
+    "hypothesis": "Classified CHECK_STARTING_DATA plus deterministic phased invalid-sample recovery fixes the shared invalid-window bucket without reintroducing prior control regressions.",
+    "id": "SO-011",
+    "narrow_cells_or_paths": "CHECK_STARTING_DATA classifier, CHECK_STARTING_DATA_MATCH, CHECK_STARTING_DATA_VALID_NONMATCH, CHECK_STARTING_DATA_INVALID_SAMPLE, check_starting_data_invalid_phase, start_index_check, dq_target_index, data_start_index, lane0 read_lane_data_shifted invalid detector.",
+    "next_test": "Refine phase 2/terminal recovery for seed16 specifically: inspect its JSON/log against rescued seed12/20, then test either a full phase-2 half+coarse scan at dq_target-2, a dq_target+2 phase, or all-ones/all-zero split instrumentation before any broad sweep.",
+    "sdf_json_signature": "No SDF acceptance gate was used for this RTL policy test. The intervention changes calibration search semantics; later SDF/JSON should compare the remaining seed16 failure against rescued seed12/20 at the same RTL commit.",
+    "solution_candidates": "Keep pure classification and explicit invalid state. Extend bounded candidate-window recovery only enough to address seed16; add all-ones versus all-zero debug bits; consider phase localparams and a smaller/pipelined implementation before promotion.",
+    "status": "tested_mixed_phased_recovery_not_final",
+    "type": "solution"
   }
 ]
