@@ -4030,6 +4030,22 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                        <= write_test_address_counter[ROW_BITS-1:0]; // store row
                             calib_addr[(BA_BITS + COL_BITS- $clog2(serdes_ratio*2) - 1 + DUAL_RANK_DIMM) : 0] 
                                        <= write_test_address_counter[wb_addr_bits-1:ROW_BITS]; // store bank + col
+                            calib_data <= calib_data_randomized;
+                            write_test_address_counter <= write_test_address_counter + 1; 
+                                /* verilator lint_off WIDTHEXPAND */
+                            if( write_test_address_counter == { 1'b1, BIST_MODE[1] , {(wb_addr_bits_sim-2){1'b1}} } ) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
+                                /* verilator lint_on WIDTHEXPAND */
+                                if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
+                                    write_test_address_counter <= 0;
+                                end
+                                state_calibrate <= RANDOM_READ;
+                                `ifdef UART_DEBUG_BIST
+                                    uart_start_send <= 1'b1;
+                                    uart_text <= {"DONE RANDOM WRITE: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
+                                    state_calibrate <= WAIT_UART;
+                                    state_calibrate_next <= RANDOM_READ;
+                                `endif
+                            end
                         end
         RANDOM_READ: if(!o_wb_stall_calib) begin
                         if(bist_read_retry_armed) begin
