@@ -6,6 +6,8 @@ module ypcb_sdf_bist_tb;
 
     localparam integer GATE_SIM_TIMEOUT_CYCLES = 62000;
     localparam integer FAST_INIT_MAX_DELAY = 32;
+    localparam integer MPR_DQS_FALLBACK_LATENCY_CYCLES = 8;
+    localparam integer MPR_DQS_FALLBACK_BURST_CYCLES = 8;
 
     reg clk50 = 1'b0;
     reg rst_n = 1'b0;
@@ -77,6 +79,9 @@ module ypcb_sdf_bist_tb;
     wire model_ddr3_cas_n = model_cmd_word[CMD_CAS_N];
     wire model_ddr3_ras_n = model_cmd_word[CMD_RAS_N];
     wire model_ddr3_cs_n = model_cmd_word[CMD_CS_N];
+    wire model_cmd_is_read =
+        model_ddr3_cs_n === 1'b0 &&
+        {model_ddr3_ras_n, model_ddr3_cas_n, model_ddr3_we_n} === 3'b101;
 
     ddr3 #(.DLL_OFF(0)) ddr3_model (
         .rst_n(model_ddr3_reset_n),
@@ -133,6 +138,13 @@ module ypcb_sdf_bist_tb;
     wire gate_i_phy_idelayctrl_rdy = dut.\ddr3_top_inst.ddr3_controller_inst.i_phy_idelayctrl_rdy ;
     wire [27:0] gate_instruction = dut.\ddr3_top_inst.ddr3_controller_inst.instruction ;
     reg sim_dqs_inject = 1'b0;
+    reg [7:0] sim_mpr_dqs_latency = 8'd0;
+    reg [7:0] sim_mpr_dqs_burst = 8'd0;
+    reg sim_mpr_dqs_model_driven_seen = 1'b0;
+    wire sim_mpr_dqs_fallback_active = sim_mpr_dqs_burst != 8'd0;
+    wire sim_dqs_lane0_driven = ddr3_dqs_p[0] !== 1'bz && ddr3_dqs_p[0] !== 1'bx;
+    wire sim_dqs_lane1_driven = ddr3_dqs_p[1] !== 1'bz && ddr3_dqs_p[1] !== 1'bx;
+    wire sim_dqs_model_driving = sim_dqs_lane0_driven && sim_dqs_lane1_driven;
 
     always #10000 clk50 = !clk50;
     always #6000 sim_controller_clk = !sim_controller_clk;
@@ -259,6 +271,15 @@ module ypcb_sdf_bist_tb;
                 gate_phy_idelay_dqs,
                 gate_top_iserdes_dqs,
                 gate_iserdes_dqs);
+            $display("%0s_MPR_DQS t=%0t fallback_active=%b fallback_latency=%0d fallback_burst=%0d model_driving=%b model_seen=%b model_read_cmd=%b",
+                tag,
+                $time,
+                sim_mpr_dqs_fallback_active,
+                sim_mpr_dqs_latency,
+                sim_mpr_dqs_burst,
+                sim_dqs_model_driving,
+                sim_mpr_dqs_model_driven_seen,
+                model_cmd_is_read);
             $display("%0s_READ t=%0t iserdes_dqs=%h bitslip_ref=%h read_lane_data=%h read_lane_data_shifted=%h",
                 tag,
                 $time,
@@ -410,14 +431,39 @@ module ypcb_sdf_bist_tb;
 
     always @(posedge sim_ddr3_clk) begin
         sim_dqs_inject <= !sim_dqs_inject;
+
+        if (!rst_n) begin
+            sim_mpr_dqs_latency <= 8'd0;
+            sim_mpr_dqs_burst <= 8'd0;
+            sim_mpr_dqs_model_driven_seen <= 1'b0;
+        end else begin
+            if (model_cmd_is_read &&
+                gate_state_calibrate >= 5'd1 &&
+                gate_state_calibrate <= 5'd3) begin
+                sim_mpr_dqs_latency <= MPR_DQS_FALLBACK_LATENCY_CYCLES[7:0];
+                sim_mpr_dqs_burst <= 8'd0;
+                sim_mpr_dqs_model_driven_seen <= 1'b0;
+            end else if (sim_mpr_dqs_latency != 8'd0) begin
+                sim_mpr_dqs_latency <= sim_mpr_dqs_latency - 8'd1;
+                if (sim_mpr_dqs_latency == 8'd1 && !sim_mpr_dqs_model_driven_seen) begin
+                    sim_mpr_dqs_burst <= MPR_DQS_FALLBACK_BURST_CYCLES[7:0];
+                end
+            end else if (sim_mpr_dqs_burst != 8'd0) begin
+                sim_mpr_dqs_burst <= sim_mpr_dqs_burst - 8'd1;
+            end
+
+            if (sim_dqs_model_driving) begin
+                sim_mpr_dqs_model_driven_seen <= 1'b1;
+                sim_mpr_dqs_burst <= 8'd0;
+            end
+        end
     end
 
     always @* begin
         if ($test$plusargs("drive_dqs") &&
             rst_n &&
-            gate_state_calibrate >= 5'd1 &&
-            gate_state_calibrate <= 5'd4 &&
-            (ddr3_dqs_p[0] === 1'bz || ddr3_dqs_p[0] === 1'bx)) begin
+            sim_mpr_dqs_fallback_active &&
+            !sim_dqs_model_driving) begin
             force ddr3_dqs_p = {6'bzzzzzz, sim_dqs_inject, sim_dqs_inject};
             force ddr3_dqs_n = {6'bzzzzzz, !sim_dqs_inject, !sim_dqs_inject};
         end else begin
