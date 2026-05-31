@@ -1,30 +1,32 @@
 #!/usr/bin/env python3
-"""Program and validate the YPCB DDR3 BIST_MODE=2 design through FTDI JTAG."""
+"""Program and validate the YPCB DDR3 BIST_MODE=2 design through FTDI JTAG.
+
+The bitstream must be built with -DUBERDDR3_DEBUG_JTAG, for example via
+`nix build .#ypcb-ddr3-bitstream-debug-jtag`.
+"""
+
+from __future__ import annotations
 
 import argparse
 import ctypes
 import hashlib
 import json
+import os
 import subprocess
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-PROGRAMMER = Path("/home/roland/openFPGALoader/build-user/openFPGALoader")
-PROGRAMMER_COMMIT = "3ae5e5e"
+DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "openFPGALoader"))
 DEFAULT_BITS = 960
 MAGIC = 0x33445244
 VERSION = 1
 CALIB_DONE_STATE = 23
-BIST_MODE = 2
-
 FTDI_VENDOR = 0x0403
 FTDI_FT232H_PRODUCT = 0x6014
 BITMODE_RESET = 0x00
-BITMODE_BITBANG = 0x01
 BITMODE_MPSSE = 0x02
 FTDI_INTERFACE_A = 1
-
 MPSSE_WRITE_NEG = 0x01
 MPSSE_BITMODE = 0x02
 MPSSE_LSB = 0x08
@@ -35,13 +37,6 @@ SET_BITS_HIGH = 0x82
 TCK_DIVISOR = 0x86
 SEND_IMMEDIATE = 0x87
 DIS_DIV_5 = 0x8A
-
-PIN_TCK = 0x01
-PIN_TDI = 0x02
-PIN_TDO = 0x04
-PIN_TMS = 0x08
-PIN_OUTPUT_MASK = PIN_TCK | PIN_TDI | PIN_TMS
-
 HS3_LOW_VALUE = 0x88
 HS3_LOW_DIRECTION = 0x8B
 HS3_HIGH_VALUE = 0x20
@@ -52,98 +47,18 @@ class FtdiError(RuntimeError):
     pass
 
 
-class FtdiBitbangJtag:
-    def __init__(self, serial, vid, pid, delay_s):
-        self.delay_s = delay_s
-        self.lib = ctypes.CDLL("libftdi1.so")
-        self._configure_signatures()
-        self.ctx = self.lib.ftdi_new()
-        if not self.ctx:
-            raise FtdiError("ftdi_new failed")
-
-        serial_bytes = serial.encode("ascii") if serial else None
-        rc = self.lib.ftdi_usb_open_desc_index(
-            self.ctx, vid, pid, None,
-            ctypes.c_char_p(serial_bytes) if serial_bytes else None, 0,
-        )
-        self._check(rc, "ftdi_usb_open_desc_index")
-        self._check(self.lib.ftdi_usb_reset(self.ctx), "ftdi_usb_reset")
-        self._check(self.lib.ftdi_usb_purge_buffers(self.ctx), "ftdi_usb_purge_buffers")
-        self._check(self.lib.ftdi_set_latency_timer(self.ctx, 1), "ftdi_set_latency_timer")
-        self._check(self.lib.ftdi_set_bitmode(self.ctx, 0x00, BITMODE_RESET), "reset bitmode")
-        self._check(self.lib.ftdi_set_bitmode(self.ctx, PIN_OUTPUT_MASK, BITMODE_BITBANG), "enable bitbang")
-        self._write_pin_byte(PIN_TMS)
-
-    def _configure_signatures(self):
-        self.lib.ftdi_new.restype = ctypes.c_void_p
-        self.lib.ftdi_free.argtypes = [ctypes.c_void_p]
-        self.lib.ftdi_usb_open_desc_index.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
-        self.lib.ftdi_usb_open_desc_index.restype = ctypes.c_int
-        self.lib.ftdi_usb_close.argtypes = [ctypes.c_void_p]
-        self.lib.ftdi_usb_reset.argtypes = [ctypes.c_void_p]
-        self.lib.ftdi_usb_purge_buffers.argtypes = [ctypes.c_void_p]
-        self.lib.ftdi_set_latency_timer.argtypes = [ctypes.c_void_p, ctypes.c_ubyte]
-        self.lib.ftdi_set_bitmode.argtypes = [ctypes.c_void_p, ctypes.c_ubyte, ctypes.c_ubyte]
-        self.lib.ftdi_write_data.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ubyte), ctypes.c_int]
-        self.lib.ftdi_read_pins.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_ubyte)]
-        self.lib.ftdi_get_error_string.argtypes = [ctypes.c_void_p]
-        self.lib.ftdi_get_error_string.restype = ctypes.c_char_p
-
-    def _error_string(self):
-        raw = self.lib.ftdi_get_error_string(self.ctx)
-        return raw.decode("utf-8", errors="replace") if raw else "unknown error"
-
-    def _check(self, rc, what):
-        if rc < 0:
-            raise FtdiError(f"{what} failed: {rc}: {self._error_string()}")
-
-    def _write_pin_byte(self, value):
-        data = (ctypes.c_ubyte * 1)(value)
-        rc = self.lib.ftdi_write_data(self.ctx, data, 1)
-        if rc != 1:
-            raise FtdiError(f"ftdi_write_data failed: {rc}: {self._error_string()}")
-        if self.delay_s:
-            time.sleep(self.delay_s)
-
-    def _read_pin_byte(self):
-        value = ctypes.c_ubyte()
-        self._check(self.lib.ftdi_read_pins(self.ctx, ctypes.byref(value)), "ftdi_read_pins")
-        return value.value
-
-    def close(self):
-        if self.ctx:
-            self.lib.ftdi_set_bitmode(self.ctx, 0x00, BITMODE_RESET)
-            self.lib.ftdi_usb_close(self.ctx)
-            self.lib.ftdi_free(self.ctx)
-            self.ctx = None
-
-    def shift(self, tms_bits, tdi_bits):
-        if len(tms_bits) != len(tdi_bits):
-            raise ValueError("TMS and TDI vectors must have the same length")
-        tdo_bits = []
-        for tms, tdi in zip(tms_bits, tdi_bits):
-            low = (PIN_TMS if tms else 0) | (PIN_TDI if tdi else 0)
-            self._write_pin_byte(low)
-            self._write_pin_byte(low | PIN_TCK)
-            tdo_bits.append(1 if (self._read_pin_byte() & PIN_TDO) else 0)
-            self._write_pin_byte(low)
-        return tdo_bits
-
-
 class FtdiMpsseJtag:
-    def __init__(self, serial, vid, pid, freq_hz, tdo_bit):
+    def __init__(self, serial: str | None, vid: int, pid: int, freq_hz: int, tdo_bit: int):
         self.tdo_bit = tdo_bit
         self.lib = ctypes.CDLL("libftdi1.so")
         self._configure_signatures()
         self.ctx = self.lib.ftdi_new()
         if not self.ctx:
             raise FtdiError("ftdi_new failed")
-
         serial_bytes = serial.encode("ascii") if serial else None
         self._check(self.lib.ftdi_set_interface(self.ctx, FTDI_INTERFACE_A), "ftdi_set_interface")
         rc = self.lib.ftdi_usb_open_desc_index(
-            self.ctx, vid, pid, None,
-            ctypes.c_char_p(serial_bytes) if serial_bytes else None, 0,
+            self.ctx, vid, pid, None, ctypes.c_char_p(serial_bytes) if serial_bytes else None, 0
         )
         self._check(rc, "ftdi_usb_open_desc_index")
         self._check(self.lib.ftdi_usb_reset(self.ctx), "ftdi_usb_reset")
@@ -156,7 +71,7 @@ class FtdiMpsseJtag:
         self._write(bytes([SET_BITS_LOW, HS3_LOW_VALUE, HS3_LOW_DIRECTION, SET_BITS_HIGH, HS3_HIGH_VALUE, HS3_HIGH_DIRECTION, SEND_IMMEDIATE]))
         self._read_available(2)
 
-    def _configure_signatures(self):
+    def _configure_signatures(self) -> None:
         self.lib.ftdi_new.restype = ctypes.c_void_p
         self.lib.ftdi_free.argtypes = [ctypes.c_void_p]
         self.lib.ftdi_set_interface.argtypes = [ctypes.c_void_p, ctypes.c_int]
@@ -172,21 +87,21 @@ class FtdiMpsseJtag:
         self.lib.ftdi_get_error_string.argtypes = [ctypes.c_void_p]
         self.lib.ftdi_get_error_string.restype = ctypes.c_char_p
 
-    def _error_string(self):
+    def _error_string(self) -> str:
         raw = self.lib.ftdi_get_error_string(self.ctx)
         return raw.decode("utf-8", errors="replace") if raw else "unknown error"
 
-    def _check(self, rc, what):
+    def _check(self, rc: int, what: str) -> None:
         if rc < 0:
             raise FtdiError(f"{what} failed: {rc}: {self._error_string()}")
 
-    def _write(self, data_bytes):
+    def _write(self, data_bytes: bytes) -> None:
         data = (ctypes.c_ubyte * len(data_bytes)).from_buffer_copy(data_bytes)
         rc = self.lib.ftdi_write_data(self.ctx, data, len(data_bytes))
         if rc != len(data_bytes):
             raise FtdiError(f"ftdi_write_data failed: {rc}: {self._error_string()}")
 
-    def _read_exact(self, byte_count):
+    def _read_exact(self, byte_count: int) -> bytes:
         result = bytearray()
         deadline = time.monotonic() + 5.0
         while len(result) < byte_count:
@@ -197,41 +112,40 @@ class FtdiMpsseJtag:
                 raise FtdiError(f"ftdi_read_data failed: {rc}: {self._error_string()}")
             if rc:
                 result.extend(bytes(buf[:rc]))
-                continue
-            if time.monotonic() > deadline:
+            elif time.monotonic() > deadline:
                 raise FtdiError(f"timed out reading {byte_count} MPSSE byte(s)")
-            time.sleep(0.001)
+            else:
+                time.sleep(0.001)
         return bytes(result)
 
-    def _read_available(self, byte_count):
+    def _read_available(self, byte_count: int) -> bytes:
         buf = (ctypes.c_ubyte * byte_count)()
         rc = self.lib.ftdi_read_data(self.ctx, buf, byte_count)
         if rc < 0:
             raise FtdiError(f"ftdi_read_data failed: {rc}: {self._error_string()}")
         return bytes(buf[:rc])
 
-    def _configure_clock(self, freq_hz):
-        base_hz = 60_000_000
-        divisor = max(0, int((base_hz / freq_hz - 1) / 2))
+    def _configure_clock(self, freq_hz: int) -> None:
+        divisor = max(0, int((60_000_000 / freq_hz - 1) / 2))
         self._write(bytes([DIS_DIV_5, TCK_DIVISOR, divisor & 0xFF, (divisor >> 8) & 0xFF]))
         self._read_available(4)
 
-    def close(self):
+    def close(self) -> None:
         if self.ctx:
             self.lib.ftdi_set_bitmode(self.ctx, 0x00, BITMODE_RESET)
             self.lib.ftdi_usb_close(self.ctx)
             self.lib.ftdi_free(self.ctx)
             self.ctx = None
 
-    def shift(self, tms_bits, tdi_bits):
+    def shift(self, tms_bits: list[int], tdi_bits: list[int]) -> list[int]:
         if len(tms_bits) != len(tdi_bits):
             raise ValueError("TMS and TDI vectors must have the same length")
-        tdo_bits = []
+        tdo_bits: list[int] = []
         for offset in range(0, len(tms_bits), 32):
             tdo_bits.extend(self._shift_chunk(tms_bits[offset:offset + 32], tdi_bits[offset:offset + 32]))
         return tdo_bits
 
-    def _shift_chunk(self, tms_bits, tdi_bits):
+    def _shift_chunk(self, tms_bits: list[int], tdi_bits: list[int]) -> list[int]:
         cmd = bytearray()
         op = MPSSE_WRITE_TMS | MPSSE_LSB | MPSSE_BITMODE | MPSSE_WRITE_NEG | MPSSE_DO_READ
         for tms, tdi in zip(tms_bits, tdi_bits):
@@ -242,23 +156,23 @@ class FtdiMpsseJtag:
         return [(byte >> self.tdo_bit) & 1 for byte in raw]
 
 
-def bits_to_int(bits):
+def bits_to_int(bits: list[int]) -> int:
     value = 0
     for index, bit in enumerate(bits):
         value |= int(bit) << index
     return value
 
 
-def clock_tms(client, tms_bits):
+def clock_tms(client: FtdiMpsseJtag, tms_bits: list[int]) -> None:
     if tms_bits:
         client.shift(tms_bits, [0] * len(tms_bits))
 
 
-def reset_tap(client):
+def reset_tap(client: FtdiMpsseJtag) -> None:
     clock_tms(client, [1, 1, 1, 1, 1, 1, 0])
 
 
-def shift_ir(client, instruction, ir_len):
+def shift_ir(client: FtdiMpsseJtag, instruction: int, ir_len: int) -> None:
     clock_tms(client, [1, 1, 0, 0])
     tdi_bits = [(instruction >> bit) & 1 for bit in range(ir_len)]
     tms_bits = [0] * ir_len
@@ -267,7 +181,7 @@ def shift_ir(client, instruction, ir_len):
     clock_tms(client, [1, 0])
 
 
-def shift_dr_read(client, bit_count):
+def shift_dr_read(client: FtdiMpsseJtag, bit_count: int) -> int:
     clock_tms(client, [1, 0, 0])
     tms_bits = [0] * bit_count
     tms_bits[-1] = 1
@@ -276,19 +190,19 @@ def shift_dr_read(client, bit_count):
     return bits_to_int(tdo_bits)
 
 
-def read_payload(client, ir_len, user_ir, bit_count):
+def read_payload(client: FtdiMpsseJtag, ir_len: int, user_ir: int, bit_count: int) -> int:
     reset_tap(client)
     shift_ir(client, user_ir, ir_len)
     return shift_dr_read(client, bit_count)
 
 
-def field(payload, offset, width):
+def field(payload: int, offset: int, width: int) -> int:
     return (payload >> offset) & ((1 << width) - 1)
 
 
-def decode_payload(payload, bit_count):
+def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     debug1 = field(payload, 28, 32)
-    debug8 = field(payload, 448, 64)
+    bist_counts = field(payload, 448, 64)
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -298,12 +212,11 @@ def decode_payload(payload, bit_count):
         "state_calibrate": debug1 & 0x1F,
         "magic": field(payload, 60, 32),
         "version": field(payload, 92, 8),
-        "debug8": debug8,
-        "correct_read_data": field(debug8, 0, 32),
-        "wrong_read_data": field(debug8, 32, 32),
-        "bist_mode": BIST_MODE,
+        "bist_counts": bist_counts,
+        "correct_read_data": field(bist_counts, 0, 32),
+        "wrong_read_data": field(bist_counts, 32, 32),
     }
-    reasons = []
+    reasons: list[str] = []
     if decoded["magic"] != MAGIC:
         reasons.append("bad_magic")
     if decoded["version"] != VERSION:
@@ -326,42 +239,31 @@ def decode_payload(payload, bit_count):
     }
 
 
-def sha256_file(path):
+def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
-    with open(path, "rb") as f:
-        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
 
 
-def program_bitstream(bitstream):
-    command = [str(PROGRAMMER), "-c", "digilent_hs3", "--bitstream", str(bitstream)]
+def program_bitstream(programmer: Path, bitstream: Path) -> dict[str, object]:
+    command = [str(programmer), "-c", "digilent_hs3", "--bitstream", str(bitstream)]
     completed = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    return {
-        "command": command,
-        "returncode": completed.returncode,
-        "output": completed.stdout,
-    }
+    return {"command": command, "returncode": completed.returncode, "output": completed.stdout}
 
 
-def make_client(args):
-    if args.backend == "mpsse":
-        return FtdiMpsseJtag(args.serial, args.vid, args.pid, args.freq_hz, args.tdo_bit)
-    return FtdiBitbangJtag(args.serial, args.vid, args.pid, args.bit_delay_us / 1_000_000.0)
-
-
-def parse_args():
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bitstream", required=True, type=Path)
+    parser.add_argument("--programmer", type=Path, default=DEFAULT_PROGRAMMER)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--no-program", action="store_true")
     parser.add_argument("--serial", default="210299BF3824")
     parser.add_argument("--vid", type=lambda value: int(value, 0), default=FTDI_VENDOR)
     parser.add_argument("--pid", type=lambda value: int(value, 0), default=FTDI_FT232H_PRODUCT)
-    parser.add_argument("--backend", choices=("mpsse", "bitbang"), default="mpsse")
     parser.add_argument("--freq-hz", type=int, default=1_000_000)
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
-    parser.add_argument("--bit-delay-us", type=float, default=0.0)
     parser.add_argument("--bits", type=int, default=DEFAULT_BITS)
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x02)
@@ -370,47 +272,37 @@ def parse_args():
     return parser.parse_args()
 
 
-def main():
+def write_result(path: Path | None, result: dict[str, object]) -> None:
+    if path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def main() -> int:
     args = parse_args()
-    started_at = datetime.now(timezone.utc).isoformat()
     bitstream = args.bitstream.resolve()
-    result = {
-        "started_at": started_at,
+    result: dict[str, object] = {
+        "started_at": datetime.now(timezone.utc).isoformat(),
         "bitstream": str(bitstream),
         "bitstream_sha256": sha256_file(bitstream),
-        "programmer": {
-            "path": str(PROGRAMMER),
-            "checkout_commit": PROGRAMMER_COMMIT,
-            "cable": "digilent_hs3",
-        },
-        "jtag": {
-            "backend": f"ftdi-{args.backend}",
-            "serial": args.serial,
-            "bits": args.bits,
-            "ir_len": args.ir_len,
-            "user_ir": args.user_ir,
-        },
+        "programmer": {"path": str(args.programmer), "cable": "digilent_hs3"},
+        "jtag": {"backend": "ftdi-mpsse", "serial": args.serial, "bits": args.bits, "ir_len": args.ir_len, "user_ir": args.user_ir},
     }
-
     if args.no_program:
         result["programming"] = {"skipped": True}
     else:
-        result["programming"] = program_bitstream(bitstream)
+        result["programming"] = program_bitstream(args.programmer, bitstream)
         if result["programming"]["returncode"] != 0:
-            result["pass"] = False
-            result["fail_reasons"] = ["programming_failed"]
+            result.update({"pass": False, "fail_reasons": ["programming_failed"]})
+            write_result(args.output, result)
             print(json.dumps(result, indent=2, sort_keys=True))
-            if args.output:
-                args.output.parent.mkdir(parents=True, exist_ok=True)
-                args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
             return 1
 
-    client = make_client(args)
+    client = FtdiMpsseJtag(args.serial, args.vid, args.pid, args.freq_hz, args.tdo_bit)
     try:
         decoded = None
         for attempt in range(1, args.poll_count + 1):
-            payload = read_payload(client, args.ir_len, args.user_ir, args.bits)
-            decoded = decode_payload(payload, args.bits)
+            decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits), args.bits)
             if decoded["pass"] or "wrong_read_data_nonzero" in decoded["fail_reasons"]:
                 break
             if attempt < args.poll_count:
@@ -418,14 +310,12 @@ def main():
     finally:
         client.close()
 
-    result.update(decoded)
+    result.update(decoded or {})
     result["attempts"] = attempt
     result["finished_at"] = datetime.now(timezone.utc).isoformat()
+    write_result(args.output, result)
     print(json.dumps(result, indent=2, sort_keys=True))
-    if args.output:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-        args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
-    return 0 if result["pass"] else 2
+    return 0 if result.get("pass") else 2
 
 
 if __name__ == "__main__":
