@@ -418,15 +418,11 @@ module ypcb_sdf_bist_tb;
             gate_state_calibrate >= 5'd1 &&
             gate_state_calibrate <= 5'd4 &&
             (ddr3_dqs_p[0] === 1'bz || ddr3_dqs_p[0] === 1'bx)) begin
-            force ddr3_dqs_p[0] = sim_dqs_inject;
-            force ddr3_dqs_n[0] = !sim_dqs_inject;
-            force ddr3_dqs_p[1] = sim_dqs_inject;
-            force ddr3_dqs_n[1] = !sim_dqs_inject;
+            force ddr3_dqs_p = {6'bzzzzzz, sim_dqs_inject, sim_dqs_inject};
+            force ddr3_dqs_n = {6'bzzzzzz, !sim_dqs_inject, !sim_dqs_inject};
         end else begin
-            release ddr3_dqs_p[0];
-            release ddr3_dqs_n[0];
-            release ddr3_dqs_p[1];
-            release ddr3_dqs_n[1];
+            release ddr3_dqs_p;
+            release ddr3_dqs_n;
         end
     end
 
