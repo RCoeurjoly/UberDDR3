@@ -267,7 +267,6 @@ README
               ${pkgs.yosys}/share/yosys/xilinx/cells_sim.v \
               ${src}/testbench/ypcb_icarus/xilinx_gate_stubs.v \
               ${src}/testbench/ddr3.sv \
-              ${src}/testbench/ddr3_module.sv \
               ${ypcb.project}_gate.v \
               ypcb_sdf_bist_tb.v \
               > $out/iverilog.log 2>&1 || compile_rc=$?
@@ -276,7 +275,7 @@ README
             cp ${ypcb.project}.sdf $out/ 2>/dev/null || true
             cp ${ypcb.project}_gate.v $out/
             if [ "$compile_rc" -eq 0 ]; then
-              timeout 120s vvp -n ypcb_sdf_bist.vvp ${if annotateSdf then "+sdf" else ""} > $out/vvp.log 2>&1 || run_rc=$?
+              timeout 120s vvp -n ypcb_sdf_bist.vvp +fast_init +drive_dqs ${if annotateSdf then "+sdf" else ""} > $out/vvp.log 2>&1 || run_rc=$?
             else
               echo "iverilog compile failed; vvp not run" > $out/vvp.log
               run_rc=125
@@ -466,6 +465,9 @@ README
           ypcb-ddr3-gate-netlist-seed-1 = seedCandidates."1".gateNetlist;
           ypcb-ddr3-icarus-gate-bist-seed-1 = seedCandidates."1".icarusGateBist;
           ypcb-ddr3-icarus-sdf-bist-seed-1 = seedCandidates."1".icarusSdfBist;
+          ypcb-ddr3-gate-netlist-seed-2 = seedCandidates."2".gateNetlist;
+          ypcb-ddr3-icarus-gate-bist-seed-2 = seedCandidates."2".icarusGateBist;
+          ypcb-ddr3-icarus-sdf-bist-seed-2 = seedCandidates."2".icarusSdfBist;
           ypcb-ddr3-gate-netlist-seed-3 = seedCandidates."3".gateNetlist;
           ypcb-ddr3-icarus-gate-bist-seed-3 = seedCandidates."3".icarusGateBist;
           ypcb-ddr3-icarus-sdf-bist-seed-3 = seedCandidates."3".icarusSdfBist;
