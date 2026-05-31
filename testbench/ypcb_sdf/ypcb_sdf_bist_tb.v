@@ -393,6 +393,60 @@ module ypcb_sdf_bist_tb;
         end
     endtask
 
+    reg [1:0] last_trace_dqs_p = 2'bxx;
+    reg [1:0] last_trace_dqs_n = 2'bxx;
+    reg [1:0] last_trace_phy_idelay_dqs = 2'bxx;
+    reg [15:0] last_trace_iserdes_dqs = 16'hxxxx;
+    reg [39:0] last_trace_dqs_store = 40'hxxxxxxxxxx;
+    integer trace_dqs_edge_count = 0;
+    integer trace_capture_count = 0;
+
+    always @(ddr3_dqs_p[1:0] or ddr3_dqs_n[1:0]) begin
+        if (rst_n && trace_dqs_edge_count < 256 &&
+            (ddr3_dqs_p[1:0] !== last_trace_dqs_p ||
+             ddr3_dqs_n[1:0] !== last_trace_dqs_n)) begin
+            $display("TRACE_DQS_EDGE t=%0t state=%0d instr_addr=%0d model_read_cmd=%b model_slot=%0d ext_dqs_p=%b ext_dqs_n=%b model_driving=%b fallback_active=%b fallback_latency=%0d fallback_burst=%0d",
+                $time,
+                gate_state_calibrate,
+                gate_instruction_address,
+                model_cmd_is_read,
+                model_cmd_slot,
+                ddr3_dqs_p[1:0],
+                ddr3_dqs_n[1:0],
+                sim_dqs_model_driving,
+                sim_mpr_dqs_fallback_active,
+                sim_mpr_dqs_latency,
+                sim_mpr_dqs_burst);
+            trace_dqs_edge_count = trace_dqs_edge_count + 1;
+            last_trace_dqs_p = ddr3_dqs_p[1:0];
+            last_trace_dqs_n = ddr3_dqs_n[1:0];
+        end
+    end
+
+    always @(gate_phy_idelay_dqs or gate_iserdes_dqs or gate_dqs_store) begin
+        if (rst_n && trace_capture_count < 512 &&
+            (gate_phy_idelay_dqs !== last_trace_phy_idelay_dqs ||
+             gate_iserdes_dqs !== last_trace_iserdes_dqs ||
+             gate_dqs_store !== last_trace_dqs_store)) begin
+            $display("TRACE_DQS_CAPTURE t=%0t state=%0d instr_addr=%0d lane=%0d idelay_ld=%b idelay_cnt=%0d phy_idelay_dqs=%b iserdes_dqs=%h dqs_store=%h start=%0d target=%0d",
+                $time,
+                gate_state_calibrate,
+                gate_instruction_address,
+                gate_lane,
+                gate_idelay_dqs_ld,
+                gate_idelay_dqs_cntvaluein,
+                gate_phy_idelay_dqs,
+                gate_iserdes_dqs,
+                gate_dqs_store,
+                gate_dqs_start_index,
+                gate_dqs_target_index);
+            trace_capture_count = trace_capture_count + 1;
+            last_trace_phy_idelay_dqs = gate_phy_idelay_dqs;
+            last_trace_iserdes_dqs = gate_iserdes_dqs;
+            last_trace_dqs_store = gate_dqs_store;
+        end
+    end
+
     reg [2:0] last_led = 3'bxxx;
     reg last_calib_complete = 1'bx;
     reg last_bist_done = 1'bx;
