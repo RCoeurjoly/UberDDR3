@@ -101,7 +101,8 @@ module ddr3_controller #(
                 cmd_len = 4 + 3 + BA_BITS + ROW_BITS + 2*DUAL_RANK_DIMM,
                 lanes_clog2 = $clog2(LANES) == 0? 1: $clog2(LANES),
     parameter[1:0] row_bank_col = (ECC_ENABLE == 3)? 2 : 1, // memory address mapping: 0 {bank, row, col} , 1 = {row, bank, col} , 2 = {bank[2:1]. row, bank[0], col} FOR ECC
-    parameter[0:0] ECC_TEST = 0
+    parameter[0:0] ECC_TEST = 0,
+    parameter integer FORMAL_CALIB_TIMEOUT_CYCLES = 8192
     ) 
     (
         input wire				i_controller_clk, //i_controller_clk has period of CONTROLLER_CLK_PERIOD 
@@ -611,6 +612,42 @@ module ddr3_controller #(
     reg initial_calibration_done = 0;
     reg final_calibration_done = 0;
     assign o_calib_complete = final_calibration_done;
+
+    `ifdef FORMAL_CALIB_TIMEOUT
+        localparam F_CALIB_TIMEOUT_COUNTER_WIDTH = (FORMAL_CALIB_TIMEOUT_CYCLES < 2) ? 1 : $clog2(FORMAL_CALIB_TIMEOUT_CYCLES + 1);
+        reg [F_CALIB_TIMEOUT_COUNTER_WIDTH-1:0] f_calib_timeout_counter = 0;
+        reg f_calib_timeout_expired = 0;
+        reg f_calib_past_valid = 0;
+
+        always @(posedge i_controller_clk) begin
+            f_calib_past_valid <= 1'b1;
+
+            if (!f_calib_past_valid) begin
+                assume(!i_rst_n);
+            end else begin
+                assume(i_rst_n);
+            end
+
+            if (!i_rst_n) begin
+                f_calib_timeout_counter <= 0;
+                f_calib_timeout_expired <= 0;
+            end else if (!f_calib_timeout_expired) begin
+                if (f_calib_timeout_counter >= FORMAL_CALIB_TIMEOUT_CYCLES) begin
+                    f_calib_timeout_expired <= 1;
+                end else begin
+                    f_calib_timeout_counter <= f_calib_timeout_counter + 1'b1;
+                end
+            end
+
+            if (i_rst_n && f_calib_timeout_expired) begin
+                assert(o_calib_complete);
+                assert(state_calibrate == DONE_CALIBRATE);
+            end
+
+            cover(i_rst_n && o_calib_complete && state_calibrate == DONE_CALIBRATE);
+        end
+    `endif
+
     // Wishbone 2
     reg wb2_stb = 0;
     reg wb2_update = 0;

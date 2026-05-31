@@ -1,0 +1,36 @@
+[options]
+mode bmc
+depth 8192
+
+[engines]
+smtbmc
+
+[script]
+read -formal -D FORMAL_CALIB_TIMEOUT ddr3_controller.v
+read -formal fwb_slave.v
+read -formal ecc_dec.sv
+read -formal ecc_enc.sv
+
+chparam -set CONTROLLER_CLK_PERIOD 12000 ddr3_controller
+chparam -set DDR3_CLK_PERIOD 3000 ddr3_controller
+chparam -set ROW_BITS 15 ddr3_controller
+chparam -set COL_BITS 10 ddr3_controller
+chparam -set BA_BITS 3 ddr3_controller
+chparam -set DQ_BITS 8 ddr3_controller
+chparam -set LANES 2 ddr3_controller
+chparam -set AUX_WIDTH 4 ddr3_controller
+chparam -set WB2_ADDR_BITS 32 ddr3_controller
+chparam -set WB2_DATA_BITS 32 ddr3_controller
+chparam -set MICRON_SIM 1 ddr3_controller
+chparam -set ODELAY_SUPPORTED 0 ddr3_controller
+chparam -set SECOND_WISHBONE 0 ddr3_controller
+chparam -set BIST_MODE 2 ddr3_controller
+chparam -set FORMAL_CALIB_TIMEOUT_CYCLES 8192 ddr3_controller
+
+prep -top ddr3_controller
+
+[files]
+./rtl/ddr3_controller.v
+./formal/fwb_slave.v
+./rtl/ecc/ecc_dec.sv
+./rtl/ecc/ecc_enc.sv
