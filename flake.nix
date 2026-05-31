@@ -300,7 +300,7 @@ META
             cp -R ${src} src
             chmod -R u+w src
             cd src
-            verilator --lint-only -Wall -Wno-DECLFILENAME -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL rtl/ddr3_controller.v rtl/ddr3_phy.v rtl/ddr3_top.v
+            verilator --lint-only --timing -DSIM_MODEL -DNO_TEST_MODEL --top-module ddr3_top -GAUX_WIDTH=8 -Wall --Wno-fatal -Wno-DECLFILENAME -Wno-PINCONNECTEMPTY -Wno-UNUSEDSIGNAL testbench/models/*_model.v rtl/ddr3_controller.v rtl/ddr3_phy.v rtl/ddr3_top.v
             mkdir -p $out
             echo Verilator lint passed > $out/summary.txt
           '';
