@@ -129,6 +129,20 @@ module ISERDESE2 #(
 );
     assign SHIFTOUT1 = 1'b0;
     assign SHIFTOUT2 = 1'b0;
+
+    reg [7:0] sample_shift = 8'h00;
+    reg [2:0] bitslip_count = 3'd0;
+    wire sample_in = (IOBDELAY == "IFD" || IOBDELAY == "BOTH") ? DDLY : D;
+    wire [7:0] slipped_sample = (sample_shift << bitslip_count) | (sample_shift >> (4'd8 - bitslip_count));
+
+    always @(posedge CLK or negedge CLK or posedge RST) begin
+        if (RST) begin
+            sample_shift <= 8'h00;
+        end else if (CE1 || CE2) begin
+            sample_shift <= {sample_shift[6:0], sample_in};
+        end
+    end
+
     always @(posedge CLKDIV or posedge RST) begin
         if (RST) begin
             O <= 1'b0;
@@ -140,19 +154,24 @@ module ISERDESE2 #(
             Q6 <= 1'b0;
             Q7 <= 1'b0;
             Q8 <= 1'b0;
+            bitslip_count <= 3'd0;
         end else begin
-            O <= D;
-            Q1 <= DDLY;
-            Q2 <= DDLY;
-            Q3 <= DDLY;
-            Q4 <= DDLY;
-            Q5 <= DDLY;
-            Q6 <= DDLY;
-            Q7 <= DDLY;
-            Q8 <= DDLY;
+            if (BITSLIP) begin
+                bitslip_count <= bitslip_count + 3'd1;
+            end
+            O <= sample_in;
+            Q1 <= slipped_sample[0];
+            Q2 <= slipped_sample[1];
+            Q3 <= slipped_sample[2];
+            Q4 <= slipped_sample[3];
+            Q5 <= slipped_sample[4];
+            Q6 <= slipped_sample[5];
+            Q7 <= slipped_sample[6];
+            Q8 <= slipped_sample[7];
         end
     end
-    wire unused = BITSLIP ^ CE1 ^ CE2 ^ CLK ^ CLKB ^ OFB ^ SHIFTIN1 ^ SHIFTIN2;
+
+    wire unused = CLKB ^ OFB ^ SHIFTIN1 ^ SHIFTIN2;
 endmodule
 
 module OSERDESE2 #(
