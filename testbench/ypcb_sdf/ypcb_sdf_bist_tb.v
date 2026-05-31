@@ -137,12 +137,17 @@ module ypcb_sdf_bist_tb;
     wire gate_o_phy_reset = dut.\ddr3_top_inst.ddr3_controller_inst.o_phy_reset ;
     wire gate_i_phy_idelayctrl_rdy = dut.\ddr3_top_inst.ddr3_controller_inst.i_phy_idelayctrl_rdy ;
     wire [27:0] gate_instruction = dut.\ddr3_top_inst.ddr3_controller_inst.instruction ;
-    wire [9:0] gate_analyze_dqs_window = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_window ;
-    wire gate_analyze_dqs_match = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_match ;
-    wire gate_analyze_dqs_at_end = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_at_end ;
-    wire gate_analyze_dqs_repeat_same = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_repeat_same ;
-    wire gate_analyze_dqs_repeat_done = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_repeat_done ;
-    wire [2:0] gate_analyze_dqs_action = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_action ;
+    wire [9:0] gate_analyze_dqs_window = gate_dqs_store[gate_dqs_start_index +: 10];
+    wire gate_analyze_dqs_match = gate_analyze_dqs_window == 10'b01_01_01_01_00;
+    wire gate_analyze_dqs_at_end = gate_dqs_start_index == 6'd39;
+    wire gate_analyze_dqs_repeat_same = gate_dqs_start_index == gate_dqs_start_index_stored;
+    wire gate_analyze_dqs_repeat_done = gate_dqs_start_index_repeat == 7'd5;
+    wire [2:0] gate_analyze_dqs_action =
+        (gate_state_calibrate != 5'd4) ? 3'd0 :
+        (!gate_analyze_dqs_match && !gate_analyze_dqs_at_end) ? 3'd1 :
+        (!gate_analyze_dqs_match && gate_analyze_dqs_at_end) ? 3'd2 :
+        (gate_analyze_dqs_match && !gate_analyze_dqs_repeat_done) ? 3'd3 :
+        3'd4;
     reg sim_dqs_inject = 1'b0;
     reg [7:0] sim_mpr_dqs_latency = 8'd0;
     reg [7:0] sim_mpr_dqs_burst = 8'd0;
