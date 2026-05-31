@@ -161,6 +161,7 @@ module ddr3_controller #(
         output wire [31:0] o_debug1,
         output wire [63:0] o_debug8,
         output wire [63:0] o_bist_counts,
+        output wire [347:0] o_calib_debug,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -3894,6 +3895,46 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // Logic connected to debug port
 //    wire debug_trigger;
    assign o_debug1 = {27'd0, state_calibrate[4:0]};
+   assign o_calib_debug = {
+        37'd0,
+        reset_from_calibrate,
+        initial_calibration_done,
+        final_calibration_done,
+        pause_counter,
+        cmd_odt,
+        cmd_reset_n,
+        cmd_ck_en,
+        instruction,
+        i_phy_idelayctrl_rdy,
+        o_phy_reset,
+        i_rst_n,
+        read_lane_data,
+        read_lane_data_shifted,
+        i_phy_iserdes_bitslip_reference,
+        i_phy_iserdes_dqs,
+        dqs_store,
+        dqs_target_index_orig,
+        dqs_target_index_value,
+        dqs_target_index,
+        dqs_start_index_stored,
+        dqs_start_index,
+        dqs_start_index_repeat,
+        dqs_count_repeat,
+        5'd0,
+        o_phy_idelay_data_cntvaluein,
+        5'd0,
+        o_phy_idelay_dqs_cntvaluein,
+        delay_before_read_data,
+        train_delay,
+        lane_write_dq_late,
+        lane_read_dq_early,
+        o_phy_bitslip,
+        lane,
+        delay_counter_is_zero,
+        delay_counter,
+        instruction_address,
+        state_calibrate
+   };
    assign o_debug8 = {wrong_read_data, correct_read_data};
    assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;

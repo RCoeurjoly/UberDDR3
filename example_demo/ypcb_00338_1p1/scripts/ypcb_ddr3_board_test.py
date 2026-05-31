@@ -21,6 +21,7 @@ DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "openFPGALoader"))
 DEFAULT_BITS = 960
 MAGIC = 0x33445244
 VERSION = 1
+DEBUG_VERSION = 2
 CALIB_DONE_STATE = 23
 FTDI_VENDOR = 0x0403
 FTDI_FT232H_PRODUCT = 0x6014
@@ -203,6 +204,46 @@ def field(payload: int, offset: int, width: int) -> int:
 def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     debug1 = field(payload, 28, 32)
     bist_counts = field(payload, 448, 64)
+    calib_debug_offset = 100
+    calib_debug = {
+        "state_calibrate": field(payload, calib_debug_offset, 5),
+        "instruction_address": field(payload, calib_debug_offset + 5, 5),
+        "delay_counter": field(payload, calib_debug_offset + 10, 19),
+        "delay_counter_is_zero": bool(field(payload, calib_debug_offset + 29, 1)),
+        "lane": field(payload, calib_debug_offset + 30, 1),
+        "bitslip": field(payload, calib_debug_offset + 31, 2),
+        "lane_read_dq_early": field(payload, calib_debug_offset + 33, 2),
+        "lane_write_dq_late": field(payload, calib_debug_offset + 35, 2),
+        "train_delay": field(payload, calib_debug_offset + 37, 4),
+        "delay_before_read_data": field(payload, calib_debug_offset + 41, 4),
+        "idelay_dqs_cntvaluein_lane0": field(payload, calib_debug_offset + 45, 5),
+        "idelay_dqs_cntvaluein_lane1": field(payload, calib_debug_offset + 50, 5),
+        "idelay_data_cntvaluein_lane0": field(payload, calib_debug_offset + 55, 5),
+        "idelay_data_cntvaluein_lane1": field(payload, calib_debug_offset + 60, 5),
+        "dqs_count_repeat": field(payload, calib_debug_offset + 65, 3),
+        "dqs_start_index_repeat": field(payload, calib_debug_offset + 68, 7),
+        "dqs_start_index": field(payload, calib_debug_offset + 75, 6),
+        "dqs_start_index_stored": field(payload, calib_debug_offset + 81, 6),
+        "dqs_target_index": field(payload, calib_debug_offset + 87, 6),
+        "dqs_target_index_value": field(payload, calib_debug_offset + 93, 6),
+        "dqs_target_index_orig": field(payload, calib_debug_offset + 99, 6),
+        "dqs_store": field(payload, calib_debug_offset + 105, 40),
+        "iserdes_dqs": field(payload, calib_debug_offset + 145, 16),
+        "iserdes_bitslip_reference": field(payload, calib_debug_offset + 161, 16),
+        "read_lane_data_shifted": field(payload, calib_debug_offset + 177, 32),
+        "read_lane_data": field(payload, calib_debug_offset + 209, 64),
+        "init_i_rst_n": bool(field(payload, calib_debug_offset + 273, 1)),
+        "init_o_phy_reset": bool(field(payload, calib_debug_offset + 274, 1)),
+        "init_idelayctrl_rdy": bool(field(payload, calib_debug_offset + 275, 1)),
+        "init_instruction": field(payload, calib_debug_offset + 276, 28),
+        "init_cmd_ck_en": bool(field(payload, calib_debug_offset + 304, 1)),
+        "init_cmd_reset_n": bool(field(payload, calib_debug_offset + 305, 1)),
+        "init_cmd_odt": bool(field(payload, calib_debug_offset + 306, 1)),
+        "init_pause_counter": bool(field(payload, calib_debug_offset + 307, 1)),
+        "init_final_calibration_done": bool(field(payload, calib_debug_offset + 308, 1)),
+        "init_initial_calibration_done": bool(field(payload, calib_debug_offset + 309, 1)),
+        "init_reset_from_calibrate": bool(field(payload, calib_debug_offset + 310, 1)),
+    }
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -215,11 +256,12 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "bist_counts": bist_counts,
         "correct_read_data": field(bist_counts, 0, 32),
         "wrong_read_data": field(bist_counts, 32, 32),
+        "calib_debug": calib_debug,
     }
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:
         reasons.append("bad_magic")
-    if decoded["version"] != VERSION:
+    if decoded["version"] not in (VERSION, DEBUG_VERSION):
         reasons.append("bad_version")
     if not decoded["clk_locked"]:
         reasons.append("clk_unlocked")
@@ -301,8 +343,15 @@ def main() -> int:
     client = FtdiMpsseJtag(args.serial, args.vid, args.pid, args.freq_hz, args.tdo_bit)
     try:
         decoded = None
+        poll_samples: list[dict[str, object]] = []
+        poll_start = time.monotonic()
         for attempt in range(1, args.poll_count + 1):
             decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits), args.bits)
+            poll_samples.append({
+                "attempt": attempt,
+                "elapsed_s": round(time.monotonic() - poll_start, 6),
+                **decoded,
+            })
             if decoded["pass"] or "wrong_read_data_nonzero" in decoded["fail_reasons"]:
                 break
             if attempt < args.poll_count:
@@ -310,6 +359,7 @@ def main() -> int:
     finally:
         client.close()
 
+    result["poll_samples"] = poll_samples
     result.update(decoded or {})
     result["attempts"] = attempt
     result["finished_at"] = datetime.now(timezone.utc).isoformat()
