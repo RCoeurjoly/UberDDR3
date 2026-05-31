@@ -328,6 +328,7 @@ ddr3_top #(
             // Debug outputs
             .o_debug1(o_debug1),
             .o_debug8(o_debug8),
+            .o_bist_counts(o_bist_counts),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)

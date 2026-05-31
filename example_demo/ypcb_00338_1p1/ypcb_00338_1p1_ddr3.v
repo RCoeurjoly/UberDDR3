@@ -35,8 +35,11 @@ module ypcb_00338_1p1_ddr3 (
     wire calib_complete;
     wire [31:0] debug1;
     wire [63:0] debug8;
+    wire [63:0] bist_counts;
+`ifdef UBERDDR3_DEBUG_JTAG
     wire [959:0] jtag_debug_payload;
     wire jtag_debug_selected;
+`endif
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
 
@@ -125,13 +128,15 @@ module ypcb_00338_1p1_ddr3 (
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
         .o_debug8(debug8),
+        .o_bist_counts(bist_counts),
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
     );
 
+`ifdef UBERDDR3_DEBUG_JTAG
     assign jtag_debug_payload = {
         448'd0,
-        debug8,
+        bist_counts,
         348'd0,
         8'h01,
         32'h33445244,
@@ -152,6 +157,9 @@ module ypcb_00338_1p1_ddr3 (
     );
 
     wire unused_jtag_debug_selected = jtag_debug_selected;
+`else
+    wire unused_debug = ^debug8 ^ ^bist_counts;
+`endif
 endmodule
 
 `default_nettype wire

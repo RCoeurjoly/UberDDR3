@@ -157,8 +157,9 @@ module ddr3_controller #(
         // Done Calibration pin
         (* mark_debug = "true" *) output wire	o_calib_complete,
         // Debug port
-        output wire [31:0]			o_debug1,
-        output wire [63:0]			o_debug8,
+        output wire [31:0] o_debug1,
+        output wire [63:0] o_debug8,
+        output wire [63:0] o_bist_counts,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -3857,6 +3858,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 //    wire debug_trigger;
    assign o_debug1 = {27'd0, state_calibrate[4:0]};
    assign o_debug8 = {wrong_read_data, correct_read_data};
+   assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
     /*********************************************************************************************************************************************/
 
