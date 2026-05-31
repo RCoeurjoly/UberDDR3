@@ -243,6 +243,12 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "init_final_calibration_done": bool(field(payload, calib_debug_offset + 308, 1)),
         "init_initial_calibration_done": bool(field(payload, calib_debug_offset + 309, 1)),
         "init_reset_from_calibrate": bool(field(payload, calib_debug_offset + 310, 1)),
+        "analyze_dqs_window": field(payload, calib_debug_offset + 311, 10),
+        "analyze_dqs_match": bool(field(payload, calib_debug_offset + 321, 1)),
+        "analyze_dqs_at_end": bool(field(payload, calib_debug_offset + 322, 1)),
+        "analyze_dqs_repeat_same": bool(field(payload, calib_debug_offset + 323, 1)),
+        "analyze_dqs_repeat_done": bool(field(payload, calib_debug_offset + 324, 1)),
+        "analyze_dqs_action": field(payload, calib_debug_offset + 325, 3),
     }
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),

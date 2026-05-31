@@ -137,6 +137,12 @@ module ypcb_sdf_bist_tb;
     wire gate_o_phy_reset = dut.\ddr3_top_inst.ddr3_controller_inst.o_phy_reset ;
     wire gate_i_phy_idelayctrl_rdy = dut.\ddr3_top_inst.ddr3_controller_inst.i_phy_idelayctrl_rdy ;
     wire [27:0] gate_instruction = dut.\ddr3_top_inst.ddr3_controller_inst.instruction ;
+    wire [9:0] gate_analyze_dqs_window = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_window ;
+    wire gate_analyze_dqs_match = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_match ;
+    wire gate_analyze_dqs_at_end = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_at_end ;
+    wire gate_analyze_dqs_repeat_same = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_repeat_same ;
+    wire gate_analyze_dqs_repeat_done = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_repeat_done ;
+    wire [2:0] gate_analyze_dqs_action = dut.\ddr3_top_inst.ddr3_controller_inst.analyze_dqs_action ;
     reg sim_dqs_inject = 1'b0;
     reg [7:0] sim_mpr_dqs_latency = 8'd0;
     reg [7:0] sim_mpr_dqs_burst = 8'd0;
@@ -259,6 +265,15 @@ module ypcb_sdf_bist_tb;
                 gate_dqs_target_index,
                 gate_dqs_target_index_value,
                 gate_dqs_target_index_orig);
+            $display("%0s_ANALYZE_DQS_DECISION t=%0t window=%b match=%b at_end=%b repeat_same=%b repeat_done=%b action=%0d",
+                tag,
+                $time,
+                gate_analyze_dqs_window,
+                gate_analyze_dqs_match,
+                gate_analyze_dqs_at_end,
+                gate_analyze_dqs_repeat_same,
+                gate_analyze_dqs_repeat_done,
+                gate_analyze_dqs_action);
             $display("%0s_BOUNDARY t=%0t ext_dqs_p=%b ext_dqs_n=%b top_io_dqs=%b top_io_dqs_n=%b phy_io_dqs=%b phy_io_dqs_n=%b phy_idelay_dqs=%b top_iserdes_dqs=%h ctrl_iserdes_dqs=%h",
                 tag,
                 $time,

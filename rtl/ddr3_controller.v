@@ -552,6 +552,17 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
+    wire[9:0] analyze_dqs_window = dqs_store[dqs_start_index +: 10];
+    wire analyze_dqs_match = analyze_dqs_window == 10'b01_01_01_01_00;
+    wire analyze_dqs_at_end = dqs_start_index == (STORED_DQS_SIZE*8-1);
+    wire analyze_dqs_repeat_same = dqs_start_index == dqs_start_index_stored;
+    wire analyze_dqs_repeat_done = dqs_start_index_repeat == REPEAT_DQS_ANALYZE;
+    wire[2:0] analyze_dqs_action =
+        (state_calibrate != ANALYZE_DQS) ? 3'd0 :
+        (!analyze_dqs_match && !analyze_dqs_at_end) ? 3'd1 :
+        (!analyze_dqs_match && analyze_dqs_at_end) ? 3'd2 :
+        (analyze_dqs_match && !analyze_dqs_repeat_done) ? 3'd3 :
+        3'd4;
     reg[3:0] train_delay;
     reg[3:0] delay_before_read_data = 0;
     reg[$clog2(DELAY_BEFORE_WRITE_LEVEL_FEEDBACK):0] delay_before_write_level_feedback = 0;
@@ -2659,7 +2670,7 @@ module ddr3_controller #(
                         end
                       end
                         // find the bit where the DQS starts to be issued (by finding when the pattern 10'b01_01_01_01_00 starts)
-         ANALYZE_DQS: if(dqs_store[dqs_start_index +: 10] == 10'b01_01_01_01_00) begin
+         ANALYZE_DQS: if(analyze_dqs_match) begin
                          //increase dqs_start_index_repeat when index is the same as before   
                         dqs_start_index_repeat <= (dqs_start_index == dqs_start_index_stored)? dqs_start_index_repeat + 1: 0;   
                          //the same dqs_start_index_repeat appeared REPEAT_DQS_ANALYZE times in a row, thus we can trust the value we got is accurate and not affected by glitch
@@ -3896,7 +3907,13 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 //    wire debug_trigger;
    assign o_debug1 = {27'd0, state_calibrate[4:0]};
    assign o_calib_debug = {
-        37'd0,
+        20'd0,
+        analyze_dqs_action,
+        analyze_dqs_repeat_done,
+        analyze_dqs_repeat_same,
+        analyze_dqs_at_end,
+        analyze_dqs_match,
+        analyze_dqs_window,
         reset_from_calibrate,
         initial_calibration_done,
         final_calibration_done,
