@@ -162,6 +162,7 @@ module ddr3_controller #(
         output wire [63:0] o_debug8,
         output wire [63:0] o_bist_counts,
         output wire [347:0] o_calib_debug,
+        output wire [15:0] o_init_reset_debug,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -3906,6 +3907,24 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     // Logic connected to debug port
 //    wire debug_trigger;
    assign o_debug1 = {27'd0, state_calibrate[4:0]};
+   assign o_init_reset_debug = {
+        delay_counter_is_zero,
+        current_rank,
+        user_self_refresh_q,
+        final_calibration_done,
+        initial_calibration_done,
+        pause_counter,
+        reset_done,
+        reset_after_rank_1,
+        reset_from_test,
+        reset_from_calibrate,
+        reset_from_wb2,
+        sync_rst_wb2,
+        sync_rst_controller,
+        o_phy_reset,
+        i_phy_idelayctrl_rdy,
+        i_rst_n
+   };
    assign o_calib_debug = {
         20'd0,
         analyze_dqs_action,

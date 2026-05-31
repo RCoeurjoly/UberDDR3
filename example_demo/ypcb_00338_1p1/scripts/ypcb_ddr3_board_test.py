@@ -204,6 +204,25 @@ def field(payload: int, offset: int, width: int) -> int:
 def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     debug1 = field(payload, 28, 32)
     bist_counts = field(payload, 448, 64)
+    init_reset_debug_offset = 512
+    init_reset_debug = {
+        "controller_i_rst_n": bool(field(payload, init_reset_debug_offset + 0, 1)),
+        "controller_i_phy_idelayctrl_rdy": bool(field(payload, init_reset_debug_offset + 1, 1)),
+        "controller_o_phy_reset": bool(field(payload, init_reset_debug_offset + 2, 1)),
+        "controller_sync_rst_controller": bool(field(payload, init_reset_debug_offset + 3, 1)),
+        "controller_sync_rst_wb2": bool(field(payload, init_reset_debug_offset + 4, 1)),
+        "controller_reset_from_wb2": bool(field(payload, init_reset_debug_offset + 5, 1)),
+        "controller_reset_from_calibrate": bool(field(payload, init_reset_debug_offset + 6, 1)),
+        "controller_reset_from_test": bool(field(payload, init_reset_debug_offset + 7, 1)),
+        "controller_reset_after_rank_1": bool(field(payload, init_reset_debug_offset + 8, 1)),
+        "controller_reset_done": bool(field(payload, init_reset_debug_offset + 9, 1)),
+        "controller_pause_counter": bool(field(payload, init_reset_debug_offset + 10, 1)),
+        "controller_initial_calibration_done": bool(field(payload, init_reset_debug_offset + 11, 1)),
+        "controller_final_calibration_done": bool(field(payload, init_reset_debug_offset + 12, 1)),
+        "controller_user_self_refresh_q": bool(field(payload, init_reset_debug_offset + 13, 1)),
+        "controller_current_rank": bool(field(payload, init_reset_debug_offset + 14, 1)),
+        "controller_delay_counter_is_zero": bool(field(payload, init_reset_debug_offset + 15, 1)),
+    }
     calib_debug_offset = 100
     calib_debug = {
         "state_calibrate": field(payload, calib_debug_offset, 5),
@@ -268,6 +287,7 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "correct_read_data": field(bist_counts, 0, 32),
         "wrong_read_data": field(bist_counts, 32, 32),
         "calib_debug": calib_debug,
+        "init_reset_debug": init_reset_debug,
     }
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:
