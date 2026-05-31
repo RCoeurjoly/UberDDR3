@@ -81,9 +81,21 @@ module IDELAYE2 #(
     input wire LDPIPEEN,
     input wire REGRST
 );
-    assign DATAOUT = (DELAY_SRC == "DATAIN") ? DATAIN : IDATAIN;
+    wire raw_data = (DELAY_SRC == "DATAIN") ? DATAIN : IDATAIN;
+    wire raw_data_known = raw_data === 1'b0 || raw_data === 1'b1;
+    reg [31:0] delay_taps = 32'h00000000;
+
+    always @(raw_data or posedge REGRST) begin
+        if (REGRST) begin
+            delay_taps <= 32'h00000000;
+        end else if (raw_data_known) begin
+            delay_taps <= {delay_taps[30:0], raw_data};
+        end
+    end
+
+    assign DATAOUT = delay_taps[CNTVALUEIN];
     assign CNTVALUEOUT = CNTVALUEIN;
-    wire unused = C ^ CE ^ CINVCTRL ^ INC ^ LD ^ LDPIPEEN ^ REGRST;
+    wire unused = C ^ CE ^ CINVCTRL ^ INC ^ LD ^ LDPIPEEN;
 endmodule
 
 module ISERDESE2 #(
