@@ -79,15 +79,43 @@ module ypcb_sdf_bist_tb;
         rst_n <= 1'b1;
     end
 
+    reg [4:0] last_state_calibrate = 5'h1f;
+    reg last_calib_complete = 1'b0;
+    reg last_bist_done = 1'b0;
+
+    task print_status;
+        input [8*16-1:0] tag;
+        begin
+            $display("%0s t=%0t led=%b calib_complete=%b bist_done=%b state_calibrate=%0d debug1=%h bist_counts=%h",
+                tag,
+                $time,
+                led,
+                dut.calib_complete,
+                dut.bist_done,
+                dut.debug1[4:0],
+                dut.debug1,
+                dut.bist_counts);
+        end
+    endtask
+
     initial begin
         repeat (5000000) @(posedge clk50);
-        $display("TIMEOUT led=%b", led);
+        print_status("TIMEOUT");
         $finish;
     end
 
     always @(posedge clk50) begin
+        if (rst_n && ((dut.debug1[4:0] != last_state_calibrate) ||
+                      (dut.calib_complete != last_calib_complete) ||
+                      (dut.bist_done != last_bist_done))) begin
+            print_status("STATUS");
+            last_state_calibrate <= dut.debug1[4:0];
+            last_calib_complete <= dut.calib_complete;
+            last_bist_done <= dut.bist_done;
+        end
+
         if (led[0]) begin
-            $display("PASS led=%b", led);
+            print_status("PASS");
             $finish;
         end
         if (led[1] && rst_n) begin

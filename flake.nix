@@ -466,6 +466,12 @@ README
           ypcb-ddr3-gate-netlist-seed-1 = seedCandidates."1".gateNetlist;
           ypcb-ddr3-icarus-gate-bist-seed-1 = seedCandidates."1".icarusGateBist;
           ypcb-ddr3-icarus-sdf-bist-seed-1 = seedCandidates."1".icarusSdfBist;
+          ypcb-ddr3-gate-netlist-seed-3 = seedCandidates."3".gateNetlist;
+          ypcb-ddr3-icarus-gate-bist-seed-3 = seedCandidates."3".icarusGateBist;
+          ypcb-ddr3-icarus-sdf-bist-seed-3 = seedCandidates."3".icarusSdfBist;
+          ypcb-ddr3-gate-netlist-seed-6 = seedCandidates."6".gateNetlist;
+          ypcb-ddr3-icarus-gate-bist-seed-6 = seedCandidates."6".icarusGateBist;
+          ypcb-ddr3-icarus-sdf-bist-seed-6 = seedCandidates."6".icarusSdfBist;
           ypcb-ddr3-nextpnr-json-debug-jtag = debugJtag.pnr;
           ypcb-ddr3-bitstream-debug-jtag = debugJtag.bitstream;
           ypcb-ddr3-nextpnr-json-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.pnr;
