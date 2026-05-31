@@ -221,6 +221,10 @@ ddr3_top #(
     wire[BYTE_LANES-1:0] idelay_data_ld, idelay_dqs_ld;
     wire write_leveling_calib;
     wire reset;
+    wire[15:0] phy_debug_idelayctrl;
+    wire[347:0] controller_calib_debug;
+
+    assign o_calib_debug = {phy_debug_idelayctrl, controller_calib_debug[331:0]};
     
     // logic for self-refresh
     reg[8:0] refresh_counter = 0;
@@ -331,7 +335,7 @@ ddr3_top #(
             .o_debug1(o_debug1),
             .o_debug8(o_debug8),
             .o_bist_counts(o_bist_counts),
-            .o_calib_debug(o_calib_debug),
+            .o_calib_debug(controller_calib_debug),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)
@@ -374,6 +378,7 @@ ddr3_top #(
                 .o_controller_iserdes_dqs(iserdes_dqs),
                 .o_controller_iserdes_bitslip_reference(iserdes_bitslip_reference),
                 .o_controller_idelayctrl_rdy(idelayctrl_rdy),
+                .o_debug_idelayctrl(phy_debug_idelayctrl),
                 // DDR3 I/O Interface
                 .o_ddr3_clk_p(o_ddr3_clk_p),
                 .o_ddr3_clk_n(o_ddr3_clk_n),
@@ -428,6 +433,7 @@ ddr3_top #(
                 .o_controller_iserdes_dqs(iserdes_dqs),
                 .o_controller_iserdes_bitslip_reference(iserdes_bitslip_reference),
                 .o_controller_idelayctrl_rdy(idelayctrl_rdy),
+                .o_debug_idelayctrl(phy_debug_idelayctrl),
                 // DDR3 I/O Interface
                 .o_ddr3_clk_p(o_ddr3_clk_p),
                 .o_ddr3_clk_n(o_ddr3_clk_n),

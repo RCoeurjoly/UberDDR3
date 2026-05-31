@@ -249,6 +249,11 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "analyze_dqs_repeat_same": bool(field(payload, calib_debug_offset + 323, 1)),
         "analyze_dqs_repeat_done": bool(field(payload, calib_debug_offset + 324, 1)),
         "analyze_dqs_action": field(payload, calib_debug_offset + 325, 3),
+        "phy_idelayctrl_aggregate_rdy": bool(field(payload, calib_debug_offset + 332, 1)),
+        "phy_idelayctrl_raw_rdy": bool(field(payload, calib_debug_offset + 333, 1)),
+        "phy_dci_locked": bool(field(payload, calib_debug_offset + 334, 1)),
+        "phy_sync_rst": bool(field(payload, calib_debug_offset + 335, 1)),
+        "phy_reset_delay_counter": field(payload, calib_debug_offset + 336, 12),
     }
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),

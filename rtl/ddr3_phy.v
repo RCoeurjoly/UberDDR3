@@ -70,6 +70,7 @@ module ddr3_phy #(
         output wire[LANES*8-1:0] o_controller_iserdes_dqs,
         output wire[LANES*8-1:0] o_controller_iserdes_bitslip_reference,
         output wire o_controller_idelayctrl_rdy,
+        output wire[15:0] o_debug_idelayctrl,
         // DDR3 I/O Interface
         output wire[DUAL_RANK_DIMM:0] o_ddr3_clk_p,o_ddr3_clk_n,
         output wire o_ddr3_reset_n,
@@ -152,6 +153,13 @@ module ddr3_phy #(
     end
                 
     assign o_controller_idelayctrl_rdy = idelayctrl_rdy && dci_locked;
+    assign o_debug_idelayctrl = {
+        delay_before_release_reset[11:0],
+        sync_rst,
+        dci_locked,
+        idelayctrl_rdy,
+        o_controller_idelayctrl_rdy
+    };
     
 `ifdef DEBUG_DQS
     assign o_ddr3_debug_read_dqs_p = io_ddr3_dqs;
