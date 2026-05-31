@@ -133,12 +133,13 @@ module ISERDESE2 #(
     reg [7:0] sample_shift = 8'h00;
     reg [2:0] bitslip_count = 3'd0;
     wire sample_in = (IOBDELAY == "IFD" || IOBDELAY == "BOTH") ? DDLY : D;
+    wire sample_in_known = sample_in === 1'b0 || sample_in === 1'b1;
     wire [7:0] slipped_sample = (sample_shift << bitslip_count) | (sample_shift >> (4'd8 - bitslip_count));
 
     always @(posedge CLK or negedge CLK or posedge RST) begin
         if (RST) begin
             sample_shift <= 8'h00;
-        end else if (CE1 || CE2) begin
+        end else if ((CE1 || CE2) && sample_in_known) begin
             sample_shift <= {sample_shift[6:0], sample_in};
         end
     end
@@ -159,7 +160,9 @@ module ISERDESE2 #(
             if (BITSLIP) begin
                 bitslip_count <= bitslip_count + 3'd1;
             end
-            O <= sample_in;
+            if (sample_in_known) begin
+                O <= sample_in;
+            end
             Q1 <= slipped_sample[0];
             Q2 <= slipped_sample[1];
             Q3 <= slipped_sample[2];
