@@ -184,6 +184,116 @@ META
             cp -R metadata $out/metadata
           '';
 
+        mkGateNetlist = { name, yosysJson }:
+          pkgs.runCommand name {
+            nativeBuildInputs = [ pkgs.yosys pkgs.coreutils ];
+          } ''
+            mkdir -p $out metadata
+            yosys -l metadata/yosys-write-verilog.log -p "read_json ${yosysJson}/${ypcb.project}.json; write_verilog -noattr $out/${ypcb.project}_gate.v"
+            sha256sum $out/${ypcb.project}_gate.v > metadata/gate-netlist.sha256
+            cp -R ${yosysJson}/metadata metadata/yosys-json
+            cp -R metadata $out/metadata
+          '';
+
+        icarusRtlSources = ''
+          ${src}/testbench/models/IDELAYCTRL_model.v \
+          ${src}/testbench/models/IDELAYE2_model.v \
+          ${src}/testbench/models/IOBUF_DCIEN_model.v \
+          ${src}/testbench/models/IOBUF_model.v \
+          ${src}/testbench/models/IOBUFDS_DCIEN_model.v \
+          ${src}/testbench/models/IOBUFDS_model.v \
+          ${src}/testbench/models/ISERDESE2_model.v \
+          ${src}/testbench/models/OBUFDS_model.v \
+          ${src}/testbench/models/ODELAYE2_model.v \
+          ${src}/testbench/models/OSERDESE2_model.v \
+          ${src}/testbench/models/OBUF_model.v \
+          ${src}/rtl/ddr3_top.v \
+          ${src}/rtl/ddr3_controller.v \
+          ${src}/rtl/ddr3_phy.v
+        '';
+
+        mkIcarusRtlBist = { name, runSimulation ? true }:
+          pkgs.runCommand name {
+            nativeBuildInputs = [ pkgs.iverilog pkgs.coreutils ];
+          } ''
+            mkdir -p $out work
+            cd work
+            iverilog -g2012 -o ypcb_rtl_bist.vvp \
+              -DNO_TEST_MODEL -DSIM_MODEL \
+              -s ypcb_rtl_bist_tb \
+              -I ${src}/testbench \
+              ${src}/testbench/ypcb_icarus/ypcb_rtl_bist_tb.sv \
+              ${src}/testbench/ddr3.sv \
+              ${icarusRtlSources} \
+              > $out/iverilog.log 2>&1 || compile_rc=$?
+            compile_rc="''${compile_rc:-0}"
+            echo "$compile_rc" > $out/iverilog.returncode
+            if [ "$compile_rc" -eq 0 ] && [ "${if runSimulation then "1" else "0"}" -eq 1 ]; then
+              timeout 120s vvp -n ypcb_rtl_bist.vvp > $out/vvp.log 2>&1 || run_rc=$?
+            elif [ "$compile_rc" -eq 0 ]; then
+              echo "Icarus elaboration passed; simulation not run by this target" > $out/vvp.log
+              run_rc=0
+            else
+              echo "iverilog compile failed; vvp not run" > $out/vvp.log
+              run_rc=125
+            fi
+            run_rc="''${run_rc:-0}"
+            echo "$run_rc" > $out/vvp.returncode
+            cp ypcb_rtl_bist.vvp $out/ 2>/dev/null || true
+            cat > $out/README.md <<README
+# YPCB RTL BIST Icarus result
+
+- stage: rtl-bist
+- micron_model: testbench/ddr3.sv
+- iverilog return code: $compile_rc
+- vvp return code: $run_rc
+- timeout return code is 124
+- compile-failed sentinel is 125
+README
+            [ "$compile_rc" -eq 0 ]
+          '';
+
+        mkIcarusGateBist = { name, gateNetlist, sdf ? null, annotateSdf ? false }:
+          pkgs.runCommand name {
+            nativeBuildInputs = [ pkgs.iverilog pkgs.coreutils pkgs.yosys ];
+          } ''
+            mkdir -p $out work
+            cp ${gateNetlist}/${ypcb.project}_gate.v work/${ypcb.project}_gate.v
+            cp ${src}/testbench/ypcb_sdf/ypcb_sdf_bist_tb.v work/ypcb_sdf_bist_tb.v
+            ${lib.optionalString (sdf != null) "cp ${sdf}/${ypcb.project}.sdf work/${ypcb.project}.sdf"}
+            cd work
+            iverilog -g2012 ${if annotateSdf then "-gspecify -Ttyp" else ""} -o ypcb_sdf_bist.vvp \
+              -I ${src}/testbench \
+              ${pkgs.yosys}/share/yosys/xilinx/cells_sim.v \
+              ${src}/testbench/ypcb_icarus/xilinx_gate_stubs.v \
+              ${src}/testbench/ddr3.sv \
+              ${src}/testbench/ddr3_module.sv \
+              ${ypcb.project}_gate.v \
+              ypcb_sdf_bist_tb.v \
+              > $out/iverilog.log 2>&1 || compile_rc=$?
+            compile_rc="''${compile_rc:-0}"
+            echo "$compile_rc" > $out/iverilog.returncode
+            cp ${ypcb.project}.sdf $out/ 2>/dev/null || true
+            cp ${ypcb.project}_gate.v $out/
+            if [ "$compile_rc" -eq 0 ]; then
+              timeout 120s vvp -n ypcb_sdf_bist.vvp ${if annotateSdf then "+sdf" else ""} > $out/vvp.log 2>&1 || run_rc=$?
+            else
+              echo "iverilog compile failed; vvp not run" > $out/vvp.log
+              run_rc=125
+            fi
+            run_rc="''${run_rc:-0}"
+            echo "$run_rc" > $out/vvp.returncode
+            cat > $out/README.md <<README
+# Experimental Icarus gate BIST result
+
+- stage: ${if annotateSdf then "gate-bist-sdf" else "gate-bist-no-sdf"}
+- iverilog return code: $compile_rc
+- vvp return code: $run_rc
+- timeout return code is 124
+- compile-failed sentinel is 125
+README
+          '';
+
         mkFasm = { name, nextpnrJson }:
           pkgs.runCommand name { nativeBuildInputs = [ pkgs.coreutils ]; } ''
             mkdir -p $out metadata
@@ -227,12 +337,15 @@ META
             pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson; };
             fasmDrv = mkFasm { name = "ypcb-ddr3-fasm-${suffix}"; nextpnrJson = pnr; };
             frames = mkFrames { name = "ypcb-ddr3-frames-${suffix}"; inherit fasmDrv; };
-            bitstream = mkBitstream { name = "ypcb-ddr3-bitstream-"; framesDrv = frames; };
+            bitstream = mkBitstream { name = "ypcb-ddr3-bitstream-${suffix}"; framesDrv = frames; };
             sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson; };
-          in { inherit pnr fasmDrv frames bitstream sdf; };
+            gateNetlist = mkGateNetlist { name = "ypcb-ddr3-gate-netlist-${suffix}"; inherit yosysJson; };
+            icarusGateBist = mkIcarusGateBist { name = "ypcb-ddr3-icarus-gate-bist-${suffix}"; inherit gateNetlist; };
+            icarusSdfBist = mkIcarusGateBist { name = "ypcb-ddr3-icarus-sdf-bist-${suffix}"; inherit gateNetlist sdf; annotateSdf = true; };
+          in { inherit pnr fasmDrv frames bitstream sdf gateNetlist icarusGateBist icarusSdfBist; };
 
-        baseline = mkCandidate { suffix = "baseline"; };
-        debugJtag = mkCandidate { suffix = "debug-jtag"; yosysJson = ypcbDdr3DebugYosysJson; };
+        baseline = mkCandidate { suffix = "baseline"; yosysJson = ypcbDdr3DebugYosysJson; };
+        debugJtag = baseline;
         resetReleaseLutSeed2Lock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_lut_seed2_locks.json";
         seed1ResetReleaseLutSeed2Lock = mkCandidate {
           suffix = "seed-1-reset-release-lut-seed2-lock";
@@ -240,7 +353,7 @@ META
           lockFile = resetReleaseLutSeed2Lock;
         };
         seedCandidates = lib.genAttrs (map toString (lib.range 1 10)) (seed:
-          mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; });
+          mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; yosysJson = ypcbDdr3DebugYosysJson; });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
@@ -270,6 +383,11 @@ META
             cp uberddr3_sim $out/
             echo Icarus elaboration passed > $out/summary.txt
           '';
+
+          ypcb-rtl-bist-icarus-compile = mkIcarusRtlBist {
+            name = "ypcb-ddr3-rtl-bist-icarus-compile";
+            runSimulation = false;
+          };
 
           formal-ecc = pkgs.runCommand "uberddr3-formal-ecc" {
             nativeBuildInputs = [ pkgs.sby pkgs.yosys pkgs.boolector pkgs.yices pkgs.coreutils ];
@@ -307,6 +425,17 @@ META
         };
 
         packages = {
+          formal-ddr3-calib-timeout-ypcb-bmc = pkgs.runCommand "uberddr3-formal-ddr3-calib-timeout-ypcb-bmc" {
+            nativeBuildInputs = [ pkgs.sby pkgs.yosys pkgs.boolector pkgs.yices pkgs.coreutils ];
+          } ''
+            cp -R ${src} src
+            chmod -R u+w src
+            cd src
+            sby -f -d formal-ddr3-calib-timeout-ypcb-bmc formal/ddr3_calib_timeout_ypcb.sby
+            mkdir -p "$out"
+            cp -R formal-ddr3-calib-timeout-ypcb-bmc "$out/"
+          '';
+
           ypcb-ddr3-yosys-json = ypcbDdr3YosysJson;
           ypcb-ddr3-yosys-json-debug-jtag = ypcbDdr3DebugYosysJson;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
@@ -320,6 +449,23 @@ META
           ypcb-ddr3-bitstream-baseline = baseline.bitstream;
           ypcb-ddr3-sdf = baseline.sdf;
           ypcb-ddr3-sdf-baseline = baseline.sdf;
+          ypcb-ddr3-gate-netlist = baseline.gateNetlist;
+          ypcb-ddr3-gate-netlist-baseline = baseline.gateNetlist;
+          ypcb-ddr3-rtl-bist-icarus = mkIcarusRtlBist {
+            name = "ypcb-ddr3-rtl-bist-icarus";
+            runSimulation = true;
+          };
+          ypcb-ddr3-rtl-bist-icarus-compile = mkIcarusRtlBist {
+            name = "ypcb-ddr3-rtl-bist-icarus-compile";
+            runSimulation = false;
+          };
+          ypcb-ddr3-icarus-gate-bist = baseline.icarusGateBist;
+          ypcb-ddr3-icarus-gate-bist-baseline = baseline.icarusGateBist;
+          ypcb-ddr3-icarus-sdf-bist = baseline.icarusSdfBist;
+          ypcb-ddr3-icarus-sdf-bist-baseline = baseline.icarusSdfBist;
+          ypcb-ddr3-gate-netlist-seed-1 = seedCandidates."1".gateNetlist;
+          ypcb-ddr3-icarus-gate-bist-seed-1 = seedCandidates."1".icarusGateBist;
+          ypcb-ddr3-icarus-sdf-bist-seed-1 = seedCandidates."1".icarusSdfBist;
           ypcb-ddr3-nextpnr-json-debug-jtag = debugJtag.pnr;
           ypcb-ddr3-bitstream-debug-jtag = debugJtag.bitstream;
           ypcb-ddr3-nextpnr-json-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.pnr;
