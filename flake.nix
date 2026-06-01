@@ -344,6 +344,7 @@ README
           in { inherit pnr fasmDrv frames bitstream sdf gateNetlist icarusGateBist icarusSdfBist; };
 
         baseline = mkCandidate { suffix = "baseline"; yosysJson = ypcbDdr3DebugYosysJson; };
+        prodBaseline = mkCandidate { suffix = "prod-baseline"; yosysJson = ypcbDdr3YosysJson; };
         debugJtag = baseline;
         resetReleaseLutSeed2Lock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_lut_seed2_locks.json";
         seed1ResetReleaseLutSeed2Lock = mkCandidate {
@@ -351,16 +352,44 @@ README
           seed = 1;
           lockFile = resetReleaseLutSeed2Lock;
         };
-        seedCandidates = lib.genAttrs (map toString (lib.range 1 10)) (seed:
+        reliabilitySeeds = lib.range 1 60;
+        seedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; yosysJson = ypcbDdr3DebugYosysJson; });
+        prodSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate { suffix = "prod-seed-${seed}"; seed = lib.toInt seed; yosysJson = ypcbDdr3YosysJson; });
+        noTmdrivSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate { suffix = "no-tmdriv-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3DebugYosysJson; });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
+        prodSeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-prod-seed-${seed}" candidate.bitstream) prodSeedCandidates;
+        noTmdrivSeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-no-tmdriv-seed-${seed}" candidate.bitstream) noTmdrivSeedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
+        prodSeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-prod-seed-${seed}" candidate.pnr) prodSeedCandidates;
+        noTmdrivSeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-no-tmdriv-seed-${seed}" candidate.pnr) noTmdrivSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}" candidate.sdf) seedCandidates;
+        mkBoardManifest = { name, variant, candidates, seeds, repeats ? 1 }:
+          let
+            lines = lib.concatMap (seed:
+              map (repeat:
+                let
+                  seedString = toString seed;
+                  repeatString = toString repeat;
+                  bitstream = candidates.${seedString}.bitstream;
+                in "${variant}-seed-${seedString}-repeat-${repeatString},${seedString},${repeatString},${variant},${bitstream}/${ypcb.project}_openxc7.bit"
+              ) (lib.range 1 repeats)
+            ) seeds;
+            csv = lib.concatStringsSep "\n" ([
+              "experiment_id,seed,repeat,variant,bitstream_file"
+            ] ++ lines) + "\n";
+          in pkgs.writeText name csv;
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
@@ -440,16 +469,22 @@ README
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
+          ypcb-ddr3-nextpnr-json-prod = prodBaseline.pnr;
           ypcb-ddr3-fasm = baseline.fasmDrv;
           ypcb-ddr3-fasm-baseline = baseline.fasmDrv;
+          ypcb-ddr3-fasm-prod = prodBaseline.fasmDrv;
           ypcb-ddr3-frames = baseline.frames;
           ypcb-ddr3-frames-baseline = baseline.frames;
+          ypcb-ddr3-frames-prod = prodBaseline.frames;
           ypcb-ddr3-bitstream = baseline.bitstream;
           ypcb-ddr3-bitstream-baseline = baseline.bitstream;
+          ypcb-ddr3-bitstream-prod = prodBaseline.bitstream;
           ypcb-ddr3-sdf = baseline.sdf;
           ypcb-ddr3-sdf-baseline = baseline.sdf;
+          ypcb-ddr3-sdf-prod = prodBaseline.sdf;
           ypcb-ddr3-gate-netlist = baseline.gateNetlist;
           ypcb-ddr3-gate-netlist-baseline = baseline.gateNetlist;
+          ypcb-ddr3-gate-netlist-prod = prodBaseline.gateNetlist;
           ypcb-ddr3-rtl-bist-icarus = mkIcarusRtlBist {
             name = "ypcb-ddr3-rtl-bist-icarus";
             runSimulation = true;
@@ -479,7 +514,21 @@ README
           ypcb-ddr3-nextpnr-json-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.pnr;
           ypcb-ddr3-fasm-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.fasmDrv;
           ypcb-ddr3-bitstream-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.bitstream;
+          ypcb-ddr3-board-manifest-debug-stage1 = mkBoardManifest {
+            name = "ypcb-ddr3-board-manifest-debug-stage1.csv";
+            variant = "debug-calib-bist";
+            candidates = seedCandidates;
+            seeds = lib.range 1 30;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-manifest-debug-heldout = mkBoardManifest {
+            name = "ypcb-ddr3-board-manifest-debug-heldout.csv";
+            variant = "debug-calib-bist";
+            candidates = seedCandidates;
+            seeds = lib.range 31 60;
+            repeats = 1;
+          };
           default = baseline.bitstream;
-        } // seedBitstreams // seedPnrs // seedFasms // seedSdfs;
+        } // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // seedFasms // seedSdfs;
       });
 }
