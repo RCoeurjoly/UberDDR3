@@ -3758,11 +3758,11 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             bist_fail_actual <= o_wb_data[127:0];
                             bist_fail_expected <= correct_data[127:0];
                         end
-                        `if defined(UART_DEBUG) || defined(UBERDDR3_PANOPTICON)
-                            `ifdef UART_DEBUG
+                        `ifdef UART_DEBUG
                             state_calibrate_last <= state_calibrate;
-                            `endif
                             reset_from_test <= 1'b0; // preserve failure state when interactive/debug instrumentation is enabled
+                        `elsif UBERDDR3_PANOPTICON
+                            reset_from_test <= 1'b0; // preserve failure state when panopticon instrumentation is enabled
                         `else
                             reset_from_test <= !final_calibration_done; // reset controller when a wrong data is received before calibration completes
                         `endif
