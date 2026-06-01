@@ -158,7 +158,11 @@ module ypcb_00338_1p1_ddr3 (
         init_reset_debug_payload,
         bist_counts,
         calib_debug_payload,
+`ifdef UBERDDR3_PANOPTICON
+        8'h03,
+`else
         8'h02,
+`endif
         32'h33445244,
         debug1,
         24'd0,

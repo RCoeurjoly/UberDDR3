@@ -42,6 +42,12 @@ STATUS_FIELDS = [
     "calib_bus_init_o_phy_reset",
     "correct_read_data",
     "wrong_read_data",
+    "bist_fail_valid",
+    "bist_fail_state",
+    "bist_fail_address",
+    "bist_fail_byte_mismatch_mask",
+    "bist_fail_expected_data",
+    "bist_fail_actual_data",
 ]
 
 
@@ -157,6 +163,12 @@ def classify_result(result_path: Path) -> dict[str, object]:
         "calib_bus_init_o_phy_reset": calib_debug.get("calib_bus_init_o_phy_reset", ""),
         "correct_read_data": fields.get("correct_read_data", ""),
         "wrong_read_data": fields.get("wrong_read_data", ""),
+        "bist_fail_valid": bist_debug.get("valid", ""),
+        "bist_fail_state": bist_debug.get("state_calibrate", ""),
+        "bist_fail_address": bist_debug.get("address", ""),
+        "bist_fail_byte_mismatch_mask": bist_debug.get("byte_mismatch_mask", ""),
+        "bist_fail_expected_data": bist_debug.get("expected_data", ""),
+        "bist_fail_actual_data": bist_debug.get("actual_data", ""),
         "bitstream_sha256": result.get("bitstream_sha256", ""),
     }
 

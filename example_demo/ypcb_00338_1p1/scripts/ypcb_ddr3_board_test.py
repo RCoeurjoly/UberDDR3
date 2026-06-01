@@ -334,7 +334,7 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:
         reasons.append("bad_magic")
-    if decoded["version"] not in (VERSION, DEBUG_VERSION):
+    if decoded["version"] not in (VERSION, DEBUG_VERSION, 3):
         reasons.append("bad_version")
     if not decoded["clk_locked"]:
         reasons.append("clk_unlocked")

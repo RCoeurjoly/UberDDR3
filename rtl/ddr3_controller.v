@@ -3758,11 +3758,13 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             bist_fail_actual <= o_wb_data[127:0];
                             bist_fail_expected <= correct_data[127:0];
                         end
-                        `ifdef UART_DEBUG
+                        `if defined(UART_DEBUG) || defined(UBERDDR3_PANOPTICON)
+                            `ifdef UART_DEBUG
                             state_calibrate_last <= state_calibrate;
-                            reset_from_test <= 1'b0; // dont reset when uart debugging
+                            `endif
+                            reset_from_test <= 1'b0; // preserve failure state when interactive/debug instrumentation is enabled
                         `else
-                            reset_from_test <= !final_calibration_done; //reset controller when a wrong data is received (only when calibration is not yet done) AND UART_DEBUG is not defined
+                            reset_from_test <= !final_calibration_done; // reset controller when a wrong data is received before calibration completes
                         `endif
                     end
                     /* verilator lint_off WIDTHEXPAND */
