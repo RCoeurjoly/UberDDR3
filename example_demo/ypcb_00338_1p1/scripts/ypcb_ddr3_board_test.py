@@ -223,6 +223,19 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "controller_current_rank": bool(field(payload, init_reset_debug_offset + 14, 1)),
         "controller_delay_counter_is_zero": bool(field(payload, init_reset_debug_offset + 15, 1)),
     }
+    init_seq_debug_offset = 528
+    init_seq_debug = {
+        "delay_counter_is_zero": bool(field(payload, init_seq_debug_offset + 0, 1)),
+        "delay_counter_is_zero_d": bool(field(payload, init_seq_debug_offset + 1, 1)),
+        "reset_done": bool(field(payload, init_seq_debug_offset + 2, 1)),
+        "reset_done_d": bool(field(payload, init_seq_debug_offset + 3, 1)),
+        "instruction_address": field(payload, init_seq_debug_offset + 4, 5),
+        "instruction_address_d": field(payload, init_seq_debug_offset + 9, 5),
+        "delay_counter": field(payload, init_seq_debug_offset + 14, 19),
+        "delay_counter_d": field(payload, init_seq_debug_offset + 33, 19),
+        "instruction": field(payload, init_seq_debug_offset + 52, 28),
+        "instruction_d": field(payload, init_seq_debug_offset + 80, 28),
+    }
     calib_debug_offset = 100
     calib_debug = {
         "state_calibrate": field(payload, calib_debug_offset, 5),
@@ -295,6 +308,7 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "wrong_read_data": field(bist_counts, 32, 32),
         "calib_debug": calib_debug,
         "init_reset_debug": init_reset_debug,
+        "init_seq_debug": init_seq_debug,
     }
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:

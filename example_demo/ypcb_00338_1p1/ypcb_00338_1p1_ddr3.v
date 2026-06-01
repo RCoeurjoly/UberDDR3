@@ -41,6 +41,7 @@ module ypcb_00338_1p1_ddr3 (
     wire jtag_debug_selected;
     wire [347:0] calib_debug_payload;
     wire [15:0] init_reset_debug_payload;
+    wire [127:0] init_seq_debug_payload;
 `endif
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
@@ -134,9 +135,11 @@ module ypcb_00338_1p1_ddr3 (
 `ifdef UBERDDR3_DEBUG_JTAG
         .o_calib_debug(calib_debug_payload),
         .o_init_reset_debug(init_reset_debug_payload),
+        .o_init_seq_debug(init_seq_debug_payload),
 `else
         .o_calib_debug(),
         .o_init_reset_debug(),
+        .o_init_seq_debug(),
 `endif
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
@@ -144,7 +147,8 @@ module ypcb_00338_1p1_ddr3 (
 
 `ifdef UBERDDR3_DEBUG_JTAG
     assign jtag_debug_payload = {
-        432'd0,
+        304'd0,
+        init_seq_debug_payload,
         init_reset_debug_payload,
         bist_counts,
         calib_debug_payload,

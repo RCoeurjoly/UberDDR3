@@ -163,6 +163,7 @@ module ddr3_controller #(
         output wire [63:0] o_bist_counts,
         output wire [347:0] o_calib_debug,
         output wire [15:0] o_init_reset_debug,
+        output wire [127:0] o_init_seq_debug,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -3924,6 +3925,19 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         o_phy_reset,
         i_phy_idelayctrl_rdy,
         i_rst_n
+   };
+   assign o_init_seq_debug = {
+        20'd0,
+        instruction_d,
+        instruction,
+        delay_counter_d,
+        delay_counter,
+        instruction_address_d,
+        instruction_address,
+        reset_done_d,
+        reset_done,
+        delay_counter_is_zero_d,
+        delay_counter_is_zero
    };
    assign o_calib_debug = {
         20'd0,
