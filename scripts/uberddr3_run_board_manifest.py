@@ -8,10 +8,29 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import json
 import subprocess
 from pathlib import Path
 
-STATUS_FIELDS = ["experiment_id", "seed", "variant", "bitstream", "result_json", "log", "returncode", "status"]
+STATUS_FIELDS = [
+    "experiment_id",
+    "seed",
+    "repeat",
+    "variant",
+    "bitstream",
+    "bitstream_sha256",
+    "result_json",
+    "log",
+    "returncode",
+    "status",
+    "failure_class",
+    "fail_reasons",
+    "attempts",
+    "state_calibrate",
+    "correct_read_data",
+    "wrong_read_data",
+]
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -26,6 +45,59 @@ def write_status(path: Path, rows: list[dict[str, object]]) -> None:
         writer.writeheader()
         for row in rows:
             writer.writerow({field: row.get(field, "") for field in STATUS_FIELDS})
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def classify_result(result_path: Path) -> dict[str, object]:
+    if not result_path.exists():
+        return {"failure_class": "missing_result"}
+    try:
+        result = json.loads(result_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {"failure_class": "invalid_result_json"}
+
+    fields = result.get("fields", {})
+    fail_reasons = result.get("fail_reasons", [])
+    if result.get("pass"):
+        failure_class = "pass"
+    elif "programming_failed" in fail_reasons:
+        failure_class = "programming"
+    elif "clk_unlocked" in fail_reasons:
+        failure_class = "clock"
+    elif "bad_magic" in fail_reasons or "bad_version" in fail_reasons:
+        failure_class = "debug_payload"
+    elif "wrong_read_data_nonzero" in fail_reasons:
+        failure_class = "bist_mismatch"
+    elif "calib_incomplete" in fail_reasons or "calib_state_not_done" in fail_reasons:
+        state = fields.get("state_calibrate")
+        if state == 0:
+            failure_class = "init_or_reset"
+        elif state in (1, 2, 3, 4, 13):
+            failure_class = "dqs_or_early_calibration"
+        elif state in (17, 18, 19, 20, 21, 22):
+            failure_class = "late_calibration_or_bist_start"
+        else:
+            failure_class = "calibration"
+    elif "bist_not_done" in fail_reasons:
+        failure_class = "bist_timeout"
+    else:
+        failure_class = "unknown"
+
+    return {
+        "failure_class": failure_class,
+        "fail_reasons": ",".join(str(reason) for reason in fail_reasons),
+        "attempts": result.get("attempts", ""),
+        "state_calibrate": fields.get("state_calibrate", ""),
+        "correct_read_data": fields.get("correct_read_data", ""),
+        "wrong_read_data": fields.get("wrong_read_data", ""),
+    }
 
 
 def main() -> int:
@@ -49,9 +121,11 @@ def main() -> int:
         result_json = args.out_dir / f"{experiment_id}.json"
         log_path = args.out_dir / f"{experiment_id}.log"
         bitstream = row["bitstream_file"]
+        bitstream_sha256 = sha256_file(Path(bitstream))
 
         if args.skip_existing and result_json.exists():
-            status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "result_json": result_json, "log": log_path, "returncode": "", "status": "skipped_existing"})
+            classification = classify_result(result_json)
+            status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": "", "status": "skipped_existing", **classification})
             write_status(status_path, status_rows)
             continue
 
@@ -59,7 +133,8 @@ def main() -> int:
         completed = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         log_path.write_text(completed.stdout, encoding="utf-8")
         status = "pass" if completed.returncode == 0 else "fail"
-        status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "result_json": result_json, "log": log_path, "returncode": completed.returncode, "status": status})
+        classification = classify_result(result_json)
+        status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": completed.returncode, "status": status, **classification})
         write_status(status_path, status_rows)
         print(f"{experiment_id}: {status} rc={completed.returncode}")
         if completed.returncode != 0:
