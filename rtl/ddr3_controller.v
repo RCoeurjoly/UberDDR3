@@ -450,6 +450,7 @@ module ddr3_controller #(
     reg delay_counter_is_zero = (INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0] == 0), delay_counter_is_zero_d; //counter is now zero so retrieve next delay
     reg reset_done = 0, reset_done_d; //high if reset has already finished
     reg precharge_all_instruction, precharge_all_instruction_d;
+    reg init_advance_pending = 0;
     reg pause_counter = 0;
     wire issue_read_command;
     reg stage2_update = 1;
@@ -924,89 +925,99 @@ module ddr3_controller #(
     end
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
+    wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
+    wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
+    wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
+    wire init_advance_now = !instruction[USE_TIMER] || init_counter_reaches_one || (init_advance_pending && !pause_counter);
+    wire init_self_refresh_jump = (instruction_address == 5'd22) && user_self_refresh_q;
+    wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
+                                               (instruction_address == 5'd26) ? 5'd20 :
+                                               (instruction_address + 5'd1);
+    wire[4:0] init_advance_instruction_address = init_self_refresh_jump ? 5'd23 : init_next_instruction_address;
+    wire[27:0] init_advance_instruction = read_rom_instruction(instruction_address);
+    wire[DELAY_COUNTER_WIDTH-1:0] init_reload_delay_counter = instruction[DELAY_COUNTER_WIDTH - 1:0];
+    wire[DELAY_COUNTER_WIDTH-1:0] init_decremented_delay_counter = delay_counter - {{(DELAY_COUNTER_WIDTH-1){1'b0}}, 1'b1};
+    wire init_reset_done_next = instruction[RST_DONE] || reset_done;
+
     always @(posedge i_controller_clk) begin
         if(sync_rst_controller) begin
             `ifdef FORMAL_COVER
                 instruction_address <= 21;
+                instruction_address_d <= 21;
             `else
                 instruction_address <= 0;
+                instruction_address_d <= 0;
             `endif
             instruction <= INITIAL_RESET_INSTRUCTION;
+            instruction_d <= INITIAL_RESET_INSTRUCTION;
             delay_counter <= INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0];
+            delay_counter_d <= INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0];
             delay_counter_is_zero <= (INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0] == 0);
+            delay_counter_is_zero_d <= (INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0] == 0);
             reset_done <= 1'b0;
+            reset_done_d <= 1'b0;
+            init_advance_pending <= 1'b0;
             precharge_all_instruction <= 1'b0;
+            precharge_all_instruction_d <= 1'b0;
         end
-        else begin 
-            instruction_address <= instruction_address_d;
-            instruction <= instruction_d;
-            delay_counter <= delay_counter_d;
-            delay_counter_is_zero <= delay_counter_is_zero_d;
-            reset_done <= reset_done_d;
-            precharge_all_instruction <= precharge_all_instruction_d;
-        end
-    end
+        else begin
+            reset_done <= init_reset_done_next;
+            reset_done_d <= init_reset_done_next;
 
-    always @* begin
-        instruction_address_d = instruction_address;
-        instruction_d = instruction;
-        delay_counter_d = delay_counter;
-        delay_counter_is_zero_d = delay_counter_is_zero;
-        reset_done_d = reset_done;
-
-        //update counter after reaching zero
-        if(delay_counter_is_zero) begin 
-            //retrieve delay value of current instruction, we count to zero thus minus 1
-            delay_counter_d = instruction[DELAY_COUNTER_WIDTH - 1:0]; 
-        end
-        //else: decrement delay counter when current instruction needs delay
-        //don't decrement (has infinite time) when last bit of
-        //delay_counter is 1 (for r/w calibration and prestall delay)
-        //address will only move forward for these kinds of delay only
-        //when skip_reset_seq_delay is toggled
-        else if(instruction[USE_TIMER] /*&& delay_counter != {(DELAY_COUNTER_WIDTH){1'b1}}*/ && !pause_counter && delay_counter != 0) begin
-            delay_counter_d = delay_counter - 1; 
-        end
-        
-        //delay_counter of 1 means we will need to update the delay_counter next clock cycle (delay_counter of zero) so we need to retrieve 
-        //now the next instruction. The same thing needs to be done when current instruction does not need the timer delay.
-        if( ((delay_counter == 1) && !pause_counter) || !instruction[USE_TIMER]/* || skip_reset_seq_delay*/) begin
-            delay_counter_is_zero_d = 1; 
-            instruction_d = read_rom_instruction(instruction_address);
-            if(instruction_address == 5'd22) begin 
-                // if user_self_refresh is disabled, wrap back to 19 (Precharge All before Refresh)
-                instruction_address_d = 5'd19;
+            if(init_self_refresh_jump || init_advance_now) begin
+                instruction_address <= init_advance_instruction_address;
+                instruction_address_d <= init_advance_instruction_address;
+                instruction <= init_advance_instruction;
+                instruction_d <= init_advance_instruction;
+                delay_counter <= {DELAY_COUNTER_WIDTH{1'b0}};
+                delay_counter_d <= {DELAY_COUNTER_WIDTH{1'b0}};
+                delay_counter_is_zero <= 1'b1;
+                delay_counter_is_zero_d <= 1'b1;
+                init_advance_pending <= 1'b0;
+                precharge_all_instruction <= (init_advance_instruction_address == 5'd20) || (init_advance_instruction_address == 5'd24);
+                precharge_all_instruction_d <= (init_advance_instruction_address == 5'd20) || (init_advance_instruction_address == 5'd24);
             end
-            else if(instruction_address == 5'd26) begin 
-                // self-refresh exit always wraps back to 20 (Refresh)
-                instruction_address_d = 5'd20;
+            else if(delay_counter_is_zero) begin
+                instruction_address <= instruction_address;
+                instruction_address_d <= instruction_address;
+                instruction <= instruction;
+                instruction_d <= instruction;
+                delay_counter <= init_reload_delay_counter;
+                delay_counter_d <= init_reload_delay_counter;
+                delay_counter_is_zero <= 1'b0;
+                delay_counter_is_zero_d <= 1'b0;
+                init_advance_pending <= 1'b0;
+                precharge_all_instruction <= precharge_all_instruction;
+                precharge_all_instruction_d <= precharge_all_instruction;
+            end
+            else if(init_timed_counter_active) begin
+                instruction_address <= instruction_address;
+                instruction_address_d <= instruction_address;
+                instruction <= instruction;
+                instruction_d <= instruction;
+                delay_counter <= init_decremented_delay_counter;
+                delay_counter_d <= init_decremented_delay_counter;
+                delay_counter_is_zero <= 1'b0;
+                delay_counter_is_zero_d <= 1'b0;
+                init_advance_pending <= init_advance_pending || init_counter_reaches_two;
+                precharge_all_instruction <= precharge_all_instruction;
+                precharge_all_instruction_d <= precharge_all_instruction;
             end
             else begin
-                // just increment address
-                instruction_address_d = instruction_address + 5'd1; // just increment address
+                instruction_address <= instruction_address;
+                instruction_address_d <= instruction_address;
+                instruction <= instruction;
+                instruction_d <= instruction;
+                delay_counter <= delay_counter;
+                delay_counter_d <= delay_counter;
+                delay_counter_is_zero <= 1'b0;
+                delay_counter_is_zero_d <= 1'b0;
+                init_advance_pending <= init_advance_pending;
+                precharge_all_instruction <= precharge_all_instruction;
+                precharge_all_instruction_d <= precharge_all_instruction;
             end
         end
-        //we are now on the middle of a delay 
-        else begin
-            delay_counter_is_zero_d =0; 
-        end
-
-        // if user_self_refresh is enabled, go straight to 23
-        if(instruction_address == 5'd22 && user_self_refresh_q) begin 
-            // go to Precharge All for Self-refresh (23)
-            instruction_address_d = 23; 
-            delay_counter_is_zero_d = 1; 
-            delay_counter_d = 0;
-            instruction_d = read_rom_instruction(instruction_address);
-        end
-
-        //instruction[RST_DONE] is non-persistent thus we need to register it once it goes high
-        reset_done_d = instruction[RST_DONE]? 1 : reset_done; 
-
-        // instruction is at precharge all (20 or 24)
-        precharge_all_instruction_d = instruction_address_d == 20 || instruction_address_d == 24;
     end
-    
 
     // register user-enabled self-refresh
     always @(posedge i_controller_clk) begin 
