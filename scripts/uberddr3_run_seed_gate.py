@@ -27,9 +27,19 @@ STATUS_FIELDS = [
     "test_returncode",
     "status",
     "failure_class",
+    "stage_rank",
+    "stage_name",
     "fail_reasons",
     "attempts",
+    "instruction_address",
     "state_calibrate",
+    "reset_done",
+    "init_i_rst_n",
+    "init_idelayctrl_rdy",
+    "init_o_phy_reset",
+    "calib_bus_init_i_rst_n",
+    "calib_bus_init_idelayctrl_rdy",
+    "calib_bus_init_o_phy_reset",
     "correct_read_data",
     "wrong_read_data",
 ]
@@ -44,16 +54,63 @@ def write_status(path: Path, rows: list[dict[str, object]]) -> None:
             writer.writerow({field: row.get(field, "") for field in STATUS_FIELDS})
 
 
+def classify_stage(fields: dict[str, object], reasons: list[object], passed: bool) -> tuple[int, str]:
+    if passed:
+        return 7, "pass"
+    if "programming_failed" in reasons:
+        return 0, "programming"
+    if "clk_unlocked" in reasons:
+        return 1, "clock_or_reset"
+    if "bad_magic" in reasons or "bad_version" in reasons:
+        return 1, "debug_payload"
+
+    state = fields.get("state_calibrate")
+    calib_debug = fields.get("calib_debug", {})
+    if not isinstance(calib_debug, dict):
+        calib_debug = {}
+    bist_debug = fields.get("bist_debug", {})
+    if not isinstance(bist_debug, dict):
+        bist_debug = {}
+    instruction_address = calib_debug.get("instruction_address", "")
+
+    if "wrong_read_data_nonzero" in reasons:
+        return 6, "bist_mismatch"
+    if state == 23:
+        return 6, "bist_or_done_boundary"
+    if isinstance(state, int):
+        if state == 0:
+            if isinstance(instruction_address, int) and instruction_address < 13:
+                return 2, "init_before_calibration"
+            if instruction_address == 13:
+                return 3, "calibration_start_handoff"
+            return 2, "init_or_reset"
+        if 1 <= state <= 6:
+            return 4, "dqs_read_leveling"
+        if 7 <= state <= 16:
+            return 5, "write_read_alignment"
+        if 17 <= state <= 22:
+            return 6, "bist_or_late_calibration"
+    if "bist_not_done" in reasons:
+        return 6, "bist_timeout"
+    return 1, "unknown"
+
+
 def classify_result(result_path: Path) -> dict[str, object]:
     if not result_path.exists():
-        return {"failure_class": "missing_result"}
+        return {"failure_class": "missing_result", "stage_rank": 0, "stage_name": "missing_result"}
     try:
         result = json.loads(result_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
-        return {"failure_class": "invalid_result_json"}
+        return {"failure_class": "invalid_result_json", "stage_rank": 0, "stage_name": "invalid_result_json"}
     fields = result.get("fields", {})
+    if not isinstance(fields, dict):
+        fields = {}
     reasons = result.get("fail_reasons", [])
-    if result.get("pass"):
+    if not isinstance(reasons, list):
+        reasons = []
+    passed = bool(result.get("pass"))
+    stage_rank, stage_name = classify_stage(fields, reasons, passed)
+    if passed:
         failure_class = "pass"
     elif "programming_failed" in reasons:
         failure_class = "programming"
@@ -63,25 +120,41 @@ def classify_result(result_path: Path) -> dict[str, object]:
         failure_class = "debug_payload"
     elif "wrong_read_data_nonzero" in reasons:
         failure_class = "bist_mismatch"
-    elif "calib_incomplete" in reasons or "calib_state_not_done" in reasons:
-        state = fields.get("state_calibrate")
-        if state == 0:
-            failure_class = "init_or_reset"
-        elif state in (1, 2, 3, 4, 13):
-            failure_class = "dqs_or_early_calibration"
-        elif state in (17, 18, 19, 20, 21, 22):
-            failure_class = "late_calibration_or_bist_start"
-        else:
-            failure_class = "calibration"
-    elif "bist_not_done" in reasons:
-        failure_class = "bist_timeout"
+    elif stage_rank == 2:
+        failure_class = "init_or_reset"
+    elif stage_rank == 3:
+        failure_class = "calibration_start_handoff"
+    elif stage_rank == 4:
+        failure_class = "dqs_or_early_calibration"
+    elif stage_rank == 5:
+        failure_class = "write_read_alignment"
+    elif stage_rank == 6:
+        failure_class = "late_calibration_or_bist"
     else:
         failure_class = "unknown"
+
+    calib_debug = fields.get("calib_debug", {})
+    if not isinstance(calib_debug, dict):
+        calib_debug = {}
+    init_reset_debug = fields.get("init_reset_debug", {})
+    if not isinstance(init_reset_debug, dict):
+        init_reset_debug = {}
+
     return {
         "failure_class": failure_class,
+        "stage_rank": stage_rank,
+        "stage_name": stage_name,
         "fail_reasons": ",".join(str(reason) for reason in reasons),
         "attempts": result.get("attempts", ""),
+        "instruction_address": calib_debug.get("instruction_address", ""),
         "state_calibrate": fields.get("state_calibrate", ""),
+        "reset_done": init_reset_debug.get("controller_reset_done", ""),
+        "init_i_rst_n": calib_debug.get("init_i_rst_n", ""),
+        "init_idelayctrl_rdy": calib_debug.get("init_idelayctrl_rdy", ""),
+        "init_o_phy_reset": calib_debug.get("init_o_phy_reset", ""),
+        "calib_bus_init_i_rst_n": calib_debug.get("calib_bus_init_i_rst_n", ""),
+        "calib_bus_init_idelayctrl_rdy": calib_debug.get("calib_bus_init_idelayctrl_rdy", ""),
+        "calib_bus_init_o_phy_reset": calib_debug.get("calib_bus_init_o_phy_reset", ""),
         "correct_read_data": fields.get("correct_read_data", ""),
         "wrong_read_data": fields.get("wrong_read_data", ""),
         "bitstream_sha256": result.get("bitstream_sha256", ""),
@@ -125,7 +198,7 @@ def main() -> int:
         build_log = args.out_dir / f"build-seed-{seed}.log"
         build_rc = run(["nix", "build", package, "-o", str(result_link)], build_log)
         if build_rc != 0:
-            row = {"experiment_id": f"{args.variant}-seed-{seed}-build", "seed": seed, "repeat": "", "variant": args.variant, "package": package, "build_log": build_log, "build_returncode": build_rc, "status": "build_fail"}
+            row = {"experiment_id": f"{args.variant}-seed-{seed}-build", "seed": seed, "repeat": "", "variant": args.variant, "package": package, "build_log": build_log, "build_returncode": build_rc, "status": "build_fail", "failure_class": "build", "stage_rank": 0, "stage_name": "build"}
             rows.append(row)
             write_status(status_path, rows)
             print(f"seed-{seed}: build_fail rc={build_rc}")
