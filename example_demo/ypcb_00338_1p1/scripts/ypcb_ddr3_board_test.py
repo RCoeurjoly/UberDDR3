@@ -247,6 +247,24 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "init_advance_pending": bool(field(payload, init_seq_debug_offset + 115, 1)),
         "init_pause_counter": bool(field(payload, init_seq_debug_offset + 116, 1)),
     }
+    init_event_trace = []
+    for index in range(7):
+        event = field(payload, init_seq_debug_offset + index * 16, 16)
+        init_event_trace.append({
+            "index": index,
+            "raw": event,
+            "instruction_rst_done_bit": bool(field(event, 0, 1)),
+            "instruction_use_timer_bit": bool(field(event, 1, 1)),
+            "init_advance_pending": bool(field(event, 2, 1)),
+            "init_advance_now": bool(field(event, 3, 1)),
+            "reset_done": bool(field(event, 4, 1)),
+            "delay_counter_is_zero": bool(field(event, 5, 1)),
+            "instruction_address_d": field(event, 6, 5),
+            "instruction_address": field(event, 11, 5),
+        })
+    init_seq_debug["event_marker"] = field(payload, init_seq_debug_offset + 116, 12)
+    init_seq_debug["event_count"] = field(payload, init_seq_debug_offset + 112, 4)
+    init_seq_debug["event_trace"] = init_event_trace
     bist_debug_offset = 656
     bist_debug = {
         "expected_data": field(payload, bist_debug_offset + 0, 128),
