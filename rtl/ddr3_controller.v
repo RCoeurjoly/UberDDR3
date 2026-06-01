@@ -4056,6 +4056,15 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         instruction_address,
         state_calibrate
    };
+   assign o_bist_debug = {
+        1'b0,
+        bist_fail_valid,
+        bist_fail_state,
+        {{(25-wb_addr_bits){1'b0}}, bist_fail_addr},
+        bist_fail_byte_mask,
+        bist_fail_actual,
+        bist_fail_expected
+   };
    assign o_debug8 = {wrong_read_data, correct_read_data};
    assign o_bist_counts = {wrong_read_data, correct_read_data};
 //    assign debug_trigger = repeat_test /*o_wb_ack_read_q[0][0]*/;
