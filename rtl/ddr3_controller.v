@@ -929,7 +929,7 @@ module ddr3_controller #(
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
-    wire init_advance_now = !instruction[USE_TIMER] || init_counter_reaches_one || (init_advance_pending && !pause_counter);
+    wire init_advance_now = !instruction[USE_TIMER] || (init_advance_pending && !pause_counter);
     wire init_self_refresh_jump = (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
                                                (instruction_address == 5'd26) ? 5'd20 :
@@ -937,6 +937,9 @@ module ddr3_controller #(
     wire[4:0] init_advance_instruction_address = init_self_refresh_jump ? 5'd23 : init_next_instruction_address;
     wire[27:0] init_advance_instruction = read_rom_instruction(instruction_address);
     wire[DELAY_COUNTER_WIDTH-1:0] init_reload_delay_counter = instruction[DELAY_COUNTER_WIDTH - 1:0];
+    wire init_reload_delay_is_terminal = instruction[USE_TIMER] &&
+        ((init_reload_delay_counter == {DELAY_COUNTER_WIDTH{1'b0}}) ||
+         (init_reload_delay_counter == {{(DELAY_COUNTER_WIDTH-1){1'b0}}, 1'b1}));
     wire[DELAY_COUNTER_WIDTH-1:0] init_decremented_delay_counter = delay_counter - {{(DELAY_COUNTER_WIDTH-1){1'b0}}, 1'b1};
     wire init_reset_done_next = instruction[RST_DONE] || reset_done;
 
@@ -987,7 +990,7 @@ module ddr3_controller #(
                 delay_counter_d <= init_reload_delay_counter;
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
-                init_advance_pending <= 1'b0;
+                init_advance_pending <= init_reload_delay_is_terminal;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
             end
