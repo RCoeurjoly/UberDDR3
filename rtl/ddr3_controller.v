@@ -448,10 +448,12 @@ module ddr3_controller #(
     (* mark_debug ="true" *) reg[4:0] instruction_address = 0, instruction_address_d; //address for accessing rom instruction
     reg[27:0] instruction = INITIAL_RESET_INSTRUCTION, instruction_d; //instruction retrieved from reset instruction rom
     reg[ DELAY_COUNTER_WIDTH - 1:0] delay_counter = INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0], delay_counter_d; //counter used for delays
-    reg delay_counter_is_zero = (INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0] == 0), delay_counter_is_zero_d; //counter is now zero so retrieve next delay
+    (* keep = "true" *) reg delay_counter_is_zero = (INITIAL_RESET_INSTRUCTION[DELAY_COUNTER_WIDTH - 1:0] == 0), delay_counter_is_zero_d; //counter is now zero so retrieve next delay
     reg reset_done = 0, reset_done_d; //high if reset has already finished
     reg precharge_all_instruction, precharge_all_instruction_d;
-    reg init_advance_pending = 0;
+    (* keep = "true" *) reg init_advance_pending = 0;
+    reg[4:0] init_prefetch_address = 0;
+    reg[27:0] init_prefetch_instruction = INITIAL_RESET_INSTRUCTION;
     reg pause_counter = 0;
     wire issue_read_command;
     reg stage2_update = 1;
@@ -926,16 +928,17 @@ module ddr3_controller #(
     end
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
+    wire init_prefetch_ready = init_prefetch_address == instruction_address;
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
-    wire init_advance_now = !instruction[USE_TIMER] || (init_advance_pending && !pause_counter);
-    wire init_self_refresh_jump = (instruction_address == 5'd22) && user_self_refresh_q;
+    wire init_advance_now = init_prefetch_ready && (!instruction[USE_TIMER] || (init_advance_pending && !pause_counter));
+    wire init_self_refresh_jump = init_prefetch_ready && (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
                                                (instruction_address == 5'd26) ? 5'd20 :
                                                (instruction_address + 5'd1);
     wire[4:0] init_advance_instruction_address = init_self_refresh_jump ? 5'd23 : init_next_instruction_address;
-    wire[27:0] init_advance_instruction = read_rom_instruction(instruction_address);
+    wire[27:0] init_advance_instruction = init_prefetch_instruction;
     wire[DELAY_COUNTER_WIDTH-1:0] init_reload_delay_counter = instruction[DELAY_COUNTER_WIDTH - 1:0];
     wire init_reload_delay_is_terminal = instruction[USE_TIMER] &&
         ((init_reload_delay_counter == {DELAY_COUNTER_WIDTH{1'b0}}) ||
@@ -948,9 +951,13 @@ module ddr3_controller #(
             `ifdef FORMAL_COVER
                 instruction_address <= 21;
                 instruction_address_d <= 21;
+                init_prefetch_address <= 21;
+                init_prefetch_instruction <= read_rom_instruction(5'd21);
             `else
                 instruction_address <= 0;
                 instruction_address_d <= 0;
+                init_prefetch_address <= 0;
+                init_prefetch_instruction <= read_rom_instruction(5'd0);
             `endif
             instruction <= INITIAL_RESET_INSTRUCTION;
             instruction_d <= INITIAL_RESET_INSTRUCTION;
@@ -965,6 +972,8 @@ module ddr3_controller #(
             precharge_all_instruction_d <= 1'b0;
         end
         else begin
+            init_prefetch_address <= instruction_address;
+            init_prefetch_instruction <= read_rom_instruction(instruction_address);
             reset_done <= init_reset_done_next;
             reset_done_d <= init_reset_done_next;
 
