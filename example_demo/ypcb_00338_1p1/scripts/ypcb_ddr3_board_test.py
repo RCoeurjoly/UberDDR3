@@ -246,6 +246,13 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "init_advance_now": bool(field(payload, init_seq_debug_offset + 114, 1)),
         "init_advance_pending": bool(field(payload, init_seq_debug_offset + 115, 1)),
         "init_pause_counter": bool(field(payload, init_seq_debug_offset + 116, 1)),
+        "init_trace_i_rst_n": bool(field(payload, init_seq_debug_offset + 117, 1)),
+        "init_trace_idelayctrl_rdy": bool(field(payload, init_seq_debug_offset + 118, 1)),
+        "init_trace_sync_rst_controller": bool(field(payload, init_seq_debug_offset + 119, 1)),
+        "init_trace_o_phy_reset": bool(field(payload, init_seq_debug_offset + 120, 1)),
+        "init_trace_cmd_ck_en": bool(field(payload, init_seq_debug_offset + 121, 1)),
+        "init_trace_cmd_reset_n": bool(field(payload, init_seq_debug_offset + 122, 1)),
+        "init_trace_cmd_odt": bool(field(payload, init_seq_debug_offset + 123, 1)),
     }
     bist_debug_offset = 656
     bist_debug = {

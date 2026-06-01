@@ -452,6 +452,7 @@ module ddr3_controller #(
     reg reset_done = 0, reset_done_d; //high if reset has already finished
     reg precharge_all_instruction, precharge_all_instruction_d;
     reg init_advance_pending = 0;
+    reg[127:0] init_seq_debug_q = 128'd0;
     reg pause_counter = 0;
     wire issue_read_command;
     reg stage2_update = 1;
@@ -3972,28 +3973,38 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         i_phy_idelayctrl_rdy,
         i_rst_n
    };
-   assign o_init_seq_debug = {
-        11'd0,
-        pause_counter,
-        init_advance_pending,
-        init_advance_now,
-        init_counter_reaches_two,
-        init_counter_reaches_one,
-        init_timed_counter_active,
-        instruction[USE_TIMER],
-        instruction[RST_DONE],
-        init_reset_done_next,
-        instruction_d,
-        instruction,
-        delay_counter_d,
-        delay_counter,
-        instruction_address_d,
-        instruction_address,
-        reset_done_d,
-        reset_done,
-        delay_counter_is_zero_d,
-        delay_counter_is_zero
-   };
+   always @(posedge i_controller_clk) begin
+        init_seq_debug_q <= {
+            4'd0,
+            cmd_odt,
+            cmd_reset_n,
+            cmd_ck_en,
+            current_rank_rst,
+            sync_rst_controller,
+            i_phy_idelayctrl_rdy,
+            i_rst_n,
+            pause_counter,
+            init_advance_pending,
+            init_advance_now,
+            init_counter_reaches_two,
+            init_counter_reaches_one,
+            init_timed_counter_active,
+            instruction[USE_TIMER],
+            instruction[RST_DONE],
+            init_reset_done_next,
+            instruction_d,
+            instruction,
+            delay_counter_d,
+            delay_counter,
+            instruction_address_d,
+            instruction_address,
+            reset_done_d,
+            reset_done,
+            delay_counter_is_zero_d,
+            delay_counter_is_zero
+        };
+   end
+   assign o_init_seq_debug = init_seq_debug_q;
    assign o_calib_debug = {
         20'd0,
         analyze_dqs_action,
