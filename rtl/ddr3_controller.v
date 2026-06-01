@@ -619,6 +619,8 @@ module ddr3_controller #(
     reg[4:0] idelay_data_cntvaluein[LANES-1:0];
     reg[4:0] idelay_data_cntvaluein_prev;
     reg[4:0] idelay_dqs_cntvaluein[LANES-1:0];
+    reg[4:0] phy_idelay_data_cntvaluein_q = DATA_INITIAL_IDELAY_TAP[4:0];
+    reg[4:0] phy_idelay_dqs_cntvaluein_q = DQS_INITIAL_IDELAY_TAP[4:0];
     reg[$clog2(REPEAT_CLK_SAMPLING):0] sample_clk_repeat = 0;
     reg stored_write_level_feedback = 0;
     reg[5:0] start_index_check = 0;
@@ -2543,6 +2545,8 @@ module ddr3_controller #(
             lane_times_8 <= lane << 3;
             /* verilator lint_on WIDTH */
             idelay_data_cntvaluein_prev <= idelay_data_cntvaluein[lane];
+            phy_idelay_data_cntvaluein_q <= idelay_data_cntvaluein[lane];
+            phy_idelay_dqs_cntvaluein_q <= idelay_dqs_cntvaluein[lane];
             reset_from_calibrate <= 0;
             reset_after_rank_1 <= 0; // reset for dual rank
             prep_done <= 0;
@@ -3651,8 +3655,8 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     assign issue_read_command = (state_calibrate == MPR_READ && delay_before_read_data == 0);
     assign o_phy_odelay_data_cntvaluein = odelay_data_cntvaluein[lane]; 
     assign o_phy_odelay_dqs_cntvaluein = odelay_dqs_cntvaluein[lane];
-    assign o_phy_idelay_data_cntvaluein = idelay_data_cntvaluein[lane];
-    assign o_phy_idelay_dqs_cntvaluein = idelay_dqs_cntvaluein[lane];
+    assign o_phy_idelay_data_cntvaluein = phy_idelay_data_cntvaluein_q;
+    assign o_phy_idelay_dqs_cntvaluein = phy_idelay_dqs_cntvaluein_q;
     assign dqs_target_index_value = dqs_start_index_stored[0]? dqs_start_index_stored + 2: dqs_start_index_stored + 1; // move to next odd (if 3 then 5, if 4 then 5)
      // To show why next odd number is needed: https://github.com/AngeloJacobo/UberDDR3/tree/b762c464f6526159c1d8c2e4ee039b4ae4e78dbd#per-lane-read-calibration
 
