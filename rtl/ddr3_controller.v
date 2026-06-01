@@ -556,15 +556,10 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
-    reg[9:0] analyze_dqs_window_q = 0;
-    reg analyze_dqs_match_q = 0;
-    reg analyze_dqs_at_end_q = 0;
-    reg analyze_dqs_repeat_same_q = 0;
-    reg[$clog2(STORED_DQS_SIZE*8)-1:0] analyze_dqs_index_q = 0;
-    wire[9:0] analyze_dqs_window = analyze_dqs_window_q;
-    wire analyze_dqs_match = analyze_dqs_match_q;
-    wire analyze_dqs_at_end = analyze_dqs_at_end_q;
-    wire analyze_dqs_repeat_same = analyze_dqs_repeat_same_q;
+    wire[9:0] analyze_dqs_window = dqs_store[dqs_start_index +: 10];
+    wire analyze_dqs_match = analyze_dqs_window == 10'b01_01_01_01_00;
+    wire analyze_dqs_at_end = dqs_start_index == (STORED_DQS_SIZE*8-1);
+    wire analyze_dqs_repeat_same = dqs_start_index == dqs_start_index_stored;
     wire analyze_dqs_repeat_done = dqs_start_index_repeat == REPEAT_DQS_ANALYZE;
     wire[2:0] analyze_dqs_action =
         (state_calibrate != ANALYZE_DQS) ? 3'd0 :
@@ -2669,12 +2664,7 @@ module ddr3_controller #(
                             dqs_start_index_stored <= dqs_start_index; 
                             // start the index from zero since this will be incremented until we pinpoint the real 
                             // starting bit of dqs_store (dictated by the pattern 10'b01_01_01_01_00)
-                            dqs_start_index <= 0;
-                            analyze_dqs_index_q <= 0;
-                            analyze_dqs_window_q <= dqs_store[0 +: 10];
-                            analyze_dqs_match_q <= (dqs_store[0 +: 10] == 10'b01_01_01_01_00);
-                            analyze_dqs_at_end_q <= 1'b0;
-                            analyze_dqs_repeat_same_q <= (dqs_start_index_stored == 0);
+                            dqs_start_index <= 0;          
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 // show dqs_store in binary form
@@ -2703,7 +2693,7 @@ module ddr3_controller #(
                         // find the bit where the DQS starts to be issued (by finding when the pattern 10'b01_01_01_01_00 starts)
          ANALYZE_DQS: if(analyze_dqs_match) begin
                          //increase dqs_start_index_repeat when index is the same as before   
-                        dqs_start_index_repeat <= analyze_dqs_repeat_same ? dqs_start_index_repeat + 1: 0;   
+                        dqs_start_index_repeat <= (dqs_start_index == dqs_start_index_stored)? dqs_start_index_repeat + 1: 0;   
                          //the same dqs_start_index_repeat appeared REPEAT_DQS_ANALYZE times in a row, thus we can trust the value we got is accurate and not affected by glitch
                          if(dqs_start_index_repeat == REPEAT_DQS_ANALYZE) begin
                              // since we already know the starting bit when the dqs (and dq since they are aligned) will come,
@@ -2732,7 +2722,7 @@ module ddr3_controller #(
                         end
                       end 
                       else begin
-                        if(analyze_dqs_at_end) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
+                        if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
                             state_calibrate <= MPR_READ;
@@ -2745,12 +2735,7 @@ module ddr3_controller #(
                             `endif
                         end
                         else begin
-                            analyze_dqs_index_q <= analyze_dqs_index_q + 1;
-                            dqs_start_index <= analyze_dqs_index_q + 1;
-                            analyze_dqs_window_q <= dqs_store[(analyze_dqs_index_q + 1) +: 10];
-                            analyze_dqs_match_q <= (dqs_store[(analyze_dqs_index_q + 1) +: 10] == 10'b01_01_01_01_00);
-                            analyze_dqs_at_end_q <= ((analyze_dqs_index_q + 1) == (STORED_DQS_SIZE*8-1));
-                            analyze_dqs_repeat_same_q <= ((analyze_dqs_index_q + 1) == dqs_start_index_stored);
+                            dqs_start_index <= dqs_start_index + 1;
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {"state=ANALYZE_DQS, dqs_start_index=0x", hex_to_ascii(dqs_start_index[5:4]), hex_to_ascii(dqs_start_index[3:0]), 8'h0a};
