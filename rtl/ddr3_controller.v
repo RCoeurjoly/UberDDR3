@@ -615,6 +615,9 @@ module ddr3_controller #(
     reg[wb_data_bits-1:0] read_data_store = 0;
     reg[127:0] write_pattern = 0;
     reg[63:0] write_pattern_lane = 0;
+`ifdef UBERDDR3_PANOPTICON
+    reg [127:0] init_seq_debug_q = 128'd0;
+`endif
     reg[$clog2(64):0] data_start_index[LANES-1:0];   
     reg[LANES-1:0] lane_write_dq_late = 0;    
     reg[LANES-1:0] lane_read_dq_early = 0;    
@@ -3990,6 +3993,34 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         i_phy_idelayctrl_rdy,
         i_rst_n
    };
+`ifdef UBERDDR3_PANOPTICON
+   always @(posedge i_controller_clk) begin
+       init_seq_debug_q <= {
+            11'd0,
+            pause_counter,
+            init_advance_pending,
+            init_advance_now,
+            init_counter_reaches_two,
+            init_counter_reaches_one,
+            init_timed_counter_active,
+            instruction[USE_TIMER],
+            instruction[RST_DONE],
+            init_reset_done_next,
+            instruction_d,
+            instruction,
+            delay_counter_d,
+            delay_counter,
+            instruction_address_d,
+            instruction_address,
+            reset_done_d,
+            reset_done,
+            delay_counter_is_zero_d,
+            delay_counter_is_zero
+       };
+   end
+
+   assign o_init_seq_debug = init_seq_debug_q;
+`else
    assign o_init_seq_debug = {
         11'd0,
         pause_counter,
@@ -4012,6 +4043,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         delay_counter_is_zero_d,
         delay_counter_is_zero
    };
+`endif
    assign o_calib_debug = {
         20'd0,
         analyze_dqs_action,
