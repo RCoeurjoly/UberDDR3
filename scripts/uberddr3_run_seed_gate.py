@@ -145,6 +145,9 @@ def classify_result(result_path: Path) -> dict[str, object]:
     init_reset_debug = fields.get("init_reset_debug", {})
     if not isinstance(init_reset_debug, dict):
         init_reset_debug = {}
+    bist_debug = fields.get("bist_debug", {})
+    if not isinstance(bist_debug, dict):
+        bist_debug = {}
 
     return {
         "failure_class": failure_class,
