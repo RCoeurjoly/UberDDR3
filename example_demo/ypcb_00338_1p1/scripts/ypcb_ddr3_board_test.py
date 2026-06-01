@@ -236,6 +236,15 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "instruction": field(payload, init_seq_debug_offset + 52, 28),
         "instruction_d": field(payload, init_seq_debug_offset + 80, 28),
     }
+    bist_debug_offset = 656
+    bist_debug = {
+        "expected_data": field(payload, bist_debug_offset + 0, 128),
+        "actual_data": field(payload, bist_debug_offset + 128, 128),
+        "byte_mismatch_mask": field(payload, bist_debug_offset + 256, 16),
+        "address": field(payload, bist_debug_offset + 272, 25),
+        "state_calibrate": field(payload, bist_debug_offset + 297, 5),
+        "valid": bool(field(payload, bist_debug_offset + 302, 1)),
+    }
     calib_debug_offset = 100
     calib_debug = {
         "state_calibrate": field(payload, calib_debug_offset, 5),
@@ -309,6 +318,7 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "calib_debug": calib_debug,
         "init_reset_debug": init_reset_debug,
         "init_seq_debug": init_seq_debug,
+        "bist_debug": bist_debug,
     }
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:

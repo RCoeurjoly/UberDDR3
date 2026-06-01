@@ -164,6 +164,7 @@ module ddr3_controller #(
         output wire [347:0] o_calib_debug,
         output wire [15:0] o_init_reset_debug,
         output wire [127:0] o_init_seq_debug,
+        output wire [303:0] o_bist_debug,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -713,7 +714,14 @@ module ddr3_controller #(
     reg[2:0] bitslip_counter = 0;
     reg[1:0] shift_read_pipe = 0;
     reg[wb_data_bits-1:0] wrong_data = 0, expected_data=0;
+    reg bist_fail_valid = 1'b0;
+    reg[4:0] bist_fail_state = 5'd0;
+    reg[wb_addr_bits-1:0] bist_fail_addr = 0;
+    reg[15:0] bist_fail_byte_mask = 16'd0;
+    reg[127:0] bist_fail_expected = 128'd0;
+    reg[127:0] bist_fail_actual = 128'd0;
     wire[wb_data_bits-1:0] correct_data;
+    wire[15:0] bist_mismatch_byte_mask;
     reg[LANES-1:0] late_dq;
     reg stage2_do_wr_or_rd, stage2_do_wr_or_rd_d;
     reg stage2_do_wr, stage2_do_wr_d;
@@ -3684,6 +3692,13 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         end
     endgenerate
 
+    genvar bist_debug_byte_index;
+    generate
+        for(bist_debug_byte_index = 0; bist_debug_byte_index < 16; bist_debug_byte_index = bist_debug_byte_index + 1) begin : gen_bist_debug_byte_mask
+            assign bist_mismatch_byte_mask[bist_debug_byte_index] = |(o_wb_data[8*bist_debug_byte_index +: 8] ^ correct_data[8*bist_debug_byte_index +: 8]);
+        end
+    endgenerate
+
     always @(posedge i_controller_clk) begin
         if(sync_rst_controller) begin
             check_test_address_counter <= 0;
@@ -3702,6 +3717,14 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                         wrong_read_data <= wrong_read_data + 1;
                         wrong_data <= o_wb_data;
                         expected_data <= correct_data;
+                        if(!bist_fail_valid) begin
+                            bist_fail_valid <= 1'b1;
+                            bist_fail_state <= state_calibrate;
+                            bist_fail_addr <= check_test_address_counter;
+                            bist_fail_byte_mask <= bist_mismatch_byte_mask;
+                            bist_fail_actual <= o_wb_data[127:0];
+                            bist_fail_expected <= correct_data[127:0];
+                        end
                         `ifdef UART_DEBUG
                             state_calibrate_last <= state_calibrate;
                             reset_from_test <= 1'b0; // dont reset when uart debugging
@@ -3721,6 +3744,12 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 check_test_address_counter <= 0;
                 correct_read_data <= 0;
                 wrong_read_data <= 0;
+                bist_fail_valid <= 1'b0;
+                bist_fail_state <= 5'd0;
+                bist_fail_addr <= 0;
+                bist_fail_byte_mask <= 16'd0;
+                bist_fail_actual <= 128'd0;
+                bist_fail_expected <= 128'd0;
             end
         end
 
