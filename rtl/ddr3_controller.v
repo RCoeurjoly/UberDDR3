@@ -379,18 +379,19 @@ module ddr3_controller #(
                 ISSUE_READ = 11,
                 //ISSUE_READ_2 = 12,
                 READ_DATA = 12,
-                ANALYZE_DATA = 13, 
-                CHECK_STARTING_DATA = 14,
-                BITSLIP_DQS_TRAIN_3 = 15,
-                //WRITE_ZERO = 16,
-                BURST_WRITE = 17,
-                BURST_READ = 18,
-                RANDOM_WRITE = 19,
-                RANDOM_READ = 20,
-                ALTERNATE_WRITE_READ = 21,
-                FINISH_READ = 22,
-                DONE_CALIBRATE = 23,
-                ANALYZE_DATA_LOW_FREQ = 24;
+                ANALYZE_DATA_PREP = 13,
+                ANALYZE_DATA = 14, 
+                CHECK_STARTING_DATA = 15,
+                BITSLIP_DQS_TRAIN_3 = 16,
+                //WRITE_ZERO = 17,
+                BURST_WRITE = 18,
+                BURST_READ = 19,
+                RANDOM_WRITE = 20,
+                RANDOM_READ = 21,
+                ALTERNATE_WRITE_READ = 22,
+                FINISH_READ = 23,
+                DONE_CALIBRATE = 24,
+                ANALYZE_DATA_LOW_FREQ = 25;
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
@@ -2973,7 +2974,7 @@ module ddr3_controller #(
            READ_DATA: if({o_aux[AUX_WIDTH-((ECC_ENABLE == 3)? 6 : 1) : 0], o_wb_ack_uncalibrated}== {{(AUX_WIDTH-((ECC_ENABLE == 3)? 6 : 1)){1'b0}}, 1'b1, 1'b1}) begin //wait for the read ack (which has AUX ID of 1}
                          read_data_store <= o_wb_data_uncalibrated; // read data on address 0 
                          calib_stb <= 0;
-                         state_calibrate <= DLL_OFF? ANALYZE_DATA_LOW_FREQ : ANALYZE_DATA;
+                         state_calibrate <= DLL_OFF? ANALYZE_DATA_LOW_FREQ : ANALYZE_DATA_PREP;
                         //  data_start_index[lane] <= 0; // dont set to zero since this may have been already set by previous CHECK_STARTING_DATA
                          // Possible Patterns (strong autocorrel stat)
                          //0x80dbcfd275f12c3d   
@@ -3086,6 +3087,11 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                         // e.g. LANE={burst7, burst6, burst5, burst4, burst3, burst2, burst1, burst0} then with 1 ddr3 cycle delay between DQ and command 
                         // burst0 will not be written but only starting on burst1
                         // if lane_write_dq_late is already set to 1 for this lane, then current lane should already be fixed without changing the data_start_index
+        ANALYZE_DATA_PREP: begin
+                            prep_done <= 0;
+                            state_calibrate <= ANALYZE_DATA;
+                       end
+
         ANALYZE_DATA:   if(prep_done[1]) begin
                             if(write_pattern_matches) begin   
                                 /* verilator lint_off WIDTH */
@@ -3103,12 +3109,12 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                 else begin
                                     lane <= lane + 1;
                                     data_start_index[lane+1] <= 0;
-                                    state_calibrate <= ANALYZE_DATA;
+                                    state_calibrate <= ANALYZE_DATA_PREP;
                                     `ifdef UART_DEBUG_ALIGN
                                         uart_start_send <= 1'b1;
                                         uart_text <= {"state=ANALYZE_DATA, Done lane=",hex_to_ascii(lane),8'h0a,"-----------------",8'h0a};
                                         state_calibrate <= WAIT_UART;
-                                        state_calibrate_next <= ANALYZE_DATA;
+                                        state_calibrate_next <= ANALYZE_DATA_PREP;
                                     `endif
                                 end
                             end 
@@ -3149,11 +3155,11 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         state_calibrate <= WAIT_UART;
                                         state_calibrate_next <= CHECK_STARTING_DATA;
                                     `endif
-                                end 
-                            `ifdef UART_DEBUG_ALIGN
+                                end
                                 else begin
+                                    state_calibrate <= ANALYZE_DATA_PREP;
+                            `ifdef UART_DEBUG_ALIGN
                                     uart_start_send <= 1'b1;
-                                    state_calibrate <= ANALYZE_DATA;
                                     uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", data_start_index[lane]=0x",
                                         hex_to_ascii(data_start_index[lane][6:4]),hex_to_ascii(data_start_index[lane][3:0]),8'h0a,8'h0a,8'h0a,8'h0a,
                                         {read_data_store[((DQ_BITS*LANES)*7 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*6 + 8*lane) +: 8],
@@ -3162,9 +3168,9 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             8'h0a,8'h0a,8'h0a,8'h0a
                                         };
                                     state_calibrate <= WAIT_UART;
-                                    state_calibrate_next <= ANALYZE_DATA;
-                                end
+                                    state_calibrate_next <= ANALYZE_DATA_PREP;
                             `endif
+                                end
                             end     
                         end
                         else begin
