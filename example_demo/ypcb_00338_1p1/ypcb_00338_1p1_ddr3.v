@@ -37,8 +37,11 @@ module ypcb_00338_1p1_ddr3 (
     wire [63:0] debug8;
     wire [63:0] bist_counts;
 `ifdef UBERDDR3_DEBUG_JTAG
-    wire [959:0] jtag_debug_payload;
+    wire [959:0] jtag_debug_payload_live;
+    reg [959:0] jtag_debug_payload_snapshot = 960'd0;
     wire jtag_debug_selected;
+    reg jtag_debug_selected_meta = 1'b0;
+    reg jtag_debug_selected_sync = 1'b0;
     wire [347:0] calib_debug_payload;
     wire [15:0] init_reset_debug_payload;
     wire [127:0] init_seq_debug_payload;
@@ -149,7 +152,7 @@ module ypcb_00338_1p1_ddr3 (
     );
 
 `ifdef UBERDDR3_DEBUG_JTAG
-    assign jtag_debug_payload = {
+    assign jtag_debug_payload_live = {
         bist_debug_payload,
         init_seq_debug_payload,
         init_reset_debug_payload,
@@ -165,11 +168,19 @@ module ypcb_00338_1p1_ddr3 (
         rst_n
     };
 
+    always @(posedge controller_clk) begin
+        jtag_debug_selected_meta <= jtag_debug_selected;
+        jtag_debug_selected_sync <= jtag_debug_selected_meta;
+        if (!jtag_debug_selected_sync) begin
+            jtag_debug_payload_snapshot <= jtag_debug_payload_live;
+        end
+    end
+
     jtag_debug_bscan #(
         .WIDTH(960),
         .JTAG_CHAIN(1)
     ) jtag_debug_bscan_inst (
-        .debug_data(jtag_debug_payload),
+        .debug_data(jtag_debug_payload_snapshot),
         .selected(jtag_debug_selected)
     );
 

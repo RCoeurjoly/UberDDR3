@@ -3973,7 +3973,16 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         i_rst_n
    };
    assign o_init_seq_debug = {
-        20'd0,
+        11'd0,
+        pause_counter,
+        init_advance_pending,
+        init_advance_now,
+        init_counter_reaches_two,
+        init_counter_reaches_one,
+        init_timed_counter_active,
+        instruction[USE_TIMER],
+        instruction[RST_DONE],
+        init_reset_done_next,
         instruction_d,
         instruction,
         delay_counter_d,

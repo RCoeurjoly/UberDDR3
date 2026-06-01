@@ -191,9 +191,11 @@ def shift_dr_read(client: FtdiMpsseJtag, bit_count: int) -> int:
     return bits_to_int(tdo_bits)
 
 
-def read_payload(client: FtdiMpsseJtag, ir_len: int, user_ir: int, bit_count: int) -> int:
+def read_payload(client: FtdiMpsseJtag, ir_len: int, user_ir: int, bit_count: int, capture_settle_cycles: int) -> int:
     reset_tap(client)
     shift_ir(client, user_ir, ir_len)
+    if capture_settle_cycles > 0:
+        clock_tms(client, [0] * capture_settle_cycles)
     return shift_dr_read(client, bit_count)
 
 
@@ -235,6 +237,15 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "delay_counter_d": field(payload, init_seq_debug_offset + 33, 19),
         "instruction": field(payload, init_seq_debug_offset + 52, 28),
         "instruction_d": field(payload, init_seq_debug_offset + 80, 28),
+        "init_reset_done_next": bool(field(payload, init_seq_debug_offset + 108, 1)),
+        "instruction_rst_done_bit": bool(field(payload, init_seq_debug_offset + 109, 1)),
+        "instruction_use_timer_bit": bool(field(payload, init_seq_debug_offset + 110, 1)),
+        "init_timed_counter_active": bool(field(payload, init_seq_debug_offset + 111, 1)),
+        "init_counter_reaches_one": bool(field(payload, init_seq_debug_offset + 112, 1)),
+        "init_counter_reaches_two": bool(field(payload, init_seq_debug_offset + 113, 1)),
+        "init_advance_now": bool(field(payload, init_seq_debug_offset + 114, 1)),
+        "init_advance_pending": bool(field(payload, init_seq_debug_offset + 115, 1)),
+        "init_pause_counter": bool(field(payload, init_seq_debug_offset + 116, 1)),
     }
     bist_debug_offset = 656
     bist_debug = {
@@ -373,6 +384,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--poll-count", type=int, default=100)
     parser.add_argument("--poll-interval", type=float, default=0.1)
+    parser.add_argument("--capture-settle-cycles", type=int, default=1024)
     return parser.parse_args()
 
 
@@ -408,7 +420,7 @@ def main() -> int:
         poll_samples: list[dict[str, object]] = []
         poll_start = time.monotonic()
         for attempt in range(1, args.poll_count + 1):
-            decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits), args.bits)
+            decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits, args.capture_settle_cycles), args.bits)
             poll_samples.append({
                 "attempt": attempt,
                 "elapsed_s": round(time.monotonic() - poll_start, 6),
