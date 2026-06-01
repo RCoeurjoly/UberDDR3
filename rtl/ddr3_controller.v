@@ -930,6 +930,10 @@ module ddr3_controller #(
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
     wire init_advance_now = !instruction[USE_TIMER] || init_counter_reaches_one || (init_advance_pending && !pause_counter);
+    reg init_timed_counter_active_q = 1'b0;
+    reg init_counter_reaches_one_q = 1'b0;
+    reg init_counter_reaches_two_q = 1'b0;
+    reg init_advance_now_q = 1'b0;
     wire init_self_refresh_jump = (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
                                                (instruction_address == 5'd26) ? 5'd20 :
@@ -958,14 +962,22 @@ module ddr3_controller #(
             reset_done <= 1'b0;
             reset_done_d <= 1'b0;
             init_advance_pending <= 1'b0;
+            init_timed_counter_active_q <= 1'b0;
+            init_counter_reaches_one_q <= 1'b0;
+            init_counter_reaches_two_q <= 1'b0;
+            init_advance_now_q <= 1'b0;
             precharge_all_instruction <= 1'b0;
             precharge_all_instruction_d <= 1'b0;
         end
         else begin
             reset_done <= init_reset_done_next;
             reset_done_d <= init_reset_done_next;
+            init_timed_counter_active_q <= init_timed_counter_active;
+            init_counter_reaches_one_q <= init_counter_reaches_one;
+            init_counter_reaches_two_q <= init_counter_reaches_two;
+            init_advance_now_q <= init_advance_now;
 
-            if(init_self_refresh_jump || init_advance_now) begin
+            if(init_self_refresh_jump || init_advance_now_q) begin
                 instruction_address <= init_advance_instruction_address;
                 instruction_address_d <= init_advance_instruction_address;
                 instruction <= init_advance_instruction;
@@ -3973,7 +3985,11 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         i_rst_n
    };
    assign o_init_seq_debug = {
-        11'd0,
+        7'd0,
+        init_advance_now_q,
+        init_counter_reaches_two_q,
+        init_counter_reaches_one_q,
+        init_timed_counter_active_q,
         pause_counter,
         init_advance_pending,
         init_advance_now,
