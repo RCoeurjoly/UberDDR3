@@ -927,8 +927,8 @@ module ddr3_controller #(
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
-    wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
-    wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
+    (* keep = "true" *) wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
+    (* keep = "true" *) wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
     wire init_advance_now = !instruction[USE_TIMER] || init_counter_reaches_one || (init_advance_pending && !pause_counter);
     wire init_self_refresh_jump = (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
@@ -3977,8 +3977,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         pause_counter,
         init_advance_pending,
         init_advance_now,
-        init_counter_reaches_two,
-        init_counter_reaches_one,
+        2'b00,
         init_timed_counter_active,
         instruction[USE_TIMER],
         instruction[RST_DONE],
