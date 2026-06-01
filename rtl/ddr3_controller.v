@@ -454,6 +454,7 @@ module ddr3_controller #(
     (* keep = "true" *) reg init_advance_pending = 0;
     reg[4:0] init_prefetch_address = 0;
     reg[27:0] init_prefetch_instruction = INITIAL_RESET_INSTRUCTION;
+    (* keep = "true" *) reg init_calib_start_q = 1'b0;
     reg pause_counter = 0;
     wire issue_read_command;
     reg stage2_update = 1;
@@ -929,6 +930,7 @@ module ddr3_controller #(
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
     wire init_prefetch_ready = init_prefetch_address == instruction_address;
+    wire init_calib_start_now = i_phy_idelayctrl_rdy && (instruction_address == 5'd13);
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
@@ -968,10 +970,12 @@ module ddr3_controller #(
             reset_done <= 1'b0;
             reset_done_d <= 1'b0;
             init_advance_pending <= 1'b0;
+            init_calib_start_q <= 1'b0;
             precharge_all_instruction <= 1'b0;
             precharge_all_instruction_d <= 1'b0;
         end
         else begin
+            init_calib_start_q <= init_calib_start_now;
             init_prefetch_address <= instruction_address;
             init_prefetch_instruction <= read_rom_instruction(instruction_address);
             reset_done <= init_reset_done_next;
@@ -2599,7 +2603,7 @@ module ddr3_controller #(
 
             // FSM
             case(state_calibrate) 
-                IDLE: if(i_phy_idelayctrl_rdy && instruction_address == 13) begin //we are now inside instruction 15 with maximum delay
+                IDLE: if(init_calib_start_now) begin //we are now inside instruction 15 with maximum delay
                         state_calibrate <= DLL_OFF? ISSUE_WRITE_1 : BITSLIP_DQS_TRAIN_1; // If DLL Off then dont do any calibration, go straight to write-read
                         lane <= 0;
                         o_phy_odelay_data_ld <= {LANES{1'b1}};
