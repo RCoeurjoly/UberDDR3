@@ -452,6 +452,7 @@ module ddr3_controller #(
     reg reset_done = 0, reset_done_d; //high if reset has already finished
     reg precharge_all_instruction, precharge_all_instruction_d;
     (* keep = "true" *) reg init_advance_pending = 0;
+    (* keep = "true" *) reg init_advance_ready_q = 0;
     reg[4:0] init_prefetch_address = 0;
     reg[27:0] init_prefetch_instruction = INITIAL_RESET_INSTRUCTION;
     (* keep = "true" *) reg init_calib_start_q = 1'b0;
@@ -941,7 +942,7 @@ module ddr3_controller #(
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
-    wire init_advance_now = init_prefetch_ready && (!instruction[USE_TIMER] || (init_advance_pending && !pause_counter));
+    wire init_advance_now = init_prefetch_ready && init_advance_ready_q && !pause_counter;
     wire init_self_refresh_jump = init_prefetch_ready && (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
                                                (instruction_address == 5'd26) ? 5'd20 :
@@ -977,6 +978,7 @@ module ddr3_controller #(
             reset_done <= 1'b0;
             reset_done_d <= 1'b0;
             init_advance_pending <= 1'b0;
+            init_advance_ready_q <= 1'b0;
             init_calib_start_q <= 1'b0;
             precharge_all_instruction <= 1'b0;
             precharge_all_instruction_d <= 1'b0;
@@ -1002,7 +1004,8 @@ module ddr3_controller #(
                 delay_counter_d <= {DELAY_COUNTER_WIDTH{1'b0}};
                 delay_counter_is_zero <= 1'b1;
                 delay_counter_is_zero_d <= 1'b1;
-                init_advance_pending <= 1'b0;
+                init_advance_ready_q <= !init_advance_instruction[USE_TIMER];
+                init_advance_pending <= !init_advance_instruction[USE_TIMER];
                 precharge_all_instruction <= (init_advance_instruction_address == 5'd20) || (init_advance_instruction_address == 5'd24);
                 precharge_all_instruction_d <= (init_advance_instruction_address == 5'd20) || (init_advance_instruction_address == 5'd24);
             end
@@ -1015,7 +1018,8 @@ module ddr3_controller #(
                 delay_counter_d <= init_reload_delay_counter;
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
-                init_advance_pending <= init_reload_delay_is_terminal;
+                init_advance_ready_q <= init_advance_ready_q || init_reload_delay_is_terminal;
+                init_advance_pending <= init_advance_pending || init_reload_delay_is_terminal;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
             end
@@ -1028,6 +1032,7 @@ module ddr3_controller #(
                 delay_counter_d <= init_decremented_delay_counter;
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
+                init_advance_ready_q <= init_advance_ready_q || init_counter_reaches_two;
                 init_advance_pending <= init_advance_pending || init_counter_reaches_two;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
@@ -1041,6 +1046,7 @@ module ddr3_controller #(
                 delay_counter_d <= delay_counter;
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
+                init_advance_ready_q <= init_advance_ready_q;
                 init_advance_pending <= init_advance_pending;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
