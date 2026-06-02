@@ -982,7 +982,12 @@ module ddr3_controller #(
             precharge_all_instruction_d <= 1'b0;
         end
         else begin
-            init_calib_start_q <= init_calib_start_now;
+            if(state_calibrate == IDLE) begin
+                init_calib_start_q <= init_calib_start_q || init_calib_start_now;
+            end
+            else begin
+                init_calib_start_q <= 1'b0;
+            end
             init_prefetch_address <= instruction_address;
             init_prefetch_instruction <= read_rom_instruction(instruction_address);
             reset_done <= init_reset_done_next;
@@ -2610,7 +2615,7 @@ module ddr3_controller #(
 
             // FSM
             case(state_calibrate) 
-                IDLE: if(init_calib_start_now) begin //we are now inside instruction 15 with maximum delay
+                IDLE: if(init_calib_start_q) begin //registered handoff from init instruction 13 to calibration
                         state_calibrate <= DLL_OFF? ISSUE_WRITE_1 : BITSLIP_DQS_TRAIN_1; // If DLL Off then dont do any calibration, go straight to write-read
                         lane <= 0;
                         o_phy_odelay_data_ld <= {LANES{1'b1}};
