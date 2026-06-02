@@ -165,6 +165,7 @@ module ddr3_controller #(
         output wire [15:0] o_init_reset_debug,
         output wire [127:0] o_init_seq_debug,
         output wire [609:0] o_bist_debug,
+        output wire [781:0] o_panopticon_debug,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -4191,6 +4192,47 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         instruction_address,
         state_calibrate
    };
+   wire [63:0] panopticon_control = {
+        state_calibrate,
+        instruction_address,
+        lane[0],
+        index_wb_data,
+        index_read_pipe,
+        delay_read_pipe[0],
+        delay_read_pipe[1],
+        added_read_pipe[0],
+        data_start_index[0],
+        idelay_data_cntvaluein[0],
+        idelay_dqs_cntvaluein[0],
+        lane_write_dq_late[0],
+        lane_read_dq_early[0],
+        o_wb_ack_uncalibrated,
+        {{(16-AUX_WIDTH){1'b0}}, o_aux},
+        o_wb_stall_calib,
+        stage1_pending,
+        stage2_pending,
+        stage2_we,
+        stage2_update,
+        delay_before_read_data,
+        pause_counter
+   };
+
+   wire [127:0] panopticon_cmd = {{(128-(cmd_len*serdes_ratio)){1'b0}}, o_phy_cmd};
+
+   assign o_panopticon_debug = {
+        6'd0,
+        8'hA5,
+        panopticon_control,
+        panopticon_cmd,
+        stage2_data_unaligned[127:0],
+        stage2_data[0][127:0],
+        stage2_data[1][127:0],
+        stage2_dm_unaligned[15:0],
+        stage2_dm[0][15:0],
+        stage2_dm[1][15:0],
+        o_wb_data_q_current[127:0]
+   };
+
    assign o_bist_debug = {
         bist_fail_burst_slot,
         bist_fail_byte_index,

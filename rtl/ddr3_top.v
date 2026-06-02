@@ -125,6 +125,7 @@ module ddr3_top #(
         output wire[15:0] o_init_reset_debug,
         output wire[127:0] o_init_seq_debug,
         output wire[609:0] o_bist_debug,
+        output wire[781:0] o_panopticon_debug,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_n
         // 
@@ -342,6 +343,7 @@ ddr3_top #(
             .o_init_reset_debug(o_init_reset_debug),
             .o_init_seq_debug(o_init_seq_debug),
             .o_bist_debug(o_bist_debug),
+            .o_panopticon_debug(o_panopticon_debug),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)

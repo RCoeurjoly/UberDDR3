@@ -37,8 +37,8 @@ module ypcb_00338_1p1_ddr3 (
     wire [63:0] debug8;
     wire [63:0] bist_counts;
 `ifdef UBERDDR3_DEBUG_JTAG
-    wire [1265:0] jtag_debug_payload_live;
-    reg [1265:0] jtag_debug_payload_snapshot = 1266'd0;
+    wire [2047:0] jtag_debug_payload_live;
+    reg [2047:0] jtag_debug_payload_snapshot = 2048'd0;
     wire jtag_debug_selected;
     reg jtag_debug_selected_meta = 1'b0;
     reg jtag_debug_selected_sync = 1'b0;
@@ -46,6 +46,7 @@ module ypcb_00338_1p1_ddr3 (
     wire [15:0] init_reset_debug_payload;
     wire [127:0] init_seq_debug_payload;
     wire [609:0] bist_debug_payload;
+    wire [781:0] panopticon_debug_payload;
 `endif
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
@@ -141,11 +142,13 @@ module ypcb_00338_1p1_ddr3 (
         .o_init_reset_debug(init_reset_debug_payload),
         .o_init_seq_debug(init_seq_debug_payload),
         .o_bist_debug(bist_debug_payload),
+        .o_panopticon_debug(panopticon_debug_payload),
 `else
         .o_calib_debug(),
         .o_init_reset_debug(),
         .o_init_seq_debug(),
         .o_bist_debug(),
+        .o_panopticon_debug(),
 `endif
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
@@ -153,13 +156,14 @@ module ypcb_00338_1p1_ddr3 (
 
 `ifdef UBERDDR3_DEBUG_JTAG
     assign jtag_debug_payload_live = {
+        panopticon_debug_payload,
         bist_debug_payload,
         init_seq_debug_payload,
         init_reset_debug_payload,
         bist_counts,
         calib_debug_payload,
 `ifdef UBERDDR3_PANOPTICON
-        8'h03,
+        8'h04,
 `else
         8'h02,
 `endif
@@ -181,7 +185,7 @@ module ypcb_00338_1p1_ddr3 (
     end
 
     jtag_debug_bscan #(
-        .WIDTH(1266),
+        .WIDTH(2048),
         .JTAG_CHAIN(1)
     ) jtag_debug_bscan_inst (
         .debug_data(jtag_debug_payload_snapshot),

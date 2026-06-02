@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "openFPGALoader"))
-DEFAULT_BITS = 1266
+DEFAULT_BITS = 2048
 MAGIC = 0x33445244
 VERSION = 1
 DEBUG_VERSION = 2
@@ -299,6 +299,41 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "fail_byte_index": field(payload, bist_debug_offset + 599, 4),
         "fail_burst_slot": field(payload, bist_debug_offset + 603, 3),
     }
+    panopticon_debug_offset = 1266
+    panopticon_control_offset = panopticon_debug_offset + 688
+    panopticon_debug = {
+        "wb_data_q_current": field(payload, panopticon_debug_offset + 0, 128),
+        "stage2_dm1": field(payload, panopticon_debug_offset + 128, 16),
+        "stage2_dm0": field(payload, panopticon_debug_offset + 144, 16),
+        "stage2_dm_unaligned": field(payload, panopticon_debug_offset + 160, 16),
+        "stage2_data1": field(payload, panopticon_debug_offset + 176, 128),
+        "stage2_data0": field(payload, panopticon_debug_offset + 304, 128),
+        "stage2_data_unaligned": field(payload, panopticon_debug_offset + 432, 128),
+        "cmd": field(payload, panopticon_debug_offset + 560, 128),
+        "pause_counter": bool(field(payload, panopticon_control_offset + 0, 1)),
+        "delay_before_read_data": field(payload, panopticon_control_offset + 1, 4),
+        "stage2_update": bool(field(payload, panopticon_control_offset + 5, 1)),
+        "stage2_we": bool(field(payload, panopticon_control_offset + 6, 1)),
+        "stage2_pending": bool(field(payload, panopticon_control_offset + 7, 1)),
+        "stage1_pending": bool(field(payload, panopticon_control_offset + 8, 1)),
+        "o_wb_stall_calib": bool(field(payload, panopticon_control_offset + 9, 1)),
+        "aux": field(payload, panopticon_control_offset + 10, 16),
+        "o_wb_ack_uncalibrated": bool(field(payload, panopticon_control_offset + 26, 1)),
+        "lane_read_dq_early0": bool(field(payload, panopticon_control_offset + 27, 1)),
+        "lane_write_dq_late0": bool(field(payload, panopticon_control_offset + 28, 1)),
+        "idelay_dqs_cntvaluein0": field(payload, panopticon_control_offset + 29, 5),
+        "idelay_data_cntvaluein0": field(payload, panopticon_control_offset + 34, 5),
+        "data_start_index0": field(payload, panopticon_control_offset + 39, 7),
+        "added_read_pipe0": bool(field(payload, panopticon_control_offset + 46, 1)),
+        "delay_read_pipe1": field(payload, panopticon_control_offset + 47, 2),
+        "delay_read_pipe0": field(payload, panopticon_control_offset + 49, 2),
+        "index_read_pipe": bool(field(payload, panopticon_control_offset + 51, 1)),
+        "index_wb_data": bool(field(payload, panopticon_control_offset + 52, 1)),
+        "lane0": bool(field(payload, panopticon_control_offset + 53, 1)),
+        "instruction_address": field(payload, panopticon_control_offset + 54, 5),
+        "state_calibrate": field(payload, panopticon_control_offset + 59, 5),
+        "marker": field(payload, panopticon_debug_offset + 752, 8),
+    }
     calib_debug_offset = 100
     calib_debug = {
         "state_calibrate": field(payload, calib_debug_offset, 5),
@@ -373,11 +408,12 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "init_reset_debug": init_reset_debug,
         "init_seq_debug": init_seq_debug,
         "bist_debug": bist_debug,
+        "panopticon_debug": panopticon_debug,
     }
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:
         reasons.append("bad_magic")
-    if decoded["version"] not in (VERSION, DEBUG_VERSION, 3):
+    if decoded["version"] not in (VERSION, DEBUG_VERSION, 3, 4):
         reasons.append("bad_version")
     if not decoded["clk_locked"]:
         reasons.append("clk_unlocked")

@@ -60,6 +60,14 @@ STATUS_FIELDS = [
     "bist_fail_idelay_dqs_cntvaluein0",
     "bist_fail_byte_index",
     "bist_fail_burst_slot",
+    "panopticon_marker",
+    "panopticon_state_calibrate",
+    "panopticon_instruction_address",
+    "panopticon_index_wb_data",
+    "panopticon_delay_read_pipe0",
+    "panopticon_data_start_index0",
+    "panopticon_idelay_data_cntvaluein0",
+    "panopticon_idelay_dqs_cntvaluein0",
 ]
 
 
@@ -160,6 +168,9 @@ def classify_result(result_path: Path) -> dict[str, object]:
     bist_debug = fields.get("bist_debug", {})
     if not isinstance(bist_debug, dict):
         bist_debug = {}
+    panopticon_debug = fields.get("panopticon_debug", {})
+    if not isinstance(panopticon_debug, dict):
+        panopticon_debug = {}
 
     return {
         "failure_class": failure_class,
@@ -196,6 +207,14 @@ def classify_result(result_path: Path) -> dict[str, object]:
         "bist_fail_idelay_dqs_cntvaluein0": bist_debug.get("fail_idelay_dqs_cntvaluein0", ""),
         "bist_fail_byte_index": bist_debug.get("fail_byte_index", ""),
         "bist_fail_burst_slot": bist_debug.get("fail_burst_slot", ""),
+        "panopticon_marker": panopticon_debug.get("marker", ""),
+        "panopticon_state_calibrate": panopticon_debug.get("state_calibrate", ""),
+        "panopticon_instruction_address": panopticon_debug.get("instruction_address", ""),
+        "panopticon_index_wb_data": panopticon_debug.get("index_wb_data", ""),
+        "panopticon_delay_read_pipe0": panopticon_debug.get("delay_read_pipe0", ""),
+        "panopticon_data_start_index0": panopticon_debug.get("data_start_index0", ""),
+        "panopticon_idelay_data_cntvaluein0": panopticon_debug.get("idelay_data_cntvaluein0", ""),
+        "panopticon_idelay_dqs_cntvaluein0": panopticon_debug.get("idelay_dqs_cntvaluein0", ""),
         "bitstream_sha256": result.get("bitstream_sha256", ""),
     }
 
