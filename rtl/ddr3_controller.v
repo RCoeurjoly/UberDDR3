@@ -4011,8 +4011,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 `ifdef UBERDDR3_PANOPTICON
    wire [15:0] init_event_word = {
         instruction_address,
-        4'd0,
-        init_advance_ready_q,
+        instruction_address_d,
         delay_counter_is_zero,
         reset_done,
         init_advance_now,
