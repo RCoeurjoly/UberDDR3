@@ -739,42 +739,8 @@ module ddr3_controller #(
     reg[15:0] bist_fail_byte_mask = 16'd0;
     reg[127:0] bist_fail_expected = 128'd0;
     reg[127:0] bist_fail_actual = 128'd0;
-    reg[15:0] bist_fail_aux = 16'd0;
-    reg[127:0] bist_fail_wb_data_q_current = 128'd0;
-    reg[127:0] bist_fail_raw_iserdes_data = 128'd0;
-    reg bist_fail_index_wb_data = 1'b0;
-    reg[1:0] bist_fail_delay_read_pipe0 = 2'd0;
-    reg[1:0] bist_fail_delay_read_pipe1 = 2'd0;
-    reg bist_fail_added_read_pipe0 = 1'b0;
-    reg[$clog2(64):0] bist_fail_data_start_index0 = 0;
-    reg[4:0] bist_fail_idelay_data_cntvaluein0 = 5'd0;
-    reg[4:0] bist_fail_idelay_dqs_cntvaluein0 = 5'd0;
-    reg[3:0] bist_fail_byte_index = 4'd0;
-    reg[2:0] bist_fail_burst_slot = 3'd0;
     wire[wb_data_bits-1:0] correct_data;
     wire[15:0] bist_mismatch_byte_mask;
-    wire[3:0] bist_mismatch_byte_index =
-        bist_mismatch_byte_mask[0]  ? 4'd0  :
-        bist_mismatch_byte_mask[1]  ? 4'd1  :
-        bist_mismatch_byte_mask[2]  ? 4'd2  :
-        bist_mismatch_byte_mask[3]  ? 4'd3  :
-        bist_mismatch_byte_mask[4]  ? 4'd4  :
-        bist_mismatch_byte_mask[5]  ? 4'd5  :
-        bist_mismatch_byte_mask[6]  ? 4'd6  :
-        bist_mismatch_byte_mask[7]  ? 4'd7  :
-        bist_mismatch_byte_mask[8]  ? 4'd8  :
-        bist_mismatch_byte_mask[9]  ? 4'd9  :
-        bist_mismatch_byte_mask[10] ? 4'd10 :
-        bist_mismatch_byte_mask[11] ? 4'd11 :
-        bist_mismatch_byte_mask[12] ? 4'd12 :
-        bist_mismatch_byte_mask[13] ? 4'd13 :
-        bist_mismatch_byte_mask[14] ? 4'd14 :
-        bist_mismatch_byte_mask[15] ? 4'd15 : 4'd0;
-    wire[2:0] bist_mismatch_burst_slot =
-        (LANES == 1) ? bist_mismatch_byte_index[2:0] :
-        (LANES == 2) ? {1'b0, bist_mismatch_byte_index[3:1]} :
-        (LANES == 4) ? {2'b00, bist_mismatch_byte_index[3:2]} :
-        (LANES == 8) ? {2'b00, bist_mismatch_byte_index[3]} : 3'd0;
     reg[LANES-1:0] late_dq;
     reg stage2_do_wr_or_rd, stage2_do_wr_or_rd_d;
     reg stage2_do_wr, stage2_do_wr_d;
@@ -3822,18 +3788,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             bist_fail_byte_mask <= bist_mismatch_byte_mask;
                             bist_fail_actual <= o_wb_data[127:0];
                             bist_fail_expected <= correct_data[127:0];
-                            bist_fail_aux <= {{(16-AUX_WIDTH){1'b0}}, o_aux};
-                            bist_fail_wb_data_q_current <= o_wb_data_q_current[127:0];
-                            bist_fail_raw_iserdes_data <= i_phy_iserdes_data[127:0];
-                            bist_fail_index_wb_data <= index_wb_data;
-                            bist_fail_delay_read_pipe0 <= delay_read_pipe[0];
-                            bist_fail_delay_read_pipe1 <= delay_read_pipe[1];
-                            bist_fail_added_read_pipe0 <= added_read_pipe[0];
-                            bist_fail_data_start_index0 <= data_start_index[0];
-                            bist_fail_idelay_data_cntvaluein0 <= idelay_data_cntvaluein[0];
-                            bist_fail_idelay_dqs_cntvaluein0 <= idelay_dqs_cntvaluein[0];
-                            bist_fail_byte_index <= bist_mismatch_byte_index;
-                            bist_fail_burst_slot <= bist_mismatch_burst_slot;
                         end
                         `ifdef UART_DEBUG
                             state_calibrate_last <= state_calibrate;
@@ -3862,18 +3816,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 bist_fail_byte_mask <= 16'd0;
                 bist_fail_actual <= 128'd0;
                 bist_fail_expected <= 128'd0;
-                bist_fail_aux <= 16'd0;
-                bist_fail_wb_data_q_current <= 128'd0;
-                bist_fail_raw_iserdes_data <= 128'd0;
-                bist_fail_index_wb_data <= 1'b0;
-                bist_fail_delay_read_pipe0 <= 2'd0;
-                bist_fail_delay_read_pipe1 <= 2'd0;
-                bist_fail_added_read_pipe0 <= 1'b0;
-                bist_fail_data_start_index0 <= 0;
-                bist_fail_idelay_data_cntvaluein0 <= 5'd0;
-                bist_fail_idelay_dqs_cntvaluein0 <= 5'd0;
-                bist_fail_byte_index <= 4'd0;
-                bist_fail_burst_slot <= 3'd0;
             end
         end
 
@@ -4239,18 +4181,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
    assign o_panopticon_debug = panopticon_debug_q;
 
    assign o_bist_debug = {
-        bist_fail_burst_slot,
-        bist_fail_byte_index,
-        bist_fail_idelay_dqs_cntvaluein0,
-        bist_fail_idelay_data_cntvaluein0,
-        bist_fail_data_start_index0,
-        bist_fail_added_read_pipe0,
-        bist_fail_delay_read_pipe1,
-        bist_fail_delay_read_pipe0,
-        bist_fail_index_wb_data,
-        bist_fail_raw_iserdes_data,
-        bist_fail_wb_data_q_current,
-        bist_fail_aux,
+        306'd0,
         1'b0,
         bist_fail_valid,
         bist_fail_state,

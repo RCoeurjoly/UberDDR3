@@ -334,6 +334,15 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "state_calibrate": field(payload, panopticon_control_offset + 59, 5),
         "marker": field(payload, panopticon_debug_offset + 752, 8),
     }
+    byte_mismatch_mask = bist_debug["byte_mismatch_mask"]
+    fail_byte_index = 0
+    for byte_index in range(16):
+        if byte_mismatch_mask & (1 << byte_index):
+            fail_byte_index = byte_index
+            break
+    bist_debug["fail_byte_index"] = fail_byte_index
+    bist_debug["fail_burst_slot"] = fail_byte_index // 2
+
     calib_debug_offset = 100
     calib_debug = {
         "state_calibrate": field(payload, calib_debug_offset, 5),
