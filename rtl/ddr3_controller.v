@@ -628,6 +628,7 @@ module ddr3_controller #(
     reg [2:0] init_event_write_index_q = 3'd0;
     reg [15:0] init_event_last_q = 16'd0;
 `endif
+    reg[781:0] panopticon_debug_q = 782'd0;
     reg[$clog2(64):0] data_start_index[LANES-1:0];   
     reg[LANES-1:0] lane_write_dq_late = 0;    
     reg[LANES-1:0] lane_read_dq_early = 0;    
@@ -4219,19 +4220,23 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
 
    wire [127:0] panopticon_cmd = {{(128-(cmd_len*serdes_ratio)){1'b0}}, o_phy_cmd};
 
-   assign o_panopticon_debug = {
-        6'd0,
-        8'hA5,
-        panopticon_control,
-        panopticon_cmd,
-        stage2_data_unaligned[127:0],
-        stage2_data[0][127:0],
-        stage2_data[1][127:0],
-        stage2_dm_unaligned[15:0],
-        stage2_dm[0][15:0],
-        stage2_dm[1][15:0],
-        o_wb_data_q_current[127:0]
-   };
+   always @(posedge i_controller_clk) begin
+       panopticon_debug_q <= {
+            6'd0,
+            8'hA5,
+            panopticon_control,
+            panopticon_cmd,
+            stage2_data_unaligned[127:0],
+            stage2_data[0][127:0],
+            stage2_data[1][127:0],
+            stage2_dm_unaligned[15:0],
+            stage2_dm[0][15:0],
+            stage2_dm[1][15:0],
+            o_wb_data_q_current[127:0]
+       };
+   end
+
+   assign o_panopticon_debug = panopticon_debug_q;
 
    assign o_bist_debug = {
         bist_fail_burst_slot,
