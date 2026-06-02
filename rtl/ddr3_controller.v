@@ -739,6 +739,11 @@ module ddr3_controller #(
     reg[15:0] bist_fail_byte_mask = 16'd0;
     reg[127:0] bist_fail_expected = 128'd0;
     reg[127:0] bist_fail_actual = 128'd0;
+    reg bist_check_pending = 1'b0;
+    reg[wb_data_bits-1:0] bist_check_actual = 0;
+    reg[wb_data_bits-1:0] bist_check_expected = 0;
+    reg[wb_addr_bits-1:0] bist_check_addr = 0;
+    reg[4:0] bist_check_state = 5'd0;
     wire[wb_data_bits-1:0] correct_data;
     wire[15:0] bist_mismatch_byte_mask;
     reg[LANES-1:0] late_dq;
@@ -3759,7 +3764,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     genvar bist_debug_byte_index;
     generate
         for(bist_debug_byte_index = 0; bist_debug_byte_index < 16; bist_debug_byte_index = bist_debug_byte_index + 1) begin : gen_bist_debug_byte_mask
-            assign bist_mismatch_byte_mask[bist_debug_byte_index] = |(o_wb_data[8*bist_debug_byte_index +: 8] ^ correct_data[8*bist_debug_byte_index +: 8]);
+            assign bist_mismatch_byte_mask[bist_debug_byte_index] = |(bist_check_actual[8*bist_debug_byte_index +: 8] ^ bist_check_expected[8*bist_debug_byte_index +: 8]);
         end
     endgenerate
 
@@ -3769,28 +3774,30 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             // correct_read_data <= 0; // dont reset so data is preserved when forced reset after wrong data
             // wrong_read_data <= 0;
             reset_from_test <= 0;
+            bist_check_pending <= 1'b0;
         end
         else begin
             reset_from_test <= 0;
-            if(!final_calibration_done) begin          
-                if ( o_aux[2:0] == 3'd3 && o_wb_ack_uncalibrated ) begin //o_aux = 3 is for read from calibration
-                    if(o_wb_data == correct_data) begin
+            if(!final_calibration_done) begin
+                if(bist_check_pending) begin
+                    bist_check_pending <= 1'b0;
+                    if(bist_check_actual == bist_check_expected) begin
                         correct_read_data <= correct_read_data + 1;
                     end
                     else begin
                         wrong_read_data <= wrong_read_data + 1;
-                        wrong_data <= o_wb_data;
-                        expected_data <= correct_data;
+                        wrong_data <= bist_check_actual;
+                        expected_data <= bist_check_expected;
                         if(!bist_fail_valid) begin
                             bist_fail_valid <= 1'b1;
-                            bist_fail_state <= state_calibrate;
-                            bist_fail_addr <= check_test_address_counter;
+                            bist_fail_state <= bist_check_state;
+                            bist_fail_addr <= bist_check_addr;
                             bist_fail_byte_mask <= bist_mismatch_byte_mask;
-                            bist_fail_actual <= o_wb_data[127:0];
-                            bist_fail_expected <= correct_data[127:0];
+                            bist_fail_actual <= bist_check_actual[127:0];
+                            bist_fail_expected <= bist_check_expected[127:0];
                         end
                         `ifdef UART_DEBUG
-                            state_calibrate_last <= state_calibrate;
+                            state_calibrate_last <= bist_check_state;
                             reset_from_test <= 1'b0; // preserve failure state when interactive/debug instrumentation is enabled
                         `elsif UBERDDR3_PANOPTICON
                             reset_from_test <= 1'b0; // preserve failure state when panopticon instrumentation is enabled
@@ -3798,6 +3805,13 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             reset_from_test <= !final_calibration_done; // reset controller when a wrong data is received before calibration completes
                         `endif
                     end
+                end
+                if ( o_aux[2:0] == 3'd3 && o_wb_ack_uncalibrated ) begin //o_aux = 3 is for read from calibration
+                    bist_check_pending <= 1'b1;
+                    bist_check_actual <= o_wb_data;
+                    bist_check_expected <= correct_data;
+                    bist_check_addr <= check_test_address_counter;
+                    bist_check_state <= state_calibrate;
                     /* verilator lint_off WIDTHEXPAND */
                     check_test_address_counter <= check_test_address_counter + 1;
                     if(check_test_address_counter == {(wb_addr_bits_sim){1'b1}}) begin // if last address, then jump back to zero
@@ -3805,6 +3819,9 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                     end
                     /* verilator lint_on WIDTHEXPAND */
                 end
+            end
+            else begin
+                bist_check_pending <= 1'b0;
             end
             if(repeat_test) begin
                 check_test_address_counter <= 0;
@@ -3816,6 +3833,11 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 bist_fail_byte_mask <= 16'd0;
                 bist_fail_actual <= 128'd0;
                 bist_fail_expected <= 128'd0;
+                bist_check_pending <= 1'b0;
+                bist_check_actual <= 0;
+                bist_check_expected <= 0;
+                bist_check_addr <= 0;
+                bist_check_state <= 5'd0;
             end
         end
 
