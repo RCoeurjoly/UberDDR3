@@ -396,6 +396,7 @@ module ddr3_controller #(
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
+                REPEAT_DQS_ACQUIRE_MISS = 2,
                 REPEAT_CLK_SAMPLING = 5; // repeat DQS read to find the accurate starting position of DQS
 
     /*********************************************************************************************************************************************/
@@ -563,6 +564,7 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_start_index_stored = 0;
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index = 0;
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_orig = 0;
+    reg[$clog2(REPEAT_DQS_ACQUIRE_MISS + 1):0] dqs_acquire_miss_count = 0;
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
     reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
@@ -2519,6 +2521,7 @@ module ddr3_controller #(
             dqs_start_index <= 0;
             dqs_target_index <= 0;
             dqs_target_index_orig <= 0;
+            dqs_acquire_miss_count <= 0;
             o_phy_bitslip <= 0;
             o_phy_odelay_data_ld <= 0;
             o_phy_odelay_dqs_ld <= 0;
@@ -2754,6 +2757,7 @@ module ddr3_controller #(
                              // high initial_dqs is the time when the IDELAY of dqs and dq is not yet calibrated so we zero this starting now
                             initial_dqs <= 0; 
                             dqs_start_index_repeat <= 0;
+                            dqs_acquire_miss_count <= 0;
                             state_calibrate <= CALIBRATE_DQS;
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
@@ -2775,16 +2779,26 @@ module ddr3_controller #(
                         end
                       end 
                       else begin
-                        if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
-                            o_phy_idelay_data_ld[lane] <= 1;
-                            o_phy_idelay_dqs_ld[lane] <= 1;
-                            state_calibrate <= MPR_READ;
-                            delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                        if(dqs_start_index == (STORED_DQS_SIZE*8-1) ) begin //if we reached end then this capture did not contain the expected DQS transition pattern
+                            dqs_store <= 0;
+                            dqs_start_index <= 0;
+                            dqs_start_index_stored <= 0;
+                            dqs_start_index_repeat <= 0;
+                            delay_before_read_data <= 10; //wait for sometime before retrying DQS capture
+                            if(dqs_acquire_miss_count == REPEAT_DQS_ACQUIRE_MISS) begin
+                                dqs_acquire_miss_count <= 0;
+                                state_calibrate <= BITSLIP_DQS_TRAIN_1;
+                                train_delay <= 3;
+                            end
+                            else begin
+                                dqs_acquire_miss_count <= dqs_acquire_miss_count + 1;
+                                state_calibrate <= MPR_READ;
+                            end
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
-                                uart_text <= {"state=ANALYZE_DQS, Glitch: Reached End", 8'h0a,"----------------------",8'h0a,8'h0a};
+                                uart_text <= {"state=ANALYZE_DQS, no valid DQS pattern", 8'h0a,"----------------------",8'h0a,8'h0a};
                                 state_calibrate <= WAIT_UART;
-                                state_calibrate_next <= MPR_READ;
+                                state_calibrate_next <= (dqs_acquire_miss_count == REPEAT_DQS_ACQUIRE_MISS) ? BITSLIP_DQS_TRAIN_1 : MPR_READ;
                             `endif
                         end
                         else begin
