@@ -618,7 +618,8 @@ module ddr3_controller #(
 `ifdef UBERDDR3_PANOPTICON
     reg [127:0] init_seq_debug_q = 128'd0;
     reg [111:0] init_event_trace_q = 112'd0;
-    reg [3:0] init_event_count_q = 4'd0;
+    reg [4:0] init_event_count_q = 5'd0;
+    reg [2:0] init_event_write_index_q = 3'd0;
     reg [15:0] init_event_last_q = 16'd0;
 `endif
     reg[$clog2(64):0] data_start_index[LANES-1:0];   
@@ -4013,27 +4014,29 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
        if(sync_rst_controller) begin
            init_seq_debug_q <= 128'd0;
            init_event_trace_q <= 112'd0;
-           init_event_count_q <= 4'd0;
+           init_event_count_q <= 5'd0;
+           init_event_write_index_q <= 3'd0;
            init_event_last_q <= 16'd0;
        end
        else begin
            if(init_event_changed) begin
                init_event_last_q <= init_event_word;
-               if(init_event_count_q < 4'd7) begin
-                   case(init_event_count_q[2:0])
-                       3'd0: init_event_trace_q[15:0] <= init_event_word;
-                       3'd1: init_event_trace_q[31:16] <= init_event_word;
-                       3'd2: init_event_trace_q[47:32] <= init_event_word;
-                       3'd3: init_event_trace_q[63:48] <= init_event_word;
-                       3'd4: init_event_trace_q[79:64] <= init_event_word;
-                       3'd5: init_event_trace_q[95:80] <= init_event_word;
-                       3'd6: init_event_trace_q[111:96] <= init_event_word;
-                       default: init_event_trace_q <= init_event_trace_q;
-                   endcase
-                   init_event_count_q <= init_event_count_q + 4'd1;
+               case(init_event_write_index_q)
+                   3'd0: init_event_trace_q[15:0] <= init_event_word;
+                   3'd1: init_event_trace_q[31:16] <= init_event_word;
+                   3'd2: init_event_trace_q[47:32] <= init_event_word;
+                   3'd3: init_event_trace_q[63:48] <= init_event_word;
+                   3'd4: init_event_trace_q[79:64] <= init_event_word;
+                   3'd5: init_event_trace_q[95:80] <= init_event_word;
+                   3'd6: init_event_trace_q[111:96] <= init_event_word;
+                   default: init_event_trace_q <= init_event_trace_q;
+               endcase
+               init_event_write_index_q <= (init_event_write_index_q == 3'd6) ? 3'd0 : (init_event_write_index_q + 3'd1);
+               if(init_event_count_q != 5'd31) begin
+                   init_event_count_q <= init_event_count_q + 5'd1;
                end
            end
-           init_seq_debug_q <= {12'hE71, init_event_count_q, init_event_trace_q};
+           init_seq_debug_q <= {8'hE7, init_event_count_q, init_event_write_index_q, init_event_trace_q};
        end
    end
 

@@ -262,9 +262,22 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
             "instruction_address_d": field(event, 6, 5),
             "instruction_address": field(event, 11, 5),
         })
-    init_seq_debug["event_marker"] = field(payload, init_seq_debug_offset + 116, 12)
-    init_seq_debug["event_count"] = field(payload, init_seq_debug_offset + 112, 4)
+    init_seq_debug["event_marker"] = field(payload, init_seq_debug_offset + 120, 8)
+    init_seq_debug["event_count"] = field(payload, init_seq_debug_offset + 115, 5)
+    init_seq_debug["event_write_index"] = field(payload, init_seq_debug_offset + 112, 3)
     init_seq_debug["event_trace"] = init_event_trace
+    event_valid_count = min(init_seq_debug["event_count"], 7)
+    if init_seq_debug["event_count"] <= 7:
+        ordered_indexes = list(range(event_valid_count))
+    else:
+        ordered_indexes = [
+            (init_seq_debug["event_write_index"] + offset) % 7
+            for offset in range(event_valid_count)
+        ]
+    init_seq_debug["event_trace_ordered"] = [
+        dict(init_event_trace[index], chronological_index=order)
+        for order, index in enumerate(ordered_indexes)
+    ]
     bist_debug_offset = 656
     bist_debug = {
         "expected_data": field(payload, bist_debug_offset + 0, 128),
