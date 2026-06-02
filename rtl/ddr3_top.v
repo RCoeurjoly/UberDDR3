@@ -124,7 +124,7 @@ module ddr3_top #(
         output wire[347:0] o_calib_debug,
         output wire[15:0] o_init_reset_debug,
         output wire[127:0] o_init_seq_debug,
-        output wire[303:0] o_bist_debug,
+        output wire[609:0] o_bist_debug,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_n
         // 

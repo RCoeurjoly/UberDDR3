@@ -37,15 +37,15 @@ module ypcb_00338_1p1_ddr3 (
     wire [63:0] debug8;
     wire [63:0] bist_counts;
 `ifdef UBERDDR3_DEBUG_JTAG
-    wire [959:0] jtag_debug_payload_live;
-    reg [959:0] jtag_debug_payload_snapshot = 960'd0;
+    wire [1265:0] jtag_debug_payload_live;
+    reg [1265:0] jtag_debug_payload_snapshot = 1266'd0;
     wire jtag_debug_selected;
     reg jtag_debug_selected_meta = 1'b0;
     reg jtag_debug_selected_sync = 1'b0;
     wire [347:0] calib_debug_payload;
     wire [15:0] init_reset_debug_payload;
     wire [127:0] init_seq_debug_payload;
-    wire [303:0] bist_debug_payload;
+    wire [609:0] bist_debug_payload;
 `endif
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
@@ -181,7 +181,7 @@ module ypcb_00338_1p1_ddr3 (
     end
 
     jtag_debug_bscan #(
-        .WIDTH(960),
+        .WIDTH(1266),
         .JTAG_CHAIN(1)
     ) jtag_debug_bscan_inst (
         .debug_data(jtag_debug_payload_snapshot),

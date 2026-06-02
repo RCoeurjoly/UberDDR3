@@ -48,6 +48,18 @@ STATUS_FIELDS = [
     "bist_fail_byte_mismatch_mask",
     "bist_fail_expected_data",
     "bist_fail_actual_data",
+    "bist_fail_aux",
+    "bist_fail_wb_data_q_current",
+    "bist_fail_raw_iserdes_data",
+    "bist_fail_index_wb_data",
+    "bist_fail_delay_read_pipe0",
+    "bist_fail_delay_read_pipe1",
+    "bist_fail_added_read_pipe0",
+    "bist_fail_data_start_index0",
+    "bist_fail_idelay_data_cntvaluein0",
+    "bist_fail_idelay_dqs_cntvaluein0",
+    "bist_fail_byte_index",
+    "bist_fail_burst_slot",
 ]
 
 
@@ -172,6 +184,18 @@ def classify_result(result_path: Path) -> dict[str, object]:
         "bist_fail_byte_mismatch_mask": bist_debug.get("byte_mismatch_mask", ""),
         "bist_fail_expected_data": bist_debug.get("expected_data", ""),
         "bist_fail_actual_data": bist_debug.get("actual_data", ""),
+        "bist_fail_aux": bist_debug.get("fail_aux", ""),
+        "bist_fail_wb_data_q_current": bist_debug.get("fail_wb_data_q_current", ""),
+        "bist_fail_raw_iserdes_data": bist_debug.get("fail_raw_iserdes_data", ""),
+        "bist_fail_index_wb_data": bist_debug.get("fail_index_wb_data", ""),
+        "bist_fail_delay_read_pipe0": bist_debug.get("fail_delay_read_pipe0", ""),
+        "bist_fail_delay_read_pipe1": bist_debug.get("fail_delay_read_pipe1", ""),
+        "bist_fail_added_read_pipe0": bist_debug.get("fail_added_read_pipe0", ""),
+        "bist_fail_data_start_index0": bist_debug.get("fail_data_start_index0", ""),
+        "bist_fail_idelay_data_cntvaluein0": bist_debug.get("fail_idelay_data_cntvaluein0", ""),
+        "bist_fail_idelay_dqs_cntvaluein0": bist_debug.get("fail_idelay_dqs_cntvaluein0", ""),
+        "bist_fail_byte_index": bist_debug.get("fail_byte_index", ""),
+        "bist_fail_burst_slot": bist_debug.get("fail_burst_slot", ""),
         "bitstream_sha256": result.get("bitstream_sha256", ""),
     }
 

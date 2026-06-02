@@ -18,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "openFPGALoader"))
-DEFAULT_BITS = 960
+DEFAULT_BITS = 1266
 MAGIC = 0x33445244
 VERSION = 1
 DEBUG_VERSION = 2
@@ -286,6 +286,18 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
         "address": field(payload, bist_debug_offset + 272, 25),
         "state_calibrate": field(payload, bist_debug_offset + 297, 5),
         "valid": bool(field(payload, bist_debug_offset + 302, 1)),
+        "fail_aux": field(payload, bist_debug_offset + 304, 16),
+        "fail_wb_data_q_current": field(payload, bist_debug_offset + 320, 128),
+        "fail_raw_iserdes_data": field(payload, bist_debug_offset + 448, 128),
+        "fail_index_wb_data": field(payload, bist_debug_offset + 576, 1),
+        "fail_delay_read_pipe0": field(payload, bist_debug_offset + 577, 2),
+        "fail_delay_read_pipe1": field(payload, bist_debug_offset + 579, 2),
+        "fail_added_read_pipe0": bool(field(payload, bist_debug_offset + 581, 1)),
+        "fail_data_start_index0": field(payload, bist_debug_offset + 582, 7),
+        "fail_idelay_data_cntvaluein0": field(payload, bist_debug_offset + 589, 5),
+        "fail_idelay_dqs_cntvaluein0": field(payload, bist_debug_offset + 594, 5),
+        "fail_byte_index": field(payload, bist_debug_offset + 599, 4),
+        "fail_burst_slot": field(payload, bist_debug_offset + 603, 3),
     }
     calib_debug_offset = 100
     calib_debug = {
