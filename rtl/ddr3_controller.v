@@ -397,6 +397,11 @@ module ddr3_controller #(
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
                 REPEAT_CLK_SAMPLING = 5; // repeat DQS read to find the accurate starting position of DQS
+`ifdef UBERDDR3_PANOPTICON
+    localparam DQS_IDELAY_SETTLE_CYCLES = 64;
+`else
+    localparam DQS_IDELAY_SETTLE_CYCLES = 10;
+`endif
 
     /*********************************************************************************************************************************************/
 
@@ -2779,7 +2784,7 @@ module ddr3_controller #(
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
                             state_calibrate <= MPR_READ;
-                            delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            delay_before_read_data <= DQS_IDELAY_SETTLE_CYCLES; //wait for sometime to make sure idelay load settles
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {"state=ANALYZE_DQS, Glitch: Reached End", 8'h0a,"----------------------",8'h0a,8'h0a};
@@ -2829,7 +2834,7 @@ module ddr3_controller #(
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
                             state_calibrate <= MPR_READ;
-                            delay_before_read_data <= 10; //wait for sometime to make sure idelay load settles
+                            delay_before_read_data <= DQS_IDELAY_SETTLE_CYCLES; //wait for sometime to make sure idelay load settles
                             `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {8'h0a,"state=CALIBRATE_DQS, stored(0x", hex_to_ascii(dqs_start_index_stored[5:4]),hex_to_ascii(dqs_start_index_stored[3:0]),
