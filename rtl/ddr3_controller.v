@@ -937,7 +937,7 @@ module ddr3_controller #(
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
     wire init_prefetch_ready = init_prefetch_address == instruction_address;
-    wire init_calib_start_now = i_phy_idelayctrl_rdy && (instruction_address == 5'd13);
+    wire init_calib_start_now = i_phy_idelayctrl_rdy && reset_done && (instruction_address == 5'd13);
     wire init_timed_counter_active = instruction[USE_TIMER] && !pause_counter && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
