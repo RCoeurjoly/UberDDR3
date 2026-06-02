@@ -259,7 +259,8 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
             "init_advance_now": bool(field(event, 3, 1)),
             "reset_done": bool(field(event, 4, 1)),
             "delay_counter_is_zero": bool(field(event, 5, 1)),
-            "instruction_address_d": field(event, 6, 5),
+            "init_advance_ready": bool(field(event, 6, 1)),
+            "instruction_address_reserved": field(event, 7, 4),
             "instruction_address": field(event, 11, 5),
         })
     init_seq_debug["event_marker"] = field(payload, init_seq_debug_offset + 120, 8)
