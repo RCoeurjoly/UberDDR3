@@ -593,9 +593,7 @@ module ddr3_controller #(
     reg[15:0] dqs_bitslip_arrangement = 0;
     /* verilator lint_off UNUSEDSIGNAL */
     reg added_read_pipe_max = 0;
-    reg added_read_pipe[LANES - 1:0];
-    reg added_read_pipe_max_pipe = 0;
-    reg added_read_pipe_pipe[LANES - 1:0];
+    reg added_read_pipe[LANES - 1:0]; 
     //each lane will have added delay relative to when ISERDES should actually return the data
     //this make sure that we will wait until the lane with longest delay (added_read_pipe_max) is received before
     //all lanes are sent to wishbone data
@@ -637,8 +635,7 @@ module ddr3_controller #(
     reg [15:0] init_event_last_q = 16'd0;
 `endif
     reg[781:0] panopticon_debug_q = 782'd0;
-    reg[$clog2(64):0] data_start_index[LANES-1:0];
-    reg[$clog2(64):0] data_start_index_pipe[LANES-1:0];
+    reg[$clog2(64):0] data_start_index[LANES-1:0];   
     reg[LANES-1:0] lane_write_dq_late = 0;    
     reg[LANES-1:0] lane_read_dq_early = 0;    
     reg[4:0] odelay_data_cntvaluein[LANES-1:0]; 
@@ -756,7 +753,6 @@ module ddr3_controller #(
     wire[wb_data_bits-1:0] correct_data;
     wire[15:0] bist_mismatch_byte_mask;
     reg[LANES-1:0] late_dq;
-    reg[LANES-1:0] late_dq_pipe;
     reg stage2_do_wr_or_rd, stage2_do_wr_or_rd_d;
     reg stage2_do_wr, stage2_do_wr_d;
     reg stage2_do_update_delay_before_precharge_after_wr, stage2_do_update_delay_before_precharge_after_wr_d;
@@ -815,9 +811,6 @@ module ddr3_controller #(
             idelay_dqs_cntvaluein[index] = DQS_INITIAL_IDELAY_TAP[4:0];
             dq_target_index[index] = 0;
             data_start_index[index] = 0;
-            data_start_index_pipe[index] = 0;
-            added_read_pipe[index] = 0;
-            added_read_pipe_pipe[index] = 0;
         end
     end
     /*********************************************************************************************************************************************/
@@ -1232,7 +1225,7 @@ module ddr3_controller #(
                 // if DQ is too late (298cd0ad51c1XXXX is written) then we want to DQ to be early 
                 // Thus, we will forward the stage2_data_unaligned directly to stage2_data[1] (instead of the usual stage2_data[0])
                 // checks if the DQ for this lane is late (index being zero while write_dq_late high means we will try 2nd assumption), if yes then we forward stage2_data_unaligned directly to stage2_data[1]
-                if(late_dq_pipe[index]) begin
+                if(late_dq[index]) begin
                     {unaligned_data[index], { 
                         stage2_data[1][((DQ_BITS*LANES)*7 + 8*index) +: 8], stage2_data[1][((DQ_BITS*LANES)*6 + 8*index) +: 8], 
                         stage2_data[1][((DQ_BITS*LANES)*5 + 8*index) +: 8], stage2_data[1][((DQ_BITS*LANES)*4 + 8*index) +: 8], 
@@ -1242,7 +1235,7 @@ module ddr3_controller #(
                                 stage2_data_unaligned[((DQ_BITS*LANES)*5 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*4 + 8*index) +: 8], 
                                 stage2_data_unaligned[((DQ_BITS*LANES)*3 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*2 + 8*index) +: 8],
                                 stage2_data_unaligned[((DQ_BITS*LANES)*1 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*0 + 8*index) +: 8] }
-                            << {data_start_index_pipe[index][$clog2(64):1], 1'b0} ) | unaligned_data[index];
+                            << {data_start_index[index][$clog2(64):1], 1'b0} ) | unaligned_data[index];
                             // data_start_index is set to 1 so this if statement will pass, but shift left is zero (lsb of data_start_index is removed) which means 
                             // DQ is 1 whole controller cycle early (happens in Kintex-7 with OpenXC7)
                     {unaligned_dm[index], {
@@ -1254,13 +1247,13 @@ module ddr3_controller #(
                                 stage2_dm_unaligned[LANES*5 + index], stage2_dm_unaligned[LANES*4 + index], 
                                 stage2_dm_unaligned[LANES*3 + index], stage2_dm_unaligned[LANES*2 + index],
                                 stage2_dm_unaligned[LANES*1 + index], stage2_dm_unaligned[LANES*0 + index] }
-                                << (data_start_index_pipe[index]>>3)) | unaligned_dm[index];
+                                << (data_start_index[index]>>3)) | unaligned_dm[index];
                 /* verilator lint_on WIDTH */
                 end // end of if statement (dq for this lane is late)
             end // end of for loop to forward stage2_unaligned to stage2 by lane
 
             for(index = 0; index < LANES; index = index + 1) begin
-                if(!late_dq_pipe[index]) begin // DQ is not late so we will forward stage2_data_unaligned to stage2_data[0]
+                if(!late_dq[index]) begin // DQ is not late so we will forward stage2_data_unaligned to stage2_data[0]
                     /* verilator lint_off WIDTH */
                     // stage2_data_unaligned is the DQ_BITS*LANES*8 raw data from stage 1 so not yet aligned
                     // unaligned_data is 64 bits
@@ -1273,7 +1266,7 @@ module ddr3_controller #(
                             stage2_data_unaligned[((DQ_BITS*LANES)*5 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*4 + 8*index) +: 8], 
                             stage2_data_unaligned[((DQ_BITS*LANES)*3 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*2 + 8*index) +: 8],
                             stage2_data_unaligned[((DQ_BITS*LANES)*1 + 8*index) +: 8], stage2_data_unaligned[((DQ_BITS*LANES)*0 + 8*index) +: 8] }
-                            << data_start_index_pipe[index]) | unaligned_data[index];
+                            << data_start_index[index]) | unaligned_data[index];
                     /*
                     // Example with LANE 0:
                     // Burst_0 to burst_7 of unaligned LANE 0 will be extracted which will be shifted by data_start_index.
@@ -1314,7 +1307,7 @@ module ddr3_controller #(
                             stage2_dm_unaligned[LANES*5 + index], stage2_dm_unaligned[LANES*4 + index], 
                             stage2_dm_unaligned[LANES*3 + index], stage2_dm_unaligned[LANES*2 + index],
                             stage2_dm_unaligned[LANES*1 + index], stage2_dm_unaligned[LANES*0 + index] }
-                            << (data_start_index_pipe[index]>>3)) | unaligned_dm[index];
+                            << (data_start_index[index]>>3)) | unaligned_dm[index];
                     /* verilator lint_on WIDTH */
                 end // end for else statement (dq is not late for this lane)
             end // end of for loop to forward stage2_unaligned to stage2 by lane
@@ -2323,13 +2316,6 @@ module ddr3_controller #(
             else begin 
                 write_dqs_val[0] <= write_dqs_d || write_dqs_q[0] || write_dqs_q[1];
             end
-
-            added_read_pipe_max_pipe <= added_read_pipe_max;
-            late_dq_pipe <= late_dq;
-            for(index = 0; index < LANES; index = index + 1) begin
-                added_read_pipe_pipe[index] <= added_read_pipe[index];
-                data_start_index_pipe[index] <= data_start_index[index];
-            end
             write_dqs_q[0] <= write_dqs_d;
             write_dqs_q[1] <= write_dqs_q[0];
             write_dqs[0] <= write_dqs_d || write_dqs_q[0] || write_dqs_q[1]; //high for 3 clk cycles
@@ -2358,7 +2344,7 @@ module ddr3_controller #(
                 //delay from shift_reg_read_pipe_q is about to be over (ack, which is the last bit, will be at LSB on next clk cycle OR MSB is high for ECC req)
                 //and data is now starting to be released from ISERDES from phy BUT NOT YET ALIGNED
                 index_read_pipe <= !index_read_pipe; //control which delay_read_pipe would get updated (we have 2 read_pipes to store read data,use the read_pipe alternatingly)
-                delay_read_pipe[index_read_pipe][added_read_pipe_max_pipe] <= 1'b1; //update delay_read_pipe
+                delay_read_pipe[index_read_pipe][added_read_pipe_max] <= 1'b1; //update delay_read_pipe
                 // NOTE: added_read_pipe_max can either be 0 or 1 (NOTE TO SELF: optimize by lowering the bit size of delay_read_pipe)
                 // delay_read_pipe will get the ack bit from shift_reg_read_pipe_q[1] at the bit equal to 
                 // added_read_pipe_max (0th or 1st bit). added_read_pipe_max is the max number of added controller clk cycles among all lanes
@@ -2381,7 +2367,7 @@ module ddr3_controller #(
                 // before retrieving the value from PHY. But if not the same (added_read_pipe is 0 while added_read_pipe_max is 1), then wait until
                 // the bit 1 reaches the one before LSB [1] before retrieving the value from PHY, so this means this lane with 0 delay will FIRST BE RETRIEVED
                 // while the lane with added_read_pipe_max of delay (delay of 1) will be retrieved SECOND
-                if(delay_read_pipe[0][added_read_pipe_max_pipe != added_read_pipe_pipe[index]]) begin 
+                if(delay_read_pipe[0][added_read_pipe_max != added_read_pipe[index]]) begin 
                 /* verilator lint_on WIDTH */
                 // o_wb_data[63:0] = BURST0: {LANE7,LANE6,LANE5,LANE4,LANE3,LANE2,LANE1,LANE0}
                 // o_wb_data[127:64] = BURST1: {LANE7,LANE6,LANE5,LANE4,LANE3,LANE2,LANE1,LANE0}
@@ -2404,7 +2390,7 @@ module ddr3_controller #(
                 // the bit 1 reaches the one before LSB [1] (which goes high already since bit 1 of delay_read_pipe is the first to go high once shift_reg_read_pipe_q
                 // bit 1 goes high) before retrieving the value from PHY. So this means this lane with 0 delay will FIRST BE RETRIEVED
                 // while the lane with added_read_pipe_max of delay (delay of 1) will be retrieved SECOND
-                if(delay_read_pipe[1][added_read_pipe_max_pipe != added_read_pipe_pipe[index]]) begin
+                if(delay_read_pipe[1][added_read_pipe_max != added_read_pipe[index]]) begin
                 /* verilator lint_on WIDTH */
                     o_wb_data_q[1][((DQ_BITS*LANES)*0 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*0 + 8*index) +: 8]; //update each lane of the burst
                     o_wb_data_q[1][((DQ_BITS*LANES)*1 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*1 + 8*index) +: 8]; //update each lane of the burst
@@ -2448,7 +2434,7 @@ module ddr3_controller #(
                 o_wb_ack_read_q[index-1] <= o_wb_ack_read_q[index]; // shift rightward [ack] -> [] -> [LSB]
             end
             o_wb_ack_read_q[MAX_ADDED_READ_ACK_DELAY-1] <= 0; // MSB always gets zero and is shifted rightwards
-            o_wb_ack_read_q[added_read_pipe_max_pipe] <= shift_reg_read_pipe_q[0];
+            o_wb_ack_read_q[added_read_pipe_max] <= shift_reg_read_pipe_q[0];
             // o_wb_ack_read_q[0] is the wishbone ack
             // so once data is available from ISERDES (shift_reg_read_pipe_q[0] high) then need to wait added_read_pipe_max
             // before the data is properly stored to o_wb_data_q and can be sent outside as wishbone data
@@ -2581,8 +2567,6 @@ module ddr3_controller #(
             read_lane_data_shifted <= 0;
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
-            added_read_pipe_max_pipe <= 0;
-            late_dq_pipe <= 0;
             dqs_start_index_stored <= 0;
             dqs_start_index_repeat <= 0;        
             delay_before_write_level_feedback <= 0;
@@ -2611,9 +2595,7 @@ module ddr3_controller #(
             `endif
             for(index = 0; index < LANES; index = index + 1) begin
                 added_read_pipe[index] <= 0;
-                added_read_pipe_pipe[index] <= 0;
                 data_start_index[index] <= 0;
-                data_start_index_pipe[index] <= 0;
                 odelay_data_cntvaluein[index] <= DATA_INITIAL_ODELAY_TAP[4:0];
                 odelay_dqs_cntvaluein[index] <= DQS_INITIAL_ODELAY_TAP[4:0];
                 idelay_data_cntvaluein[index] <= DATA_INITIAL_IDELAY_TAP[4:0];
