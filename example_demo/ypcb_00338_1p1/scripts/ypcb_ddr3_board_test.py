@@ -472,6 +472,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--poll-count", type=int, default=100)
     parser.add_argument("--poll-interval", type=float, default=0.1)
+    parser.add_argument("--stable-samples", type=int, default=0, help="Stop polling after this many unchanged debug signatures. 0 disables.")
+    parser.add_argument("--stable-min-attempt", type=int, default=10, help="Do not stable-stop before this attempt.")
     parser.add_argument("--capture-settle-cycles", type=int, default=1024)
     return parser.parse_args()
 
@@ -480,6 +482,41 @@ def write_result(path: Path | None, result: dict[str, object]) -> None:
     if path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+POLL_STABILITY_PATHS = [
+    ("pass",),
+    ("fail_reasons",),
+    ("fields", "state_calibrate"),
+    ("fields", "calib_debug", "instruction_address"),
+    ("fields", "calib_debug", "init_i_rst_n"),
+    ("fields", "calib_debug", "init_idelayctrl_rdy"),
+    ("fields", "calib_debug", "init_o_phy_reset"),
+    ("fields", "calib_debug", "calib_bus_init_i_rst_n"),
+    ("fields", "calib_debug", "calib_bus_init_idelayctrl_rdy"),
+    ("fields", "calib_debug", "calib_bus_init_o_phy_reset"),
+    ("fields", "init_reset_debug", "controller_reset_done"),
+    ("fields", "panopticon_debug", "marker"),
+    ("fields", "panopticon_debug", "state_calibrate"),
+    ("fields", "panopticon_debug", "instruction_address"),
+    ("fields", "bist_debug", "valid"),
+    ("fields", "bist_debug", "byte_mismatch_mask"),
+]
+
+
+def get_path(data: object, path: tuple[str, ...]) -> object:
+    current = data
+    for key in path:
+        if not isinstance(current, dict):
+            return ""
+        current = current.get(key, "")
+    return current
+
+
+def poll_stability_signature(decoded: dict[str, object]) -> str:
+    signature = {".".join(path): get_path(decoded, path) for path in POLL_STABILITY_PATHS}
+    encoded = json.dumps(signature, sort_keys=True, separators=(",", ":"), default=str).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def main() -> int:
@@ -507,14 +544,32 @@ def main() -> int:
         decoded = None
         poll_samples: list[dict[str, object]] = []
         poll_start = time.monotonic()
+        last_stability_signature = ""
+        stable_signature_count = 0
+        poll_stop_reason = "poll_count"
         for attempt in range(1, args.poll_count + 1):
             decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits, args.capture_settle_cycles), args.bits)
+            stability_signature = poll_stability_signature(decoded)
+            if stability_signature == last_stability_signature:
+                stable_signature_count += 1
+            else:
+                last_stability_signature = stability_signature
+                stable_signature_count = 1
             poll_samples.append({
                 "attempt": attempt,
                 "elapsed_s": round(time.monotonic() - poll_start, 6),
+                "stability_signature": stability_signature[:16],
+                "stable_signature_count": stable_signature_count,
                 **decoded,
             })
-            if decoded["pass"] or "wrong_read_data_nonzero" in decoded["fail_reasons"]:
+            if decoded["pass"]:
+                poll_stop_reason = "pass"
+                break
+            if "wrong_read_data_nonzero" in decoded["fail_reasons"]:
+                poll_stop_reason = "wrong_read_data_nonzero"
+                break
+            if args.stable_samples and attempt >= args.stable_min_attempt and stable_signature_count >= args.stable_samples:
+                poll_stop_reason = "stable_debug_signature"
                 break
             if attempt < args.poll_count:
                 time.sleep(args.poll_interval)
@@ -524,6 +579,9 @@ def main() -> int:
     result["poll_samples"] = poll_samples
     result.update(decoded or {})
     result["attempts"] = attempt
+    result["poll_stop_reason"] = poll_stop_reason
+    result["stable_signature_count"] = stable_signature_count
+    result["stability_signature"] = last_stability_signature[:16]
     result["finished_at"] = datetime.now(timezone.utc).isoformat()
     write_result(args.output, result)
     print(json.dumps(result, indent=2, sort_keys=True))
