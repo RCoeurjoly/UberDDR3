@@ -357,7 +357,7 @@ README
           seed = 1;
           lockFile = resetReleaseLutSeed2Lock;
         };
-        reliabilitySeeds = lib.range 1 60;
+        reliabilitySeeds = lib.range 1 200;
         seedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
           mkCandidate { suffix = "seed-${seed}"; seed = lib.toInt seed; yosysJson = ypcbDdr3DebugYosysJson; });
         prodSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
