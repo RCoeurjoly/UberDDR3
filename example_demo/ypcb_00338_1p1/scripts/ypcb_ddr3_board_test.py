@@ -17,7 +17,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "openFPGALoader"))
+DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "/home/roland/openFPGALoader/build/openFPGALoader"))
 DEFAULT_BITS = 2048
 MAGIC = 0x33445244
 VERSION = 1
