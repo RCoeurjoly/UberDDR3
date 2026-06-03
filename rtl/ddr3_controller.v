@@ -461,7 +461,8 @@ module ddr3_controller #(
     (* keep = "true" *) reg init_advance_ready_q = 0;
     localparam [1:0] INIT_TIMER_LOAD_DELAY = 2'd0,
                      INIT_TIMER_COUNT_DELAY = 2'd1,
-                     INIT_TIMER_ADVANCE_READY = 2'd2;
+                     INIT_TIMER_ADVANCE_READY = 2'd2,
+                     INIT_TIMER_ADVANCE = 2'd3;
     (* keep = "true" *) reg [1:0] init_timer_phase = INIT_TIMER_COUNT_DELAY;
     reg[4:0] init_prefetch_address = 0;
     reg[27:0] init_prefetch_instruction = INITIAL_RESET_INSTRUCTION;
@@ -959,7 +960,7 @@ module ddr3_controller #(
         (init_timer_phase == INIT_TIMER_COUNT_DELAY) && (delay_counter != 0);
     wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
     wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
-    wire init_advance_now = init_prefetch_ready && init_advance_ready_q && !pause_counter;
+    wire init_advance_now = init_prefetch_ready && (init_timer_phase == INIT_TIMER_ADVANCE) && !pause_counter;
     wire init_self_refresh_jump = init_prefetch_ready && (instruction_address == 5'd22) && user_self_refresh_q;
     wire[4:0] init_next_instruction_address = (instruction_address == 5'd22) ? 5'd19 :
                                                (instruction_address == 5'd26) ? 5'd20 :
@@ -1056,6 +1057,21 @@ module ddr3_controller #(
                 init_timer_phase <= init_counter_reaches_two ? INIT_TIMER_ADVANCE_READY : INIT_TIMER_COUNT_DELAY;
                 init_advance_ready_q <= init_counter_reaches_two;
                 init_advance_pending <= init_counter_reaches_two;
+                precharge_all_instruction <= precharge_all_instruction;
+                precharge_all_instruction_d <= precharge_all_instruction;
+            end
+            else if(init_timer_phase == INIT_TIMER_ADVANCE_READY) begin
+                instruction_address <= instruction_address;
+                instruction_address_d <= instruction_address;
+                instruction <= instruction;
+                instruction_d <= instruction;
+                delay_counter <= delay_counter;
+                delay_counter_d <= delay_counter;
+                delay_counter_is_zero <= 1'b0;
+                delay_counter_is_zero_d <= 1'b0;
+                init_timer_phase <= INIT_TIMER_ADVANCE;
+                init_advance_ready_q <= 1'b1;
+                init_advance_pending <= 1'b1;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
             end
