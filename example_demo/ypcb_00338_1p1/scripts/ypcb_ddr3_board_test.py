@@ -51,7 +51,7 @@ class FtdiError(RuntimeError):
 class FtdiMpsseJtag:
     def __init__(self, serial: str | None, vid: int, pid: int, freq_hz: int, tdo_bit: int):
         self.tdo_bit = tdo_bit
-        self.lib = ctypes.CDLL("libftdi1.so")
+        self.lib = ctypes.CDLL(os.environ.get("LIBFTDI1_SO", "libftdi1.so"))
         self._configure_signatures()
         self.ctx = self.lib.ftdi_new()
         if not self.ctx:

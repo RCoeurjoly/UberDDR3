@@ -404,9 +404,12 @@ README
       in {
         devShells.default = pkgs.mkShell {
           inputsFrom = [ openXc7Shell ];
+          packages = [ pkgs.libftdi1 ];
           shellHook = ''
             ${openXc7Shell.shellHook or ""}
             export PRJXRAY_DB_DIR="${patchedPrjxrayDb}"
+            export LIBFTDI1_SO="${pkgs.libftdi1}/lib/libftdi1.so"
+            export LD_LIBRARY_PATH="${pkgs.libftdi1}/lib''${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
           '';
         };
 
