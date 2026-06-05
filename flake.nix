@@ -257,6 +257,65 @@ README
             [ "$compile_rc" -eq 0 ]
           '';
 
+        mkIcarusRtlInit = { name, runSimulation ? true }:
+          pkgs.runCommand name {
+            nativeBuildInputs = [ pkgs.iverilog pkgs.coreutils pkgs.gnugrep ];
+          } ''
+            mkdir -p $out work
+            cd work
+            iverilog -g2012 -o ypcb_rtl_init.vvp \
+              -DNO_TEST_MODEL -DSIM_MODEL \
+              -s ypcb_rtl_init_tb \
+              -I ${src}/testbench \
+              ${src}/testbench/ypcb_icarus/ypcb_rtl_init_tb.sv \
+              ${src}/testbench/ddr3.sv \
+              ${icarusRtlSources} \
+              > $out/iverilog.log 2>&1 || compile_rc=$?
+            compile_rc="''${compile_rc:-0}"
+            echo "$compile_rc" > $out/iverilog.returncode
+            if [ "$compile_rc" -eq 0 ] && [ "${if runSimulation then "1" else "0"}" -eq 1 ]; then
+              timeout 120s vvp -n ypcb_rtl_init.vvp > $out/init_trace.log 2>&1 || run_rc=$?
+            elif [ "$compile_rc" -eq 0 ]; then
+              echo "Icarus elaboration passed; simulation not run by this target" > $out/init_trace.log
+              run_rc=0
+            else
+              echo "iverilog compile failed; vvp not run" > $out/init_trace.log
+              run_rc=125
+            fi
+            run_rc="''${run_rc:-0}"
+            echo "$run_rc" > $out/vvp.returncode
+            cp ypcb_rtl_init.vvp $out/ 2>/dev/null || true
+            if grep -q "INIT_SUCCESS" $out/init_trace.log; then
+              sim_status=success
+            elif grep -q "INIT_TIMEOUT" $out/init_trace.log; then
+              sim_status=timeout
+            else
+              sim_status=unknown
+            fi
+            cat > $out/summary.txt <<SUMMARY
+stage=rtl-init
+micron_sim=1
+bist_mode=0
+stop_condition=instruction_address_13_and_state_calibrate_non_idle
+iverilog_returncode=$compile_rc
+vvp_returncode=$run_rc
+simulation_status=$sim_status
+SUMMARY
+            cat > $out/README.md <<README
+# YPCB RTL init Icarus result
+
+- stage: rtl-init
+- micron_model: testbench/ddr3.sv
+- stop condition: instruction_address == 13 and state_calibrate != IDLE
+- trace: init_trace.log
+- iverilog return code: $compile_rc
+- vvp return code: $run_rc
+- timeout return code is 124
+- compile-failed sentinel is 125
+README
+            [ "$compile_rc" -eq 0 ]
+          '';
+
         mkIcarusGateBist = { name, gateNetlist, sdf ? null, annotateSdf ? false }:
           pkgs.runCommand name {
             nativeBuildInputs = [ pkgs.iverilog pkgs.coreutils pkgs.yosys ];
@@ -431,6 +490,11 @@ README
             runSimulation = false;
           };
 
+          ypcb-rtl-init-icarus = mkIcarusRtlInit {
+            name = "ypcb-ddr3-rtl-init-icarus-check";
+            runSimulation = true;
+          };
+
           formal-ecc = pkgs.runCommand "uberddr3-formal-ecc" {
             nativeBuildInputs = [ pkgs.sby pkgs.yosys pkgs.boolector pkgs.yices pkgs.coreutils ];
           } ''
@@ -503,6 +567,14 @@ README
           ypcb-ddr3-rtl-bist-icarus = mkIcarusRtlBist {
             name = "ypcb-ddr3-rtl-bist-icarus";
             runSimulation = true;
+          };
+          ypcb-ddr3-rtl-init-icarus = mkIcarusRtlInit {
+            name = "ypcb-ddr3-rtl-init-icarus";
+            runSimulation = true;
+          };
+          ypcb-ddr3-rtl-init-icarus-compile = mkIcarusRtlInit {
+            name = "ypcb-ddr3-rtl-init-icarus-compile";
+            runSimulation = false;
           };
           ypcb-ddr3-rtl-bist-icarus-compile = mkIcarusRtlBist {
             name = "ypcb-ddr3-rtl-bist-icarus-compile";
