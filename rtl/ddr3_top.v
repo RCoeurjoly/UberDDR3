@@ -128,6 +128,14 @@ module ddr3_top #(
         output wire[781:0] o_panopticon_debug,
         input wire[5:0] i_trace_debug_addr,
         output wire[63:0] o_trace_debug_word,
+        input wire i_trace_wb_cyc,
+        input wire i_trace_wb_stb,
+        input wire i_trace_wb_we,
+        input wire[15:0] i_trace_wb_addr,
+        input wire[31:0] i_trace_wb_data,
+        output wire o_trace_wb_stall,
+        output wire o_trace_wb_ack,
+        output wire[31:0] o_trace_wb_data,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_p,
 //        output wire[(DQ_BITS*BYTE_LANES)/8-1:0] o_ddr3_debug_read_dqs_n
         // 
@@ -348,6 +356,14 @@ ddr3_top #(
             .o_panopticon_debug(o_panopticon_debug),
             .i_trace_debug_addr(i_trace_debug_addr),
             .o_trace_debug_word(o_trace_debug_word),
+            .i_trace_wb_cyc(i_trace_wb_cyc),
+            .i_trace_wb_stb(i_trace_wb_stb),
+            .i_trace_wb_we(i_trace_wb_we),
+            .i_trace_wb_addr(i_trace_wb_addr),
+            .i_trace_wb_data(i_trace_wb_data),
+            .o_trace_wb_stall(o_trace_wb_stall),
+            .o_trace_wb_ack(o_trace_wb_ack),
+            .o_trace_wb_data(o_trace_wb_data),
             // User enabled self-refresh
             .i_user_self_refresh(user_self_refresh),
             .uart_tx(uart_tx)

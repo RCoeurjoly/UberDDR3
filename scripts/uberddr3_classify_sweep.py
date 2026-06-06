@@ -140,12 +140,19 @@ def coarse_family(result: dict[str, Any], stage: str) -> str:
     init_reset = fields.get("init_reset_debug", {}) if isinstance(fields.get("init_reset_debug"), dict) else {}
     pan = fields.get("panopticon_debug", {}) if isinstance(fields.get("panopticon_debug"), dict) else {}
     bist = fields.get("bist_debug", {}) if isinstance(fields.get("bist_debug"), dict) else {}
-    state = fields.get("state_calibrate", "")
-    instruction = calib.get("instruction_address", pan.get("instruction_address", ""))
-    reset_done = init_reset.get("controller_reset_done", "")
+    canonical = fields.get("canonical_status", {})
+    if not isinstance(canonical, dict):
+        canonical = {}
+    state = canonical.get("state_calibrate", fields.get("state_calibrate", ""))
+    instruction = canonical.get("instruction_address", calib.get("instruction_address", pan.get("instruction_address", "")))
+    reset_done = canonical.get("reset_done", init_reset.get("controller_reset_done", ""))
     if stage == "bist_mismatch":
         return "bist_mismatch.byte_mask_%s.byte_%s.slot_%s" % (bist.get("byte_mismatch_mask", ""), bist.get("fail_byte_index", ""), bist.get("fail_burst_slot", ""))
     if stage == "init_before_calibration":
+        reset_from_calibrate_seen = canonical.get("reset_from_calibrate_seen", False)
+        addr_regress_seen = canonical.get("addr_regress_seen", False)
+        if reset_from_calibrate_seen:
+            return "calibration_reset_restart.addr_%s.regress_%s" % (instruction, addr_regress_seen)
         if instruction in (1, 2, "1", "2"):
             return "init_before_calibration.addr_1_2.reset_done_%s" % reset_done
         return "init_before_calibration.addr_%s.reset_done_%s" % (instruction, reset_done)
