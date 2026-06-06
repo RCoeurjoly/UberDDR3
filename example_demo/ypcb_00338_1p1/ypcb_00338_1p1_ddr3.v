@@ -47,6 +47,10 @@ module ypcb_00338_1p1_ddr3 (
     wire [127:0] init_seq_debug_payload;
     wire [609:0] bist_debug_payload;
     wire [781:0] panopticon_debug_payload;
+    wire [5:0] trace_debug_addr_tck;
+    reg [5:0] trace_debug_addr_meta = 6'd0;
+    reg [5:0] trace_debug_addr_sync = 6'd0;
+    wire [63:0] trace_debug_word;
 `endif
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
@@ -143,18 +147,23 @@ module ypcb_00338_1p1_ddr3 (
         .o_init_seq_debug(init_seq_debug_payload),
         .o_bist_debug(bist_debug_payload),
         .o_panopticon_debug(panopticon_debug_payload),
+        .i_trace_debug_addr(trace_debug_addr_sync),
+        .o_trace_debug_word(trace_debug_word),
 `else
         .o_calib_debug(),
         .o_init_reset_debug(),
         .o_init_seq_debug(),
         .o_bist_debug(),
         .o_panopticon_debug(),
+        .i_trace_debug_addr(6'd0),
+        .o_trace_debug_word(),
 `endif
         .i_user_self_refresh(1'b0),
         .uart_tx(uart_tx_unused)
     );
 
 `ifdef UBERDDR3_DEBUG_JTAG
+    localparam integer JTAG_DEBUG_WIDTH = 2048;
     assign jtag_debug_payload_live = {
         panopticon_debug_payload,
         bist_debug_payload,
@@ -185,12 +194,32 @@ module ypcb_00338_1p1_ddr3 (
     end
 
     jtag_debug_bscan #(
-        .WIDTH(2048),
+        .WIDTH(JTAG_DEBUG_WIDTH),
         .JTAG_CHAIN(1)
     ) jtag_debug_bscan_inst (
         .debug_data(jtag_debug_payload_snapshot),
         .selected(jtag_debug_selected)
     );
+
+`ifdef UBERDDR3_TRACE_SCOPE
+    wire jtag_trace_selected;
+    always @(posedge controller_clk) begin
+        trace_debug_addr_meta <= trace_debug_addr_tck;
+        trace_debug_addr_sync <= trace_debug_addr_meta;
+    end
+
+    jtag_trace_bscan #(
+        .WORD_WIDTH(64),
+        .ADDR_WIDTH(6),
+        .JTAG_CHAIN(2)
+    ) jtag_trace_bscan_inst (
+        .trace_word(trace_debug_word),
+        .read_addr(trace_debug_addr_tck),
+        .selected(jtag_trace_selected)
+    );
+    wire unused_jtag_trace = jtag_trace_selected;
+`endif
+
 
     wire unused_jtag_debug_selected = jtag_debug_selected;
 `else

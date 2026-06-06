@@ -416,3 +416,8 @@ set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dqs_n[4]}]
 set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dqs_n[5]}]
 set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dqs_n[6]}]
 set_property IN_TERM UNTUNED_SPLIT_40 [get_ports {ddr3_dqs_n[7]}]
+
+if {[llength [get_ports -quiet debug_uart_rx]]} {
+    set_property LOC R27 [get_ports {debug_uart_rx}]
+    set_property IOSTANDARD LVCMOS18 [get_ports {debug_uart_rx}]
+}

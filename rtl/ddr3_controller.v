@@ -166,6 +166,8 @@ module ddr3_controller #(
         output wire [127:0] o_init_seq_debug,
         output wire [609:0] o_bist_debug,
         output wire [781:0] o_panopticon_debug,
+        input wire [5:0] i_trace_debug_addr,
+        output reg [63:0] o_trace_debug_word,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -633,6 +635,48 @@ module ddr3_controller #(
     reg [4:0] init_event_count_q = 5'd0;
     reg [2:0] init_event_write_index_q = 3'd0;
     reg [15:0] init_event_last_q = 16'd0;
+`endif
+`ifdef UBERDDR3_TRACE_SCOPE
+    localparam integer TRACE_SCOPE_DEPTH = 32;
+    localparam integer TRACE_SCOPE_INDEX_WIDTH = 7;
+    localparam [7:0] TRACE_SCOPE_DEPTH_COUNT = 8'd32;
+    reg [63:0] trace_scope_events_q [0:TRACE_SCOPE_DEPTH-1];
+    reg [7:0] trace_scope_event_count_q = 8'd0;
+    reg [TRACE_SCOPE_INDEX_WIDTH-1:0] trace_scope_write_index_q = {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
+    reg trace_scope_frozen_q = 1'b0;
+    reg trace_scope_overflow_q = 1'b0;
+    reg [31:0] trace_scope_cycle_q = 32'd0;
+    reg [31:0] trace_scope_last_event_cycle_q = 32'd0;
+    reg [52:0] trace_scope_last_event_core_q = 53'd0;
+    wire [31:0] trace_scope_event_delta_wide = trace_scope_cycle_q - trace_scope_last_event_cycle_q;
+    wire [10:0] trace_scope_event_delta = (trace_scope_event_delta_wide > 32'd2047) ? 11'h7ff : trace_scope_event_delta_wide[10:0];
+    wire [52:0] trace_scope_event_core = {
+        init_counter_reaches_two,
+        init_counter_reaches_one,
+        init_timed_counter_active,
+        init_prefetch_ready,
+        instruction[RST_DONE],
+        instruction[USE_TIMER],
+        pause_counter,
+        i_phy_idelayctrl_rdy,
+        o_phy_reset,
+        sync_rst_controller,
+        reset_done,
+        init_calib_start_q,
+        init_calib_start_now,
+        init_advance_ready_q,
+        init_advance_pending,
+        init_advance_now,
+        delay_counter_is_zero,
+        init_timer_phase,
+        delay_counter,
+        state_calibrate,
+        instruction_address_d,
+        instruction_address
+    };
+    wire [63:0] trace_scope_event_word = {trace_scope_event_delta, trace_scope_event_core};
+    wire trace_scope_event_changed = trace_scope_event_core != trace_scope_last_event_core_q;
+    wire trace_scope_success_trigger = (instruction_address == 5'd13) && (state_calibrate != IDLE);
 `endif
     reg[781:0] panopticon_debug_q = 782'd0;
     reg[$clog2(64):0] data_start_index[LANES-1:0];   
@@ -4058,6 +4102,96 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
             end
         end 
     endgenerate
+
+`ifdef UBERDDR3_TRACE_SCOPE
+    integer trace_scope_index;
+    always @(posedge i_controller_clk) begin
+        if(sync_rst_controller) begin
+            trace_scope_event_count_q <= 8'd0;
+            trace_scope_write_index_q <= {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
+            trace_scope_frozen_q <= 1'b0;
+            trace_scope_overflow_q <= 1'b0;
+            trace_scope_cycle_q <= 32'd0;
+            trace_scope_last_event_cycle_q <= 32'd0;
+            trace_scope_last_event_core_q <= 53'd0;
+            for(trace_scope_index = 0; trace_scope_index < TRACE_SCOPE_DEPTH; trace_scope_index = trace_scope_index + 1) begin
+                trace_scope_events_q[trace_scope_index] <= 64'd0;
+            end
+        end
+        else begin
+            trace_scope_cycle_q <= trace_scope_cycle_q + 32'd1;
+            if(!trace_scope_frozen_q && trace_scope_event_changed) begin
+                trace_scope_events_q[trace_scope_write_index_q] <= trace_scope_event_word;
+                trace_scope_last_event_core_q <= trace_scope_event_core;
+                trace_scope_last_event_cycle_q <= trace_scope_cycle_q;
+                trace_scope_write_index_q <= (trace_scope_write_index_q == (TRACE_SCOPE_DEPTH - 1)) ?
+                    {TRACE_SCOPE_INDEX_WIDTH{1'b0}} :
+                    (trace_scope_write_index_q + {{(TRACE_SCOPE_INDEX_WIDTH-1){1'b0}}, 1'b1});
+                if(trace_scope_event_count_q != TRACE_SCOPE_DEPTH_COUNT) begin
+                    trace_scope_event_count_q <= trace_scope_event_count_q + 8'd1;
+                end
+                else begin
+                    trace_scope_overflow_q <= 1'b1;
+                end
+            end
+            if(trace_scope_success_trigger) begin
+                trace_scope_frozen_q <= 1'b1;
+            end
+        end
+    end
+
+    wire [63:0] trace_scope_header = {
+        7'd0,
+        trace_scope_overflow_q,
+        trace_scope_frozen_q,
+        trace_scope_write_index_q,
+        trace_scope_event_count_q,
+        8'h01,
+        32'h54524345
+    };
+    always @(posedge i_controller_clk) begin
+        case(i_trace_debug_addr)
+            6'd0: o_trace_debug_word <= trace_scope_header;
+            6'd1: o_trace_debug_word <= trace_scope_events_q[0];
+            6'd2: o_trace_debug_word <= trace_scope_events_q[1];
+            6'd3: o_trace_debug_word <= trace_scope_events_q[2];
+            6'd4: o_trace_debug_word <= trace_scope_events_q[3];
+            6'd5: o_trace_debug_word <= trace_scope_events_q[4];
+            6'd6: o_trace_debug_word <= trace_scope_events_q[5];
+            6'd7: o_trace_debug_word <= trace_scope_events_q[6];
+            6'd8: o_trace_debug_word <= trace_scope_events_q[7];
+            6'd9: o_trace_debug_word <= trace_scope_events_q[8];
+            6'd10: o_trace_debug_word <= trace_scope_events_q[9];
+            6'd11: o_trace_debug_word <= trace_scope_events_q[10];
+            6'd12: o_trace_debug_word <= trace_scope_events_q[11];
+            6'd13: o_trace_debug_word <= trace_scope_events_q[12];
+            6'd14: o_trace_debug_word <= trace_scope_events_q[13];
+            6'd15: o_trace_debug_word <= trace_scope_events_q[14];
+            6'd16: o_trace_debug_word <= trace_scope_events_q[15];
+            6'd17: o_trace_debug_word <= trace_scope_events_q[16];
+            6'd18: o_trace_debug_word <= trace_scope_events_q[17];
+            6'd19: o_trace_debug_word <= trace_scope_events_q[18];
+            6'd20: o_trace_debug_word <= trace_scope_events_q[19];
+            6'd21: o_trace_debug_word <= trace_scope_events_q[20];
+            6'd22: o_trace_debug_word <= trace_scope_events_q[21];
+            6'd23: o_trace_debug_word <= trace_scope_events_q[22];
+            6'd24: o_trace_debug_word <= trace_scope_events_q[23];
+            6'd25: o_trace_debug_word <= trace_scope_events_q[24];
+            6'd26: o_trace_debug_word <= trace_scope_events_q[25];
+            6'd27: o_trace_debug_word <= trace_scope_events_q[26];
+            6'd28: o_trace_debug_word <= trace_scope_events_q[27];
+            6'd29: o_trace_debug_word <= trace_scope_events_q[28];
+            6'd30: o_trace_debug_word <= trace_scope_events_q[29];
+            6'd31: o_trace_debug_word <= trace_scope_events_q[30];
+            6'd32: o_trace_debug_word <= trace_scope_events_q[31];
+            default: o_trace_debug_word <= 64'd0;
+        endcase
+    end
+`else
+    always @* begin
+        o_trace_debug_word = 64'd0;
+    end
+`endif
 
     // Logic connected to debug port
 //    wire debug_trigger;

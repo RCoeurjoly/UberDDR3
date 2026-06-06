@@ -57,6 +57,9 @@ DBEOF
           sources = [
             "${boardDir}/${project}.v"
             "${boardDir}/jtag_debug_bscan.v"
+            "${boardDir}/jtag_trace_bscan.v"
+            "${boardDir}/ypcb_debug_wb_scope.v"
+            "${boardDir}/ypcb_debug_axi_lite.v"
             "rtl/ddr3_controller.v"
             "rtl/ddr3_phy.v"
             "rtl/ddr3_top.v"
@@ -108,7 +111,10 @@ DBEOF
           name = "ypcb-ddr3-yosys-json-panopticon";
           verilogDefines = "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON";
         };
-
+        ypcbDdr3TraceScopeYosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-trace-scope";
+          verilogDefines = "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON -DUBERDDR3_TRACE_SCOPE";
+        };
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
           PRJXRAY_DB_DIR = patchedPrjxrayDb;
@@ -410,6 +416,7 @@ README
         prodBaseline = mkCandidate { suffix = "prod-baseline"; yosysJson = ypcbDdr3YosysJson; };
         debugJtag = baseline;
         panopticonBaseline = mkCandidate { suffix = "panopticon-baseline"; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3PanopticonYosysJson; };
+        traceScopeBaseline = mkCandidate { suffix = "trace-scope-baseline"; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3TraceScopeYosysJson; };
         resetReleaseLutSeed2Lock = "example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_reset_release_lut_seed2_locks.json";
         seed1ResetReleaseLutSeed2Lock = mkCandidate {
           suffix = "seed-1-reset-release-lut-seed2-lock";
@@ -425,6 +432,8 @@ README
           mkCandidate { suffix = "no-tmdriv-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3DebugYosysJson; });
         panopticonSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
           mkCandidate { suffix = "panopticon-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3PanopticonYosysJson; });
+        traceScopeSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate { suffix = "trace-scope-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3TraceScopeYosysJson; });
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         prodSeedBitstreams = lib.mapAttrs' (seed: candidate:
@@ -433,6 +442,8 @@ README
           lib.nameValuePair "ypcb-ddr3-bitstream-no-tmdriv-seed-${seed}" candidate.bitstream) noTmdrivSeedCandidates;
         panopticonSeedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-panopticon-seed-${seed}" candidate.bitstream) panopticonSeedCandidates;
+        traceScopeSeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-trace-scope-seed-${seed}" candidate.bitstream) traceScopeSeedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
         prodSeedPnrs = lib.mapAttrs' (seed: candidate:
@@ -441,6 +452,8 @@ README
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-no-tmdriv-seed-${seed}" candidate.pnr) noTmdrivSeedCandidates;
         panopticonSeedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-panopticon-seed-${seed}" candidate.pnr) panopticonSeedCandidates;
+        traceScopeSeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-trace-scope-seed-${seed}" candidate.pnr) traceScopeSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
@@ -545,6 +558,7 @@ README
           ypcb-ddr3-yosys-json = ypcbDdr3YosysJson;
           ypcb-ddr3-yosys-json-debug-jtag = ypcbDdr3DebugYosysJson;
           ypcb-ddr3-yosys-json-panopticon = ypcbDdr3PanopticonYosysJson;
+          ypcb-ddr3-yosys-json-trace-scope = ypcbDdr3TraceScopeYosysJson;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -600,6 +614,8 @@ README
           ypcb-ddr3-bitstream-debug-jtag = debugJtag.bitstream;
           ypcb-ddr3-nextpnr-json-panopticon = panopticonBaseline.pnr;
           ypcb-ddr3-bitstream-panopticon = panopticonBaseline.bitstream;
+          ypcb-ddr3-nextpnr-json-trace-scope = traceScopeBaseline.pnr;
+          ypcb-ddr3-bitstream-trace-scope = traceScopeBaseline.bitstream;
           ypcb-ddr3-nextpnr-json-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.pnr;
           ypcb-ddr3-fasm-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.fasmDrv;
           ypcb-ddr3-bitstream-seed-1-reset-release-lut-seed2-lock = seed1ResetReleaseLutSeed2Lock.bitstream;
@@ -632,6 +648,6 @@ README
             repeats = 3;
           };
           default = baseline.bitstream;
-        } // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // seedFasms // seedSdfs;
+        } // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // seedFasms // seedSdfs;
       });
 }

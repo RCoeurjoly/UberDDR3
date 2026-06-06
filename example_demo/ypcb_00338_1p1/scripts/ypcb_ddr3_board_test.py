@@ -19,6 +19,9 @@ from pathlib import Path
 
 DEFAULT_PROGRAMMER = Path(os.environ.get("OPENFPGALOADER", "/home/roland/openFPGALoader/build/openFPGALoader"))
 DEFAULT_BITS = 2048
+TRACE_SCOPE_DR_BITS = 72
+TRACE_SCOPE_MAGIC = 0x54524345
+TRACE_SCOPE_DEPTH = 32
 MAGIC = 0x33445244
 VERSION = 1
 DEBUG_VERSION = 2
@@ -182,13 +185,18 @@ def shift_ir(client: FtdiMpsseJtag, instruction: int, ir_len: int) -> None:
     clock_tms(client, [1, 0])
 
 
-def shift_dr_read(client: FtdiMpsseJtag, bit_count: int) -> int:
+def shift_dr_value(client: FtdiMpsseJtag, bit_count: int, tdi_value: int = 0) -> int:
     clock_tms(client, [1, 0, 0])
     tms_bits = [0] * bit_count
     tms_bits[-1] = 1
-    tdo_bits = client.shift(tms_bits, [0] * bit_count)
+    tdi_bits = [(tdi_value >> bit) & 1 for bit in range(bit_count)]
+    tdo_bits = client.shift(tms_bits, tdi_bits)
     clock_tms(client, [1, 0])
     return bits_to_int(tdo_bits)
+
+
+def shift_dr_read(client: FtdiMpsseJtag, bit_count: int) -> int:
+    return shift_dr_value(client, bit_count, 0)
 
 
 def read_payload(client: FtdiMpsseJtag, ir_len: int, user_ir: int, bit_count: int, capture_settle_cycles: int) -> int:
@@ -197,6 +205,19 @@ def read_payload(client: FtdiMpsseJtag, ir_len: int, user_ir: int, bit_count: in
     if capture_settle_cycles > 0:
         clock_tms(client, [0] * capture_settle_cycles)
     return shift_dr_read(client, bit_count)
+
+
+def read_trace_scope_words(client: FtdiMpsseJtag, ir_len: int, trace_ir: int, word_count: int, settle_cycles: int) -> list[int]:
+    reset_tap(client)
+    shift_ir(client, trace_ir, ir_len)
+    words: list[int] = []
+    for address in range(word_count):
+        shift_dr_value(client, TRACE_SCOPE_DR_BITS, address)
+        if settle_cycles > 0:
+            clock_tms(client, [0] * settle_cycles)
+        raw = shift_dr_value(client, TRACE_SCOPE_DR_BITS, address)
+        words.append(raw & ((1 << 64) - 1))
+    return words
 
 
 def field(payload: int, offset: int, width: int) -> int:
@@ -442,6 +463,80 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     }
 
 
+
+def decode_trace_scope_event(raw: int) -> dict[str, object]:
+    return {
+        "raw": raw,
+        "delta_cycles": field(raw, 53, 11),
+        "instruction_address": field(raw, 0, 5),
+        "instruction_address_d": field(raw, 5, 5),
+        "state_calibrate": field(raw, 10, 5),
+        "delay_counter": field(raw, 15, 19),
+        "init_timer_phase": field(raw, 34, 2),
+        "delay_counter_is_zero": bool(field(raw, 36, 1)),
+        "init_advance_now": bool(field(raw, 37, 1)),
+        "init_advance_pending": bool(field(raw, 38, 1)),
+        "init_advance_ready_q": bool(field(raw, 39, 1)),
+        "init_calib_start_now": bool(field(raw, 40, 1)),
+        "init_calib_start_q": bool(field(raw, 41, 1)),
+        "reset_done": bool(field(raw, 42, 1)),
+        "sync_rst_controller": bool(field(raw, 43, 1)),
+        "o_phy_reset": bool(field(raw, 44, 1)),
+        "i_phy_idelayctrl_rdy": bool(field(raw, 45, 1)),
+        "pause_counter": bool(field(raw, 46, 1)),
+        "instruction_use_timer_bit": bool(field(raw, 47, 1)),
+        "instruction_rst_done_bit": bool(field(raw, 48, 1)),
+        "init_prefetch_ready": bool(field(raw, 49, 1)),
+        "init_timed_counter_active": bool(field(raw, 50, 1)),
+        "init_counter_reaches_one": bool(field(raw, 51, 1)),
+        "init_counter_reaches_two": bool(field(raw, 52, 1)),
+    }
+
+
+def decode_trace_scope_words(words: list[int]) -> dict[str, object] | None:
+    if not words:
+        return None
+    header = words[0]
+    if field(header, 0, 32) != TRACE_SCOPE_MAGIC:
+        return {
+            "present": False,
+            "raw_header": header,
+            "reason": "bad_trace_magic",
+        }
+    version = field(header, 32, 8)
+    count = field(header, 40, 8)
+    write_index = field(header, 48, 7)
+    frozen = bool(field(header, 55, 1))
+    overflow = bool(field(header, 56, 1))
+    slots = []
+    for index, raw in enumerate(words[1:1 + TRACE_SCOPE_DEPTH]):
+        event = decode_trace_scope_event(raw)
+        event["slot"] = index
+        slots.append(event)
+    valid_count = min(count, TRACE_SCOPE_DEPTH)
+    if valid_count < TRACE_SCOPE_DEPTH and not overflow:
+        ordered_indexes = list(range(valid_count))
+    else:
+        ordered_indexes = [(write_index + offset) % TRACE_SCOPE_DEPTH for offset in range(valid_count)]
+    ordered = []
+    cycle = 0
+    for chronological_index, slot_index in enumerate(ordered_indexes):
+        event = dict(slots[slot_index])
+        cycle += int(event["delta_cycles"])
+        event["chronological_index"] = chronological_index
+        event["approx_cycle"] = cycle
+        ordered.append(event)
+    return {
+        "present": True,
+        "version": version,
+        "count": count,
+        "write_index": write_index,
+        "frozen": frozen,
+        "overflow": overflow,
+        "events": ordered,
+        "slots": slots,
+    }
+
 def sha256_file(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -468,6 +563,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--freq-hz", type=int, default=1_000_000)
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
     parser.add_argument("--bits", type=int, default=DEFAULT_BITS)
+    parser.add_argument("--trace-scope", action="store_true", help="Read the USER2 BSCAN addressed trace scope.")
+    parser.add_argument("--trace-ir", type=lambda value: int(value, 0), default=0x03)
+    parser.add_argument("--trace-settle-cycles", type=int, default=2048)
     parser.add_argument("--ir-len", type=int, default=6)
     parser.add_argument("--user-ir", type=lambda value: int(value, 0), default=0x02)
     parser.add_argument("--poll-count", type=int, default=100)
@@ -519,6 +617,18 @@ def poll_stability_signature(decoded: dict[str, object]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def stable_stop_allowed(decoded: dict[str, object]) -> bool:
+    fields = decoded.get("fields", {})
+    if not isinstance(fields, dict):
+        return False
+    state = int(fields.get("state_calibrate", 0))
+    if 17 <= state < CALIB_DONE_STATE:
+        return False
+    if fields.get("calib_complete") or fields.get("bist_done"):
+        return False
+    return True
+
+
 def main() -> int:
     args = parse_args()
     bitstream = args.bitstream.resolve()
@@ -542,7 +652,10 @@ def main() -> int:
     client = FtdiMpsseJtag(args.serial, args.vid, args.pid, args.freq_hz, args.tdo_bit)
     try:
         decoded = None
+        trace_scope = None
         poll_samples: list[dict[str, object]] = []
+        if args.trace_scope:
+            trace_scope = decode_trace_scope_words(read_trace_scope_words(client, args.ir_len, args.trace_ir, TRACE_SCOPE_DEPTH + 1, args.trace_settle_cycles))
         poll_start = time.monotonic()
         last_stability_signature = ""
         stable_signature_count = 0
@@ -568,7 +681,12 @@ def main() -> int:
             if "wrong_read_data_nonzero" in decoded["fail_reasons"]:
                 poll_stop_reason = "wrong_read_data_nonzero"
                 break
-            if args.stable_samples and attempt >= args.stable_min_attempt and stable_signature_count >= args.stable_samples:
+            if (
+                args.stable_samples
+                and attempt >= args.stable_min_attempt
+                and stable_signature_count >= args.stable_samples
+                and stable_stop_allowed(decoded)
+            ):
                 poll_stop_reason = "stable_debug_signature"
                 break
             if attempt < args.poll_count:
@@ -578,6 +696,8 @@ def main() -> int:
 
     result["poll_samples"] = poll_samples
     result.update(decoded or {})
+    if trace_scope is not None:
+        result.setdefault("fields", {})["trace_scope"] = trace_scope
     result["attempts"] = attempt
     result["poll_stop_reason"] = poll_stop_reason
     result["stable_signature_count"] = stable_signature_count

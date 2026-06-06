@@ -78,6 +78,34 @@ module ypcb_rtl_init_tb;
     reg last_init_calib_start_q = 1'b0;
     reg last_delay_counter_is_zero = 1'b0;
     integer controller_cycles = 0;
+    reg [31:0] last_trace_event_cycle = 32'd0;
+    wire [31:0] trace_event_delta_wide = controller_cycles[31:0] - last_trace_event_cycle;
+    wire [10:0] trace_event_delta = (trace_event_delta_wide > 32'd2047) ? 11'h7ff : trace_event_delta_wide[10:0];
+    wire [63:0] init_trace_event_word = {
+        trace_event_delta,
+        dut.ddr3_controller_inst.init_counter_reaches_two,
+        dut.ddr3_controller_inst.init_counter_reaches_one,
+        dut.ddr3_controller_inst.init_timed_counter_active,
+        dut.ddr3_controller_inst.init_prefetch_ready,
+        instruction[27],
+        instruction[26],
+        pause_counter,
+        i_phy_idelayctrl_rdy,
+        o_phy_reset,
+        sync_rst_controller,
+        reset_done,
+        init_calib_start_q,
+        init_calib_start_now,
+        init_advance_ready_q,
+        init_advance_pending,
+        init_advance_now,
+        delay_counter_is_zero,
+        init_timer_phase,
+        delay_counter,
+        state_calibrate,
+        instruction_address_d,
+        instruction_address
+    };
 
     always #(CONTROLLER_CLK_PERIOD/2) i_controller_clk = !i_controller_clk;
     always #(DDR3_CLK_PERIOD/2) i_ddr3_clk = !i_ddr3_clk;
@@ -238,8 +266,8 @@ module ypcb_rtl_init_tb;
     task print_init_trace;
         input [8*16-1:0] tag;
         begin
-            $display("INIT_TRACE tag=%0s t=%0t cycles=%0d addr=%0d addr_d=%0d state=%0d(%0s) reset_done=%b sync_rst=%b phy_reset=%b idelayctrl_rdy=%b phase=%0d delay_counter=%0d delay_zero=%b adv_now=%b adv_pending=%b adv_ready=%b calib_start_now=%b calib_start_q=%b pause=%b instr=%h use_timer=%b rst_done_bit=%b cmd=%0s cke=%b reset_n=%b odt=%b cs_n=%b ras_n=%b cas_n=%b we_n=%b ba=%h ddr_addr=%h",
-                tag, $time, controller_cycles, instruction_address, instruction_address_d,
+            $display("INIT_TRACE tag=%0s event_word=%016h t=%0t cycles=%0d addr=%0d addr_d=%0d state=%0d(%0s) reset_done=%b sync_rst=%b phy_reset=%b idelayctrl_rdy=%b phase=%0d delay_counter=%0d delay_zero=%b adv_now=%b adv_pending=%b adv_ready=%b calib_start_now=%b calib_start_q=%b pause=%b instr=%h use_timer=%b rst_done_bit=%b cmd=%0s cke=%b reset_n=%b odt=%b cs_n=%b ras_n=%b cas_n=%b we_n=%b ba=%h ddr_addr=%h",
+                tag, init_trace_event_word, $time, controller_cycles, instruction_address, instruction_address_d,
                 state_calibrate, calib_state_name(state_calibrate), reset_done,
                 sync_rst_controller, o_phy_reset, i_phy_idelayctrl_rdy, init_timer_phase,
                 delay_counter, delay_counter_is_zero, init_advance_now, init_advance_pending,
@@ -268,6 +296,7 @@ module ypcb_rtl_init_tb;
             (init_calib_start_q !== last_init_calib_start_q) ||
             (delay_counter_is_zero !== last_delay_counter_is_zero)) begin
             print_init_trace("event");
+            last_trace_event_cycle <= controller_cycles[31:0];
         end
 
         last_instruction_address <= instruction_address;
