@@ -115,18 +115,104 @@ DBEOF
           name = "ypcb-ddr3-yosys-json-trace-scope";
           verilogDefines = "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON -DUBERDDR3_TRACE_SCOPE";
         };
-        ypcbDdr3PanopticonSweepVariants = [
-          { suffix = "panopticon-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
-          { suffix = "panopticon-lanes1-bist2"; byteLanes = 1; bistMode = 2; }
-          { suffix = "panopticon-lanes2-bist2"; byteLanes = 2; bistMode = 2; }
-          { suffix = "panopticon-lanes4-bist2"; byteLanes = 4; bistMode = 2; }
-          { suffix = "panopticon-lanes8-bist2"; byteLanes = 8; bistMode = 2; }
+        ypcbDdr3DefaultTopParams = {
+          controllerClkPeriod = 12000;
+          ddr3ClkPeriod = 3000;
+          rowBits = 12;
+          colBits = 10;
+          baBits = 3;
+          byteLanes = 1;
+          auxWidth = 4;
+          wb2AddrBits = 7;
+          wb2DataBits = 32;
+          micronSim = 0;
+          odelaySupported = 0;
+          secondWishbone = 0;
+          wbError = 0;
+          bistMode = 0;
+          bistTestDatamask = 0;
+          eccEnable = 0;
+          dic = "2'b00";
+          rttNom = "3'b000";
+          selfRefresh = "2'b00";
+          speedBin = 1;
+          sdramCapacity = 4;
+        };
+        mkYpcbDdr3TopParamVariant = entry:
+          ypcbDdr3DefaultTopParams // entry.overrides // {
+            inherit (entry) suffix label axis;
+            notes = entry.notes or "";
+          };
+        ypcbDdr3PanopticonSweepVariants = map mkYpcbDdr3TopParamVariant [
+          { suffix = "panopticon-p000-lanes1-bist0-low"; label = "baseline-low"; axis = "baseline"; overrides = { }; notes = "Lowest-cost YPCB-compatible starting point; BIST disabled."; }
+          { suffix = "panopticon-p001-lanes1-bist1"; label = "bist-mode-1"; axis = "bistMode"; overrides = { bistMode = 1; }; }
+          { suffix = "panopticon-p002-lanes1-bist2"; label = "bist-mode-2"; axis = "bistMode"; overrides = { bistMode = 2; }; }
+          { suffix = "panopticon-p003-lanes2-bist2"; label = "byte-lanes-2"; axis = "byteLanes"; overrides = { byteLanes = 2; bistMode = 2; }; }
+          { suffix = "panopticon-p004-lanes4-bist2"; label = "byte-lanes-4"; axis = "byteLanes"; overrides = { byteLanes = 4; bistMode = 2; }; }
+          { suffix = "panopticon-p005-lanes8-bist2"; label = "byte-lanes-8"; axis = "byteLanes"; overrides = { byteLanes = 8; bistMode = 2; }; }
+          { suffix = "panopticon-p006-row13-lanes1-bist1"; label = "row-bits-13"; axis = "rowBits"; overrides = { rowBits = 13; bistMode = 1; }; }
+          { suffix = "panopticon-p007-row14-lanes1-bist1"; label = "row-bits-14"; axis = "rowBits"; overrides = { rowBits = 14; bistMode = 1; }; }
+          { suffix = "panopticon-p008-row15-lanes1-bist1"; label = "row-bits-15"; axis = "rowBits"; overrides = { rowBits = 15; bistMode = 1; }; }
+          { suffix = "panopticon-p009-row16-lanes1-bist1"; label = "row-bits-16"; axis = "rowBits"; overrides = { rowBits = 16; bistMode = 1; }; }
+          { suffix = "panopticon-p010-col11-lanes1-bist1"; label = "col-bits-11"; axis = "colBits"; overrides = { colBits = 11; bistMode = 1; }; }
+          { suffix = "panopticon-p011-col12-lanes1-bist1"; label = "col-bits-12"; axis = "colBits"; overrides = { colBits = 12; bistMode = 1; }; }
+          { suffix = "panopticon-p012-aux8-lanes1-bist1"; label = "aux-width-8"; axis = "auxWidth"; overrides = { auxWidth = 8; bistMode = 1; }; }
+          { suffix = "panopticon-p013-wb2a32-lanes1-bist1"; label = "wb2-addr-32"; axis = "wb2AddrBits"; overrides = { wb2AddrBits = 32; bistMode = 1; }; }
+          { suffix = "panopticon-p014-secondwb-lanes1-bist1"; label = "second-wishbone-1"; axis = "secondWishbone"; overrides = { secondWishbone = 1; bistMode = 1; }; }
+          { suffix = "panopticon-p015-wberr-lanes1-bist1"; label = "wb-error-1"; axis = "wbError"; overrides = { wbError = 1; bistMode = 1; }; }
+          { suffix = "panopticon-p016-datamask-lanes1-bist1"; label = "bist-datamask-1"; axis = "bistTestDatamask"; overrides = { bistTestDatamask = 1; bistMode = 1; }; notes = "May be board-incompatible when MIG reports DataMask disabled; included for parameter coverage."; }
+          { suffix = "panopticon-p017-ecc1-lanes1-bist1"; label = "ecc-1"; axis = "eccEnable"; overrides = { eccEnable = 1; bistMode = 1; }; }
+          { suffix = "panopticon-p018-ecc2-lanes1-bist1"; label = "ecc-2"; axis = "eccEnable"; overrides = { eccEnable = 2; bistMode = 1; }; }
+          { suffix = "panopticon-p019-ecc3-lanes1-bist1"; label = "ecc-3"; axis = "eccEnable"; overrides = { eccEnable = 3; bistMode = 1; }; }
+          { suffix = "panopticon-p020-dic1-lanes1-bist1"; label = "dic-rzq7"; axis = "dic"; overrides = { dic = "2'b01"; bistMode = 1; }; }
+          { suffix = "panopticon-p021-rtt1-lanes1-bist1"; label = "rtt-nom-rzq4"; axis = "rttNom"; overrides = { rttNom = "3'b001"; bistMode = 1; }; }
+          { suffix = "panopticon-p022-rtt2-lanes1-bist1"; label = "rtt-nom-rzq2"; axis = "rttNom"; overrides = { rttNom = "3'b010"; bistMode = 1; }; }
+          { suffix = "panopticon-p023-rtt3-lanes1-bist1"; label = "rtt-nom-rzq6"; axis = "rttNom"; overrides = { rttNom = "3'b011"; bistMode = 1; }; }
+          { suffix = "panopticon-p024-sref1-lanes1-bist1"; label = "self-refresh-64"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b01"; bistMode = 1; }; }
+          { suffix = "panopticon-p025-sref2-lanes1-bist1"; label = "self-refresh-128"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b10"; bistMode = 1; }; }
+          { suffix = "panopticon-p026-sref3-lanes1-bist1"; label = "self-refresh-256"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b11"; bistMode = 1; }; }
+          { suffix = "panopticon-p027-clk100-lanes1-bist1"; label = "clock-100mhz"; axis = "clockPeriod"; overrides = { controllerClkPeriod = 10000; ddr3ClkPeriod = 2500; speedBin = 3; bistMode = 1; }; }
+          { suffix = "panopticon-p028-speed2-lanes1-bist1"; label = "speed-bin-2"; axis = "speedBin"; overrides = { speedBin = 2; bistMode = 1; }; }
+          { suffix = "panopticon-p029-speed3-lanes1-bist1"; label = "speed-bin-3"; axis = "speedBin"; overrides = { speedBin = 3; bistMode = 1; }; }
+          { suffix = "panopticon-p030-cap0-lanes1-bist1"; label = "sdram-capacity-256mb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 0; bistMode = 1; }; }
+          { suffix = "panopticon-p031-cap1-lanes1-bist1"; label = "sdram-capacity-512mb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 1; bistMode = 1; }; }
+          { suffix = "panopticon-p032-cap2-lanes1-bist1"; label = "sdram-capacity-1gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 2; bistMode = 1; }; }
+          { suffix = "panopticon-p033-cap3-lanes1-bist1"; label = "sdram-capacity-2gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 3; bistMode = 1; }; }
+          { suffix = "panopticon-p034-cap5-lanes1-bist1"; label = "sdram-capacity-8gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 5; bistMode = 1; }; }
+          { suffix = "panopticon-p035-cap6-lanes1-bist1"; label = "sdram-capacity-16gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 6; bistMode = 1; }; }
         ];
         ypcbDdr3PanopticonTraceVariants = [
           { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
         ];
-        mkYpcbPanopticonVariantDefines = { byteLanes, bistMode, traceScope ? false, ... }:
-          "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON ${lib.optionalString traceScope "-DUBERDDR3_TRACE_SCOPE "}-DUBERDDR3_YPCB_BYTE_LANES=${toString byteLanes} -DUBERDDR3_YPCB_BIST_MODE=${toString bistMode}";
+        mkYpcbPanopticonVariantDefines = {
+          controllerClkPeriod, ddr3ClkPeriod, rowBits, colBits, baBits, byteLanes,
+          auxWidth, wb2AddrBits, wb2DataBits, micronSim, odelaySupported,
+          secondWishbone, wbError, bistMode, bistTestDatamask, eccEnable, dic,
+          rttNom, selfRefresh, speedBin, sdramCapacity, traceScope ? false, ...
+        }:
+          "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON "
+          + lib.optionalString traceScope "-DUBERDDR3_TRACE_SCOPE "
+          + "-DUBERDDR3_YPCB_CONTROLLER_CLK_PERIOD=${toString controllerClkPeriod} "
+          + "-DUBERDDR3_YPCB_DDR3_CLK_PERIOD=${toString ddr3ClkPeriod} "
+          + "-DUBERDDR3_YPCB_ROW_BITS=${toString rowBits} "
+          + "-DUBERDDR3_YPCB_COL_BITS=${toString colBits} "
+          + "-DUBERDDR3_YPCB_BA_BITS=${toString baBits} "
+          + "-DUBERDDR3_YPCB_BYTE_LANES=${toString byteLanes} "
+          + "-DUBERDDR3_YPCB_AUX_WIDTH=${toString auxWidth} "
+          + "-DUBERDDR3_YPCB_WB2_ADDR_BITS=${toString wb2AddrBits} "
+          + "-DUBERDDR3_YPCB_WB2_DATA_BITS=${toString wb2DataBits} "
+          + "-DUBERDDR3_YPCB_MICRON_SIM=${toString micronSim} "
+          + "-DUBERDDR3_YPCB_ODELAY_SUPPORTED=${toString odelaySupported} "
+          + "-DUBERDDR3_YPCB_SECOND_WISHBONE=${toString secondWishbone} "
+          + "-DUBERDDR3_YPCB_WB_ERROR=${toString wbError} "
+          + "-DUBERDDR3_YPCB_BIST_MODE=${toString bistMode} "
+          + "-DUBERDDR3_YPCB_BIST_TEST_DATAMASK=${toString bistTestDatamask} "
+          + "-DUBERDDR3_YPCB_ECC_ENABLE=${toString eccEnable} "
+          + "-DUBERDDR3_YPCB_DIC=${dic} "
+          + "-DUBERDDR3_YPCB_RTT_NOM=${rttNom} "
+          + "-DUBERDDR3_YPCB_SELF_REFRESH=${selfRefresh} "
+          + "-DUBERDDR3_YPCB_SPEED_BIN=${toString speedBin} "
+          + "-DUBERDDR3_YPCB_SDRAM_CAPACITY=${toString sdramCapacity}";
         ypcbDdr3PanopticonSweepYosysJsons = lib.listToAttrs (map (variant:
           lib.nameValuePair variant.suffix (mkYosysJson {
             name = "ypcb-ddr3-yosys-json-${variant.suffix}";
@@ -528,6 +614,47 @@ README
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}" candidate.sdf) seedCandidates;
+        ypcbDdr3TopParameterMatrixCsv =
+          let
+            fields = [
+              "index" "suffix" "label" "axis" "controller_clk_period" "ddr3_clk_period"
+              "row_bits" "col_bits" "ba_bits" "byte_lanes" "aux_width"
+              "wb2_addr_bits" "wb2_data_bits" "micron_sim" "odelay_supported"
+              "second_wishbone" "wb_error" "bist_mode" "bist_test_datamask"
+              "ecc_enable" "dic" "rtt_nom" "self_refresh" "speed_bin"
+              "sdram_capacity" "notes"
+            ];
+            row = index: variant: lib.concatStringsSep "," [
+              (toString index)
+              variant.suffix
+              variant.label
+              variant.axis
+              (toString variant.controllerClkPeriod)
+              (toString variant.ddr3ClkPeriod)
+              (toString variant.rowBits)
+              (toString variant.colBits)
+              (toString variant.baBits)
+              (toString variant.byteLanes)
+              (toString variant.auxWidth)
+              (toString variant.wb2AddrBits)
+              (toString variant.wb2DataBits)
+              (toString variant.micronSim)
+              (toString variant.odelaySupported)
+              (toString variant.secondWishbone)
+              (toString variant.wbError)
+              (toString variant.bistMode)
+              (toString variant.bistTestDatamask)
+              (toString variant.eccEnable)
+              variant.dic
+              variant.rttNom
+              variant.selfRefresh
+              (toString variant.speedBin)
+              (toString variant.sdramCapacity)
+              variant.notes
+            ];
+            rows = lib.imap0 row ypcbDdr3PanopticonSweepVariants;
+          in pkgs.writeText "ypcb-ddr3-top-parameter-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + (lib.concatStringsSep "\n" rows) + "\n");
+
         mkBoardManifest = { name, variant, candidates, seeds, repeats ? 1 }:
           let
             lines = lib.concatMap (seed:
@@ -629,6 +756,7 @@ README
           ypcb-ddr3-yosys-json-debug-jtag = ypcbDdr3DebugYosysJson;
           ypcb-ddr3-yosys-json-panopticon = ypcbDdr3PanopticonYosysJson;
           ypcb-ddr3-yosys-json-trace-scope = ypcbDdr3TraceScopeYosysJson;
+          ypcb-ddr3-top-parameter-matrix = ypcbDdr3TopParameterMatrixCsv;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;

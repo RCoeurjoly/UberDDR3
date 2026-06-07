@@ -9,6 +9,82 @@
 `define UBERDDR3_YPCB_BIST_MODE 2
 `endif
 
+`ifndef UBERDDR3_YPCB_CONTROLLER_CLK_PERIOD
+`define UBERDDR3_YPCB_CONTROLLER_CLK_PERIOD 12_000
+`endif
+
+`ifndef UBERDDR3_YPCB_DDR3_CLK_PERIOD
+`define UBERDDR3_YPCB_DDR3_CLK_PERIOD 3_000
+`endif
+
+`ifndef UBERDDR3_YPCB_ROW_BITS
+`define UBERDDR3_YPCB_ROW_BITS 15
+`endif
+
+`ifndef UBERDDR3_YPCB_COL_BITS
+`define UBERDDR3_YPCB_COL_BITS 10
+`endif
+
+`ifndef UBERDDR3_YPCB_BA_BITS
+`define UBERDDR3_YPCB_BA_BITS 3
+`endif
+
+`ifndef UBERDDR3_YPCB_AUX_WIDTH
+`define UBERDDR3_YPCB_AUX_WIDTH 4
+`endif
+
+`ifndef UBERDDR3_YPCB_WB2_ADDR_BITS
+`define UBERDDR3_YPCB_WB2_ADDR_BITS 32
+`endif
+
+`ifndef UBERDDR3_YPCB_WB2_DATA_BITS
+`define UBERDDR3_YPCB_WB2_DATA_BITS 32
+`endif
+
+`ifndef UBERDDR3_YPCB_MICRON_SIM
+`define UBERDDR3_YPCB_MICRON_SIM 0
+`endif
+
+`ifndef UBERDDR3_YPCB_ODELAY_SUPPORTED
+`define UBERDDR3_YPCB_ODELAY_SUPPORTED 0
+`endif
+
+`ifndef UBERDDR3_YPCB_SECOND_WISHBONE
+`define UBERDDR3_YPCB_SECOND_WISHBONE 0
+`endif
+
+`ifndef UBERDDR3_YPCB_WB_ERROR
+`define UBERDDR3_YPCB_WB_ERROR 0
+`endif
+
+`ifndef UBERDDR3_YPCB_BIST_TEST_DATAMASK
+`define UBERDDR3_YPCB_BIST_TEST_DATAMASK 0
+`endif
+
+`ifndef UBERDDR3_YPCB_ECC_ENABLE
+`define UBERDDR3_YPCB_ECC_ENABLE 0
+`endif
+
+`ifndef UBERDDR3_YPCB_DIC
+`define UBERDDR3_YPCB_DIC 2'b00
+`endif
+
+`ifndef UBERDDR3_YPCB_RTT_NOM
+`define UBERDDR3_YPCB_RTT_NOM 3'b011
+`endif
+
+`ifndef UBERDDR3_YPCB_SELF_REFRESH
+`define UBERDDR3_YPCB_SELF_REFRESH 2'b00
+`endif
+
+`ifndef UBERDDR3_YPCB_SPEED_BIN
+`define UBERDDR3_YPCB_SPEED_BIN 1
+`endif
+
+`ifndef UBERDDR3_YPCB_SDRAM_CAPACITY
+`define UBERDDR3_YPCB_SDRAM_CAPACITY 4
+`endif
+
 module ypcb_00338_1p1_ddr3 (
     input  wire        clk50,
     input  wire        rst_n,
@@ -30,11 +106,31 @@ module ypcb_00338_1p1_ddr3 (
 
     output wire [2:0]  led
 );
+    localparam integer CONTROLLER_CLK_PERIOD = `UBERDDR3_YPCB_CONTROLLER_CLK_PERIOD;
+    localparam integer DDR3_CLK_PERIOD = `UBERDDR3_YPCB_DDR3_CLK_PERIOD;
+    localparam integer ROW_BITS = `UBERDDR3_YPCB_ROW_BITS;
+    localparam integer COL_BITS = `UBERDDR3_YPCB_COL_BITS;
+    localparam integer BA_BITS = `UBERDDR3_YPCB_BA_BITS;
     localparam integer BYTE_LANES = `UBERDDR3_YPCB_BYTE_LANES;
+    localparam integer AUX_WIDTH = `UBERDDR3_YPCB_AUX_WIDTH;
+    localparam integer WB2_ADDR_BITS = `UBERDDR3_YPCB_WB2_ADDR_BITS;
+    localparam integer WB2_DATA_BITS = `UBERDDR3_YPCB_WB2_DATA_BITS;
+    localparam [0:0] MICRON_SIM = `UBERDDR3_YPCB_MICRON_SIM;
+    localparam [0:0] ODELAY_SUPPORTED = `UBERDDR3_YPCB_ODELAY_SUPPORTED;
+    localparam [0:0] SECOND_WISHBONE = `UBERDDR3_YPCB_SECOND_WISHBONE;
+    localparam [0:0] WB_ERROR = `UBERDDR3_YPCB_WB_ERROR;
     localparam [1:0] BIST_MODE = `UBERDDR3_YPCB_BIST_MODE;
-    localparam integer WB_ADDR_BITS = 15 + 10 + 3 - 3;
+    localparam [0:0] BIST_TEST_DATAMASK = `UBERDDR3_YPCB_BIST_TEST_DATAMASK;
+    localparam [1:0] ECC_ENABLE = `UBERDDR3_YPCB_ECC_ENABLE;
+    localparam [1:0] DIC = `UBERDDR3_YPCB_DIC;
+    localparam [2:0] RTT_NOM = `UBERDDR3_YPCB_RTT_NOM;
+    localparam [1:0] SELF_REFRESH = `UBERDDR3_YPCB_SELF_REFRESH;
+    localparam integer SPEED_BIN = `UBERDDR3_YPCB_SPEED_BIN;
+    localparam integer SDRAM_CAPACITY = `UBERDDR3_YPCB_SDRAM_CAPACITY;
+    localparam integer WB_ADDR_BITS = ROW_BITS + COL_BITS + BA_BITS - 3;
     localparam integer WB_DATA_BITS = 8 * BYTE_LANES * 8;
     localparam integer WB_SEL_BITS = WB_DATA_BITS / 8;
+    localparam integer WB2_SEL_BITS = WB2_DATA_BITS / 8;
 
     wire controller_clk;
     wire ddr3_clk;
@@ -66,26 +162,29 @@ module ypcb_00338_1p1_ddr3 (
     );
 
     ddr3_top #(
-        .CONTROLLER_CLK_PERIOD(12_000),
-        .DDR3_CLK_PERIOD(3_000),
-        .ROW_BITS(15),
-        .COL_BITS(10),
-        .BA_BITS(3),
+        .CONTROLLER_CLK_PERIOD(CONTROLLER_CLK_PERIOD),
+        .DDR3_CLK_PERIOD(DDR3_CLK_PERIOD),
+        .ROW_BITS(ROW_BITS),
+        .COL_BITS(COL_BITS),
+        .BA_BITS(BA_BITS),
         .BYTE_LANES(BYTE_LANES),
-        .AUX_WIDTH(4),
-        .WB2_ADDR_BITS(32),
-        .WB2_DATA_BITS(32),
+        .AUX_WIDTH(AUX_WIDTH),
+        .WB2_ADDR_BITS(WB2_ADDR_BITS),
+        .WB2_DATA_BITS(WB2_DATA_BITS),
         .DUAL_RANK_DIMM(0),
-        .MICRON_SIM(0),
-        .ODELAY_SUPPORTED(0),
-        .SECOND_WISHBONE(0),
+        .MICRON_SIM(MICRON_SIM),
+        .ODELAY_SUPPORTED(ODELAY_SUPPORTED),
+        .SECOND_WISHBONE(SECOND_WISHBONE),
         .DLL_OFF(0),
-        .WB_ERROR(0),
+        .WB_ERROR(WB_ERROR),
         .BIST_MODE(BIST_MODE),
-        .BIST_TEST_DATAMASK(1'b0),
-        .ECC_ENABLE(0),
-        .SPEED_BIN(1),
-        .SDRAM_CAPACITY(4)
+        .BIST_TEST_DATAMASK(BIST_TEST_DATAMASK),
+        .ECC_ENABLE(ECC_ENABLE),
+        .SPEED_BIN(SPEED_BIN),
+        .SDRAM_CAPACITY(SDRAM_CAPACITY),
+        .DIC(DIC),
+        .RTT_NOM(RTT_NOM),
+        .SELF_REFRESH(SELF_REFRESH)
     ) ddr3_top_inst (
         .i_controller_clk(controller_clk),
         .i_ddr3_clk(ddr3_clk),
@@ -99,7 +198,7 @@ module ypcb_00338_1p1_ddr3 (
         .i_wb_addr({WB_ADDR_BITS{1'b0}}),
         .i_wb_data({WB_DATA_BITS{1'b0}}),
         .i_wb_sel({WB_SEL_BITS{1'b1}}),
-        .i_aux(4'b0),
+        .i_aux({AUX_WIDTH{1'b0}}),
         .o_wb_stall(),
         .o_wb_ack(),
         .o_wb_err(),
@@ -109,9 +208,9 @@ module ypcb_00338_1p1_ddr3 (
         .i_wb2_cyc(1'b0),
         .i_wb2_stb(1'b0),
         .i_wb2_we(1'b0),
-        .i_wb2_addr(32'b0),
-        .i_wb2_data(32'b0),
-        .i_wb2_sel(4'b0),
+        .i_wb2_addr({WB2_ADDR_BITS{1'b0}}),
+        .i_wb2_data({WB2_DATA_BITS{1'b0}}),
+        .i_wb2_sel({WB2_SEL_BITS{1'b0}}),
         .o_wb2_stall(),
         .o_wb2_ack(),
         .o_wb2_data(),
