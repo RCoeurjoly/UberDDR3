@@ -15,7 +15,6 @@ example_demo/build_logs*
 *.frames
 *.bin
 *.json
-!example_demo/ypcb_00338_1p1/constraints/ypcb_00338_1p1_ddr3_bel_locks.json
 *.bba
 *toolchain-nix*
 testbench/ddr3_dimm_micron_sim_behav.wcfg
@@ -26,3 +25,15 @@ testbench/icarus_sim/uberddr3_sim
 
 # But do not ignore testbench/xsim/test_*.log
 !testbench/xsim/test_*.log
+
+# Local Nix/link outputs and generated FPGA artifacts
+/result
+/result-*
+/local-artifacts/
+/artifacts/
+*.bit
+*.placed.json
+*.sdf
+*.log
+*.vcd
+example_demo/ypcb_00338_1p1/*_bel_locks_pre_place.py

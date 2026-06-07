@@ -1,6 +1,14 @@
 `default_nettype none
 `timescale 1ps / 1ps
 
+`ifndef UBERDDR3_YPCB_BYTE_LANES
+`define UBERDDR3_YPCB_BYTE_LANES 2
+`endif
+
+`ifndef UBERDDR3_YPCB_BIST_MODE
+`define UBERDDR3_YPCB_BIST_MODE 2
+`endif
+
 module ypcb_00338_1p1_ddr3 (
     input  wire        clk50,
     input  wire        rst_n,
@@ -22,7 +30,8 @@ module ypcb_00338_1p1_ddr3 (
 
     output wire [2:0]  led
 );
-    localparam integer BYTE_LANES = 2;
+    localparam integer BYTE_LANES = `UBERDDR3_YPCB_BYTE_LANES;
+    localparam [1:0] BIST_MODE = `UBERDDR3_YPCB_BIST_MODE;
     localparam integer WB_ADDR_BITS = 15 + 10 + 3 - 3;
     localparam integer WB_DATA_BITS = 8 * BYTE_LANES * 8;
     localparam integer WB_SEL_BITS = WB_DATA_BITS / 8;
@@ -35,7 +44,7 @@ module ypcb_00338_1p1_ddr3 (
     wire calib_complete;
     wire [31:0] debug1;
     wire [63:0] debug8;
-    wire [959:0] jtag_debug_payload;
+    wire [2047:0] jtag_debug_payload;
     wire jtag_debug_selected;
     wire uart_tx_unused;
     wire [BYTE_LANES-1:0] ddr3_dm_unused;
@@ -72,7 +81,7 @@ module ypcb_00338_1p1_ddr3 (
         .SECOND_WISHBONE(0),
         .DLL_OFF(0),
         .WB_ERROR(0),
-        .BIST_MODE(2'd2),
+        .BIST_MODE(BIST_MODE),
         .BIST_TEST_DATAMASK(1'b0),
         .ECC_ENABLE(0),
         .SPEED_BIN(1),
@@ -130,10 +139,13 @@ module ypcb_00338_1p1_ddr3 (
     );
 
     assign jtag_debug_payload = {
-        448'd0,
+        782'd0,
+        610'd0,
+        128'd0,
+        16'd0,
         debug8,
         348'd0,
-        8'h01,
+        8'h04,
         32'h33445244,
         debug1,
         24'd0,
@@ -144,7 +156,7 @@ module ypcb_00338_1p1_ddr3 (
     };
 
     jtag_debug_bscan #(
-        .WIDTH(960),
+        .WIDTH(2048),
         .JTAG_CHAIN(1)
     ) jtag_debug_bscan_inst (
         .debug_data(jtag_debug_payload),

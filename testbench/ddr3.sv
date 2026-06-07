@@ -1541,6 +1541,8 @@ module ddr3 (
                         end
                     end
                     READ : begin
+                        if (!dll_locked && (ck_cntr - ck_dll_reset >= TDLLK))
+                            dll_locked = 1;
                         if (!dll_locked)
                             $display ("%m: at time %t WARNING: tDLLK violation during %s.", $time, cmd_string[cmd]);
                         if (mpr_en && (addr[1:0] != 2'b00)) begin
@@ -2115,7 +2117,7 @@ module ddr3 (
                     end
                 end else if (!in_self_refresh) begin
                     mr_chk = 0;
-                    if (ck_cntr - ck_dll_reset == TDLLK) begin
+                    if (ck_cntr - ck_dll_reset >= TDLLK) begin
                         dll_locked = 1;
                     end
                 end
