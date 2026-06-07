@@ -121,8 +121,11 @@ DBEOF
           { suffix = "panopticon-lanes2-bist1"; byteLanes = 2; bistMode = 1; }
           { suffix = "panopticon-lanes2-bist2"; byteLanes = 2; bistMode = 2; }
         ];
-        mkYpcbPanopticonVariantDefines = { byteLanes, bistMode, ... }:
-          "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON -DUBERDDR3_YPCB_BYTE_LANES=${toString byteLanes} -DUBERDDR3_YPCB_BIST_MODE=${toString bistMode}";
+        ypcbDdr3PanopticonTraceVariants = [
+          { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
+        ];
+        mkYpcbPanopticonVariantDefines = { byteLanes, bistMode, traceScope ? false, ... }:
+          "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON ${lib.optionalString traceScope "-DUBERDDR3_TRACE_SCOPE "}-DUBERDDR3_YPCB_BYTE_LANES=${toString byteLanes} -DUBERDDR3_YPCB_BIST_MODE=${toString bistMode}";
         ypcbDdr3PanopticonSweepYosysJsons = lib.listToAttrs (map (variant:
           lib.nameValuePair variant.suffix (mkYosysJson {
             name = "ypcb-ddr3-yosys-json-${variant.suffix}";
@@ -130,6 +133,13 @@ DBEOF
             inherit (variant) byteLanes bistMode;
           })
         ) ypcbDdr3PanopticonSweepVariants);
+        ypcbDdr3PanopticonTraceYosysJsons = lib.listToAttrs (map (variant:
+          lib.nameValuePair variant.suffix (mkYosysJson {
+            name = "ypcb-ddr3-yosys-json-${variant.suffix}";
+            verilogDefines = mkYpcbPanopticonVariantDefines (variant // { traceScope = true; });
+            inherit (variant) byteLanes bistMode;
+          })
+        ) ypcbDdr3PanopticonTraceVariants);
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
           PRJXRAY_DB_DIR = patchedPrjxrayDb;
@@ -461,6 +471,18 @@ README
             })
           ) reliabilitySeeds
         ) ypcbDdr3PanopticonSweepVariants);
+        panopticonTraceSeedCandidates = lib.listToAttrs (lib.concatMap (variant:
+          map (seed:
+            let
+              seedString = toString seed;
+              suffix = "${variant.suffix}-seed-${seedString}";
+            in lib.nameValuePair suffix (mkCandidate {
+              inherit suffix seed;
+              pnrArgs = "--no-tmdriv";
+              yosysJson = ypcbDdr3PanopticonTraceYosysJsons.${variant.suffix};
+            })
+          ) reliabilitySeeds
+        ) ypcbDdr3PanopticonTraceVariants);
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         prodSeedBitstreams = lib.mapAttrs' (seed: candidate:
@@ -483,14 +505,24 @@ README
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-trace-scope-seed-${seed}" candidate.pnr) traceScopeSeedCandidates;
         panopticonSweepYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
           lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonSweepYosysJsons;
+        panopticonTraceYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
+          lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonTraceYosysJsons;
         panopticonSweepSeedPnrs = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonSweepSeedCandidates;
+        panopticonTraceSeedPnrs = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonTraceSeedCandidates;
         panopticonSweepSeedFasms = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-${suffix}" candidate.fasmDrv) panopticonSweepSeedCandidates;
+        panopticonTraceSeedFasms = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-${suffix}" candidate.fasmDrv) panopticonTraceSeedCandidates;
         panopticonSweepSeedFrames = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-frames-${suffix}" candidate.frames) panopticonSweepSeedCandidates;
+        panopticonTraceSeedFrames = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-frames-${suffix}" candidate.frames) panopticonTraceSeedCandidates;
         panopticonSweepSeedBitstreams = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) panopticonSweepSeedCandidates;
+        panopticonTraceSeedBitstreams = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) panopticonTraceSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
@@ -685,6 +717,6 @@ README
             repeats = 3;
           };
           default = baseline.bitstream;
-        } // panopticonSweepYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepSeedPnrs // seedFasms // panopticonSweepSeedFasms // panopticonSweepSeedFrames // panopticonSweepSeedBitstreams // seedSdfs;
+        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // seedFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // seedSdfs;
       });
 }
