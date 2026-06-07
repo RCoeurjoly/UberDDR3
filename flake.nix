@@ -143,44 +143,134 @@ DBEOF
             inherit (entry) suffix label axis;
             notes = entry.notes or "";
           };
-        ypcbDdr3PanopticonSweepVariants = map mkYpcbDdr3TopParamVariant [
-          { suffix = "panopticon-p000-lanes1-bist0-low"; label = "baseline-low"; axis = "baseline"; overrides = { }; notes = "Lowest-cost YPCB-compatible starting point; BIST disabled."; }
-          { suffix = "panopticon-p001-lanes1-bist1"; label = "bist-mode-1"; axis = "bistMode"; overrides = { bistMode = 1; }; }
-          { suffix = "panopticon-p002-lanes1-bist2"; label = "bist-mode-2"; axis = "bistMode"; overrides = { bistMode = 2; }; }
-          { suffix = "panopticon-p003-lanes2-bist2"; label = "byte-lanes-2"; axis = "byteLanes"; overrides = { byteLanes = 2; bistMode = 2; }; }
-          { suffix = "panopticon-p004-lanes4-bist2"; label = "byte-lanes-4"; axis = "byteLanes"; overrides = { byteLanes = 4; bistMode = 2; }; }
-          { suffix = "panopticon-p005-lanes8-bist2"; label = "byte-lanes-8"; axis = "byteLanes"; overrides = { byteLanes = 8; bistMode = 2; }; }
-          { suffix = "panopticon-p006-row13-lanes1-bist1"; label = "row-bits-13"; axis = "rowBits"; overrides = { rowBits = 13; bistMode = 1; }; }
-          { suffix = "panopticon-p007-row14-lanes1-bist1"; label = "row-bits-14"; axis = "rowBits"; overrides = { rowBits = 14; bistMode = 1; }; }
-          { suffix = "panopticon-p008-row15-lanes1-bist1"; label = "row-bits-15"; axis = "rowBits"; overrides = { rowBits = 15; bistMode = 1; }; }
-          { suffix = "panopticon-p009-row16-lanes1-bist1"; label = "row-bits-16"; axis = "rowBits"; overrides = { rowBits = 16; bistMode = 1; }; }
-          { suffix = "panopticon-p010-col11-lanes1-bist1"; label = "col-bits-11"; axis = "colBits"; overrides = { colBits = 11; bistMode = 1; }; }
-          { suffix = "panopticon-p011-col12-lanes1-bist1"; label = "col-bits-12"; axis = "colBits"; overrides = { colBits = 12; bistMode = 1; }; }
-          { suffix = "panopticon-p012-aux8-lanes1-bist1"; label = "aux-width-8"; axis = "auxWidth"; overrides = { auxWidth = 8; bistMode = 1; }; }
-          { suffix = "panopticon-p013-wb2a32-lanes1-bist1"; label = "wb2-addr-32"; axis = "wb2AddrBits"; overrides = { wb2AddrBits = 32; bistMode = 1; }; }
-          { suffix = "panopticon-p014-secondwb-lanes1-bist1"; label = "second-wishbone-1"; axis = "secondWishbone"; overrides = { secondWishbone = 1; bistMode = 1; }; }
-          { suffix = "panopticon-p015-wberr-lanes1-bist1"; label = "wb-error-1"; axis = "wbError"; overrides = { wbError = 1; bistMode = 1; }; }
-          { suffix = "panopticon-p016-datamask-lanes1-bist1"; label = "bist-datamask-1"; axis = "bistTestDatamask"; overrides = { bistTestDatamask = 1; bistMode = 1; }; notes = "May be board-incompatible when MIG reports DataMask disabled; included for parameter coverage."; }
-          { suffix = "panopticon-p017-ecc1-lanes1-bist1"; label = "ecc-1"; axis = "eccEnable"; overrides = { eccEnable = 1; bistMode = 1; }; }
-          { suffix = "panopticon-p018-ecc2-lanes1-bist1"; label = "ecc-2"; axis = "eccEnable"; overrides = { eccEnable = 2; bistMode = 1; }; }
-          { suffix = "panopticon-p019-ecc3-lanes1-bist1"; label = "ecc-3"; axis = "eccEnable"; overrides = { eccEnable = 3; bistMode = 1; }; }
-          { suffix = "panopticon-p020-dic1-lanes1-bist1"; label = "dic-rzq7"; axis = "dic"; overrides = { dic = "2'b01"; bistMode = 1; }; }
-          { suffix = "panopticon-p021-rtt1-lanes1-bist1"; label = "rtt-nom-rzq4"; axis = "rttNom"; overrides = { rttNom = "3'b001"; bistMode = 1; }; }
-          { suffix = "panopticon-p022-rtt2-lanes1-bist1"; label = "rtt-nom-rzq2"; axis = "rttNom"; overrides = { rttNom = "3'b010"; bistMode = 1; }; }
-          { suffix = "panopticon-p023-rtt3-lanes1-bist1"; label = "rtt-nom-rzq6"; axis = "rttNom"; overrides = { rttNom = "3'b011"; bistMode = 1; }; }
-          { suffix = "panopticon-p024-sref1-lanes1-bist1"; label = "self-refresh-64"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b01"; bistMode = 1; }; }
-          { suffix = "panopticon-p025-sref2-lanes1-bist1"; label = "self-refresh-128"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b10"; bistMode = 1; }; }
-          { suffix = "panopticon-p026-sref3-lanes1-bist1"; label = "self-refresh-256"; axis = "selfRefresh"; overrides = { selfRefresh = "2'b11"; bistMode = 1; }; }
-          { suffix = "panopticon-p027-clk100-lanes1-bist1"; label = "clock-100mhz"; axis = "clockPeriod"; overrides = { controllerClkPeriod = 10000; ddr3ClkPeriod = 2500; speedBin = 3; bistMode = 1; }; }
-          { suffix = "panopticon-p028-speed2-lanes1-bist1"; label = "speed-bin-2"; axis = "speedBin"; overrides = { speedBin = 2; bistMode = 1; }; }
-          { suffix = "panopticon-p029-speed3-lanes1-bist1"; label = "speed-bin-3"; axis = "speedBin"; overrides = { speedBin = 3; bistMode = 1; }; }
-          { suffix = "panopticon-p030-cap0-lanes1-bist1"; label = "sdram-capacity-256mb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 0; bistMode = 1; }; }
-          { suffix = "panopticon-p031-cap1-lanes1-bist1"; label = "sdram-capacity-512mb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 1; bistMode = 1; }; }
-          { suffix = "panopticon-p032-cap2-lanes1-bist1"; label = "sdram-capacity-1gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 2; bistMode = 1; }; }
-          { suffix = "panopticon-p033-cap3-lanes1-bist1"; label = "sdram-capacity-2gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 3; bistMode = 1; }; }
-          { suffix = "panopticon-p034-cap5-lanes1-bist1"; label = "sdram-capacity-8gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 5; bistMode = 1; }; }
-          { suffix = "panopticon-p035-cap6-lanes1-bist1"; label = "sdram-capacity-16gb"; axis = "sdramCapacity"; overrides = { sdramCapacity = 6; bistMode = 1; }; }
-        ];
+        mkYpcbDdr3GeneratedVariant = index: entry:
+          mkYpcbDdr3TopParamVariant {
+            suffix = "panopticon-p${lib.fixedWidthNumber 3 index}-${entry.name}";
+            label = entry.label;
+            axis = entry.axis;
+            overrides = entry.overrides;
+            notes = entry.notes or "";
+          };
+
+        # Ordered to match the upstream README "Instantiate Design" parameter table.
+        # This is an ordered one-axis-at-a-time sweep: baseline first, then each
+        # non-default value for each parameter in README order. It avoids a huge
+        # Cartesian product while keeping the parameter domains explicit and easy
+        # to widen when we intentionally want more combinations.
+        ypcbDdr3TopParameterSweepEntries = [
+          { name = "baseline-low"; label = "baseline-low"; axis = "baseline"; overrides = { }; notes = "Lowest-cost YPCB-compatible starting point; BIST disabled."; }
+        ]
+        ++ (map (clock: {
+          name = clock.name;
+          label = clock.label;
+          axis = "clockPeriod";
+          overrides = clock.overrides;
+        }) [
+          { name = "clk100"; label = "controller-clock-100mhz"; overrides = { controllerClkPeriod = 10000; ddr3ClkPeriod = 2500; speedBin = 3; }; }
+        ])
+        ++ (map (rowBits: {
+          name = "row${toString rowBits}";
+          label = "row-bits-${toString rowBits}";
+          axis = "rowBits";
+          overrides = { inherit rowBits; };
+        }) [ 13 14 15 16 ])
+        ++ (map (colBits: {
+          name = "col${toString colBits}";
+          label = "col-bits-${toString colBits}";
+          axis = "colBits";
+          overrides = { inherit colBits; };
+        }) [ 11 12 ])
+        ++ (map (byteLanes: {
+          name = "lanes${toString byteLanes}";
+          label = "byte-lanes-${toString byteLanes}";
+          axis = "byteLanes";
+          overrides = { inherit byteLanes; };
+        }) [ 2 4 8 ])
+        ++ (map (auxWidth: {
+          name = "aux${toString auxWidth}";
+          label = "aux-width-${toString auxWidth}";
+          axis = "auxWidth";
+          overrides = { inherit auxWidth; };
+        }) [ 8 ])
+        ++ (map (wb2AddrBits: {
+          name = "wb2a${toString wb2AddrBits}";
+          label = "wb2-addr-${toString wb2AddrBits}";
+          axis = "wb2AddrBits";
+          overrides = { inherit wb2AddrBits; };
+        }) [ 32 ])
+        ++ (map (secondWishbone: {
+          name = "secondwb${toString secondWishbone}";
+          label = "second-wishbone-${toString secondWishbone}";
+          axis = "secondWishbone";
+          overrides = { inherit secondWishbone; };
+        }) [ 1 ])
+        ++ (map (wbError: {
+          name = "wberr${toString wbError}";
+          label = "wb-error-${toString wbError}";
+          axis = "wbError";
+          overrides = { inherit wbError; };
+        }) [ 1 ])
+        ++ (map (bistMode: {
+          name = "bist${toString bistMode}";
+          label = "bist-mode-${toString bistMode}";
+          axis = "bistMode";
+          overrides = { inherit bistMode; };
+        }) [ 1 2 ])
+        ++ (map (bistTestDatamask: {
+          name = "datamask${toString bistTestDatamask}";
+          label = "bist-datamask-${toString bistTestDatamask}";
+          axis = "bistTestDatamask";
+          overrides = { inherit bistTestDatamask; };
+          notes = "May be board-incompatible when MIG reports DataMask disabled; included for parameter coverage.";
+        }) [ 1 ])
+        ++ (map (eccEnable: {
+          name = "ecc${toString eccEnable}";
+          label = "ecc-${toString eccEnable}";
+          axis = "eccEnable";
+          overrides = { inherit eccEnable; };
+        }) [ 1 2 3 ])
+        ++ (map (dic: {
+          name = "dic${toString dic.code}";
+          label = "dic-${dic.label}";
+          axis = "dic";
+          overrides = { dic = dic.value; };
+        }) [
+          { value = "2'b01"; code = 1; label = "rzq7"; }
+        ])
+        ++ (map (rttNom: {
+          name = "rtt${toString rttNom.code}";
+          label = "rtt-nom-${rttNom.label}";
+          axis = "rttNom";
+          overrides = { rttNom = rttNom.value; };
+        }) [
+          { value = "3'b001"; code = 1; label = "rzq4"; }
+          { value = "3'b010"; code = 2; label = "rzq2"; }
+          { value = "3'b011"; code = 3; label = "rzq6"; }
+        ])
+        ++ (map (selfRefresh: {
+          name = "sref${toString selfRefresh.code}";
+          label = "self-refresh-${selfRefresh.label}";
+          axis = "selfRefresh";
+          overrides = { selfRefresh = selfRefresh.value; };
+        }) [
+          { value = "2'b01"; code = 1; label = "64"; }
+          { value = "2'b10"; code = 2; label = "128"; }
+          { value = "2'b11"; code = 3; label = "256"; }
+        ])
+        ++ (map (speedBin: {
+          name = "speed${toString speedBin}";
+          label = "speed-bin-${toString speedBin}";
+          axis = "speedBin";
+          overrides = { inherit speedBin; };
+        }) [ 2 3 ])
+        ++ (map (sdramCapacity: {
+          name = "cap${toString sdramCapacity}";
+          label = "sdram-capacity-${toString sdramCapacity}";
+          axis = "sdramCapacity";
+          overrides = { inherit sdramCapacity; };
+        }) [ 0 1 2 3 5 6 ]);
+
+        ypcbDdr3PanopticonSweepVariants = lib.imap0 mkYpcbDdr3GeneratedVariant ypcbDdr3TopParameterSweepEntries;
         ypcbDdr3PanopticonTraceVariants = [
           { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
         ];
