@@ -168,14 +168,6 @@ module ddr3_controller #(
         output wire [781:0] o_panopticon_debug,
         input wire [5:0] i_trace_debug_addr,
         output reg [63:0] o_trace_debug_word,
-        input wire i_trace_wb_cyc,
-        input wire i_trace_wb_stb,
-        input wire i_trace_wb_we,
-        input wire [15:0] i_trace_wb_addr,
-        input wire [31:0] i_trace_wb_data,
-        output wire o_trace_wb_stall,
-        output reg o_trace_wb_ack,
-        output reg [31:0] o_trace_wb_data,
      
         // User enabled self-refresh
         input wire				i_user_self_refresh,
@@ -365,7 +357,7 @@ module ddr3_controller #(
      //the delays included the ODELAY and OSERDES when issuing the read command
      //and the IDELAY and ISERDES when receiving the data  (NOTE TO SELF: ELABORATE ON WHY THOSE MAGIC NUMBERS)
     localparam READ_ACK_PIPE_WIDTH = READ_DELAY + 1 + 2 + 1 + 1 + (DLL_OFF? 2 : 0); // FOr DLL_OFF, phy has no delay thus add delay here       
-    localparam MAX_ADDED_READ_ACK_DELAY = 4;
+    localparam MAX_ADDED_READ_ACK_DELAY = 3;
     localparam DELAY_BEFORE_WRITE_LEVEL_FEEDBACK = STAGE2_DATA_DEPTH + ps_to_cycles(tWLO+tWLOE) + 10;  
     //plus 10 controller clocks for possible bus latency and the delay for receiving feedback DQ from IOBUF -> IDELAY -> ISERDES
     localparam ECC_INFORMATION_BITS = (ECC_ENABLE == 2)? max_information_bits(wb_data_bits) : max_information_bits(wb_data_bits/8);
@@ -402,8 +394,7 @@ module ddr3_controller #(
                 FINISH_READ = 22,
                 DONE_CALIBRATE = 23,
                 ANALYZE_DATA_LOW_FREQ = 24,
-                ANALYZE_DATA_PREP = 25,
-                WAIT_INIT_WRITE_SLOT = 26;
+                ANALYZE_DATA_PREP = 25;
                 
      localparam STORED_DQS_SIZE = 5, //must be >= 2           
                 REPEAT_DQS_ANALYZE = 1,
@@ -475,15 +466,9 @@ module ddr3_controller #(
                      INIT_TIMER_ADVANCE_READY = 2'd2,
                      INIT_TIMER_ADVANCE = 2'd3;
     (* keep = "true" *) reg [1:0] init_timer_phase = INIT_TIMER_COUNT_DELAY;
-    (* keep = "true" *) reg init_delay_counting_q = 1'b1;
     reg[4:0] init_prefetch_address = 0;
     reg[27:0] init_prefetch_instruction = INITIAL_RESET_INSTRUCTION;
     (* keep = "true" *) reg init_calib_start_q = 1'b0;
-    reg[4:0] init_diag_prev_instruction_address_q = 5'd0;
-    reg init_diag_addr_regress_seen_q = 1'b0;
-    reg init_diag_sync_rst_seen_q = 1'b0;
-    reg init_diag_reset_from_calibrate_seen_q = 1'b0;
-    reg init_diag_external_reset_seen_q = 1'b0;
     reg pause_counter = 0;
     wire issue_read_command;
     reg stage2_update = 1;
@@ -586,24 +571,21 @@ module ddr3_controller #(
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_start_index_stored = 0;
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index = 0;
     reg[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_orig = 0;
-    reg[1:0] dqs_capture_extra_delay = 2'd0;
     reg[$clog2(STORED_DQS_SIZE*8):0] dq_target_index[LANES-1:0];
     wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_value;
-    wire[$clog2(STORED_DQS_SIZE*8)-1:0] dqs_target_index_wrap_value = dqs_target_index_orig - 2;
-    wire dqs_target_index_reached_or_crossed = dqs_start_index_stored >= dqs_target_index;
-    reg[2:0] dqs_start_index_repeat=0;
+    reg[$clog2(REPEAT_DQS_ANALYZE):0] dqs_start_index_repeat=0;
     wire[9:0] analyze_dqs_window = dqs_store[dqs_start_index +: 10];
     wire analyze_dqs_match = analyze_dqs_window == 10'b01_01_01_01_00;
     wire analyze_dqs_at_end = dqs_start_index >= (STORED_DQS_SIZE*8-1);
     wire analyze_dqs_repeat_same = dqs_start_index == dqs_start_index_stored;
-    wire analyze_dqs_repeat_done = dqs_start_index_repeat == REPEAT_DQS_ANALYZE;
+    wire analyze_dqs_repeat_done = analyze_dqs_repeat_same && (dqs_start_index_repeat >= REPEAT_DQS_ANALYZE);
     wire[2:0] analyze_dqs_action =
         (state_calibrate != ANALYZE_DQS) ? 3'd0 :
         (!analyze_dqs_match && !analyze_dqs_at_end) ? 3'd1 :
         (!analyze_dqs_match && analyze_dqs_at_end) ? 3'd2 :
         (analyze_dqs_match && !analyze_dqs_repeat_done) ? 3'd3 :
         3'd4;
-    reg[3:0] train_delay;
+    reg[5:0] train_delay;
     reg[3:0] delay_before_read_data = 0;
     reg[$clog2(DELAY_BEFORE_WRITE_LEVEL_FEEDBACK):0] delay_before_write_level_feedback = 0;
     reg initial_dqs = 0;
@@ -612,8 +594,8 @@ module ddr3_controller #(
     /* verilator lint_off UNUSEDSIGNAL */
     reg[15:0] dqs_bitslip_arrangement = 0;
     /* verilator lint_off UNUSEDSIGNAL */
-    reg[1:0] added_read_pipe_max = 0;
-    reg[1:0] added_read_pipe[LANES - 1:0]; 
+    reg added_read_pipe_max = 0;
+    reg added_read_pipe[LANES - 1:0]; 
     //each lane will have added delay relative to when ISERDES should actually return the data
     //this make sure that we will wait until the lane with longest delay (added_read_pipe_max) is received before
     //all lanes are sent to wishbone data
@@ -624,8 +606,9 @@ module ddr3_controller #(
     reg[$clog2(READ_ACK_PIPE_WIDTH-1):0] write_ack_index_q = 1, write_ack_index_d = 1;
     reg index_read_pipe; //tells which delay_read_pipe will be updated (there are two delay_read_pipe)
     reg index_wb_data; //tells which o_wb_data_q will be sent to o_wb_data
-    reg[3:0] delay_read_pipe[1:0]; //delay when each lane will retrieve i_phy_iserdes_data (since different lanes might not be aligned with each other and needs to be retrieved at a different time)
+    reg[1:0] delay_read_pipe[1:0]; //delay when each lane will retrieve i_phy_iserdes_data (since different lanes might not be aligned with each other and needs to be retrieved at a different time)
     reg[wb_data_bits - 1:0] o_wb_data_q[1:0]; //store data retrieved from i_phy_iserdes_data to be sent to o_wb_data
+    reg[1:0] o_wb_data_q_raw_invalid = 2'b00;
     wire[wb_data_bits - 1:0] o_wb_data_q_current;
     reg[wb_data_bits - 1:0] o_wb_data_q_q;
     reg[wb_data_bits - 1:0] o_wb_data_uncalibrated;
@@ -633,9 +616,16 @@ module ddr3_controller #(
     reg o_wb_err_q;
     reg o_wb_ack_uncalibrated = 0;
     reg[AUX_WIDTH:0] o_wb_ack_read_q[MAX_ADDED_READ_ACK_DELAY-1:0];
+    wire[1:0] read_ack_delay_index = {1'b0, added_read_pipe_max} + {1'b0, !final_calibration_done};
     reg calib_stb = 0;
     reg[wb_sel_bits-1:0] calib_sel = 0;
     reg[AUX_WIDTH-1:0] calib_aux = 0;
+    localparam [1:0] ALT_BIST_PHASE_WRITE_REQ = 2'd0,
+                     ALT_BIST_PHASE_WAIT_WRITE_ACK = 2'd1,
+                     ALT_BIST_PHASE_READ_REQ = 2'd2,
+                     ALT_BIST_PHASE_WAIT_READ_ACK = 2'd3;
+    reg[1:0] alternate_bist_phase = ALT_BIST_PHASE_WRITE_REQ;
+    reg random_read_drain_pending = 1'b0;
     reg calib_we = 0;
     reg[wb_addr_bits-1:0] calib_addr = 0;
     reg[wb_data_bits-1:0] calib_data = 0;
@@ -647,24 +637,6 @@ module ddr3_controller #(
     reg[wb_data_bits-1:0] read_data_store = 0;
     reg[127:0] write_pattern = 0;
     reg[63:0] write_pattern_lane = 0;
-    reg[3:0] read_align_reset_code_q = 4'd0;
-    reg[4:0] read_align_state_q = 5'd0;
-    reg[2:0] read_align_lane_q = 3'd0;
-    reg[6:0] read_align_data_start_index_q = 7'd0;
-    reg[5:0] read_align_start_index_check_q = 6'd0;
-    reg[1:0] read_align_prep_done_q = 2'd0;
-    reg read_align_write_pattern_matches_q = 1'b0;
-    reg read_align_lane_write_dq_late_q = 1'b0;
-    reg read_align_lane_read_dq_early_q = 1'b0;
-    reg[31:0] read_align_read_lane_data_shifted_q = 32'd0;
-    reg[31:0] read_align_write_pattern_lane_low_q = 32'd0;
-    reg[31:0] read_align_read_lane_data_low_q = 32'd0;
-    localparam [2:0] READ_ALIGN_INVALID_RETRY_LIMIT = 3'd2;
-    localparam [4:0] READ_ALIGN_INVALID_IDELAY_LIMIT = 5'd31;
-    reg[2:0] read_align_invalid_retry_count = 3'd0;
-    reg[4:0] read_align_invalid_idelay_count = 5'd0;
-    reg [5:0] init_sync_rst_edge_count_q = 6'd0;
-    reg init_sync_rst_controller_prev_q = 1'b0;
 `ifdef UBERDDR3_PANOPTICON
     reg [127:0] init_seq_debug_q = 128'd0;
     reg [111:0] init_event_trace_q = 112'd0;
@@ -673,32 +645,20 @@ module ddr3_controller #(
     reg [15:0] init_event_last_q = 16'd0;
 `endif
 `ifdef UBERDDR3_TRACE_SCOPE
-    localparam integer TRACE_SCOPE_WIDTH = 692;
-    localparam integer TRACE_SCOPE_DEPTH = 64;
-    localparam integer TRACE_SCOPE_INDEX_WIDTH = 6;
-    localparam [11:0] TRACE_SCOPE_DEPTH_COUNT = 12'd64;
-    localparam [31:0] TRACE_SCOPE_MAGIC = 32'h53435032; // SCP2
-    reg [TRACE_SCOPE_WIDTH-1:0] trace_scope_samples_q [0:TRACE_SCOPE_DEPTH-1];
+    localparam integer TRACE_SCOPE_DEPTH = 32;
+    localparam integer TRACE_SCOPE_INDEX_WIDTH = 7;
+    localparam [7:0] TRACE_SCOPE_DEPTH_COUNT = 8'd32;
+    reg [63:0] trace_scope_events_q [0:TRACE_SCOPE_DEPTH-1];
+    reg [7:0] trace_scope_event_count_q = 8'd0;
     reg [TRACE_SCOPE_INDEX_WIDTH-1:0] trace_scope_write_index_q = {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-    reg [TRACE_SCOPE_INDEX_WIDTH-1:0] trace_scope_read_index_q = {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-    reg [TRACE_SCOPE_WIDTH-1:0] trace_scope_read_sample_q = {TRACE_SCOPE_WIDTH{1'b0}};
-    reg [11:0] trace_scope_sample_count_q = 12'd0;
-    reg [11:0] trace_scope_holdoff_q = 12'd32;
-    reg [11:0] trace_scope_post_count_q = 12'd0;
-    reg [2:0] trace_scope_trigger_select_q = 3'd7;
-    reg trace_scope_armed_q = 1'b1;
-    reg trace_scope_triggered_q = 1'b0;
     reg trace_scope_frozen_q = 1'b0;
     reg trace_scope_overflow_q = 1'b0;
-    reg trace_scope_manual_trigger_q = 1'b0;
-    reg trace_scope_control_reset_q = 1'b0;
-    reg trace_scope_control_manual_q = 1'b0;
-    reg trace_scope_control_freeze_q = 1'b0;
-    reg trace_scope_control_unfreeze_q = 1'b0;
     reg [31:0] trace_scope_cycle_q = 32'd0;
-    wire [31:0] trace_scope_flags = {
-        14'd0,
-        init_delay_counting_q,
+    reg [31:0] trace_scope_last_event_cycle_q = 32'd0;
+    reg [52:0] trace_scope_last_event_core_q = 53'd0;
+    wire [31:0] trace_scope_event_delta_wide = trace_scope_cycle_q - trace_scope_last_event_cycle_q;
+    wire [10:0] trace_scope_event_delta = (trace_scope_event_delta_wide > 32'd2047) ? 11'h7ff : trace_scope_event_delta_wide[10:0];
+    wire [52:0] trace_scope_event_core = {
         init_counter_reaches_two,
         init_counter_reaches_one,
         init_timed_counter_active,
@@ -715,208 +675,16 @@ module ddr3_controller #(
         init_advance_ready_q,
         init_advance_pending,
         init_advance_now,
-        delay_counter_is_zero
+        delay_counter_is_zero,
+        init_timer_phase,
+        delay_counter,
+        state_calibrate,
+        instruction_address_d,
+        instruction_address
     };
-    wire [4:0] trace_scope_state_next =
-        (state_calibrate == ANALYZE_DQS && analyze_dqs_match && analyze_dqs_repeat_done) ? CALIBRATE_DQS[4:0] :
-        (state_calibrate == ANALYZE_DQS && analyze_dqs_match && !analyze_dqs_repeat_done) ? MPR_READ[4:0] :
-        (state_calibrate == ANALYZE_DQS && !analyze_dqs_match && analyze_dqs_at_end) ? MPR_READ[4:0] :
-        (state_calibrate == ANALYZE_DQS && !analyze_dqs_match && !analyze_dqs_at_end) ? ANALYZE_DQS[4:0] :
-        (state_calibrate == CALIBRATE_DQS && dqs_target_index_reached_or_crossed) ? BITSLIP_DQS_TRAIN_2[4:0] :
-        (state_calibrate == CALIBRATE_DQS) ? MPR_READ[4:0] :
-        state_calibrate[4:0];
-    wire [2:0] trace_scope_lane = {{(3-lanes_clog2){1'b0}}, lane};
-    wire trace_scope_calibrate_dqs_target_reached = (state_calibrate == CALIBRATE_DQS) && dqs_target_index_reached_or_crossed;
-    wire [4:0] trace_scope_decision_flags = {
-        trace_scope_calibrate_dqs_target_reached,
-        analyze_dqs_repeat_done,
-        analyze_dqs_repeat_same,
-        analyze_dqs_at_end,
-        analyze_dqs_match
-    };
-    wire [1:0] trace_scope_lane_capture_delay = added_read_pipe_max - added_read_pipe[lane];
-    wire trace_scope_lane_capture0 = delay_read_pipe[0][trace_scope_lane_capture_delay];
-    wire trace_scope_lane_capture1 = delay_read_pipe[1][trace_scope_lane_capture_delay];
-    wire [7:0] trace_scope_iserdes_lane_burst0 =
-        i_phy_iserdes_data[((DQ_BITS*LANES)*0 + ({29'd0, lane} << 3)) +: 8];
-    wire [7:0] trace_scope_uncal_lane_burst0 =
-        o_wb_data_uncalibrated[((DQ_BITS*LANES)*0 + ({29'd0, lane} << 3)) +: 8];
-    wire [63:0] trace_scope_phy_data_lane0 = {
-        o_phy_data[((DQ_BITS*LANES)*7 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*6 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*5 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*4 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*3 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*2 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*1 + 0) +: 8],
-        o_phy_data[((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [7:0] trace_scope_phy_dm_lane0 = {
-        o_phy_dm[(LANES*7 + 0)],
-        o_phy_dm[(LANES*6 + 0)],
-        o_phy_dm[(LANES*5 + 0)],
-        o_phy_dm[(LANES*4 + 0)],
-        o_phy_dm[(LANES*3 + 0)],
-        o_phy_dm[(LANES*2 + 0)],
-        o_phy_dm[(LANES*1 + 0)],
-        o_phy_dm[(LANES*0 + 0)]
-    };
-    wire [63:0] trace_scope_calib_data_lane0 = {
-        calib_data[((DQ_BITS*LANES)*7 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*6 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*5 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*4 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*3 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*2 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*1 + 0) +: 8],
-        calib_data[((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [63:0] trace_scope_stage1_data_lane0 = {
-        stage1_data[((DQ_BITS*LANES)*7 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*6 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*5 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*4 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*3 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*2 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*1 + 0) +: 8],
-        stage1_data[((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [63:0] trace_scope_stage2_data_unaligned_lane0 = {
-        stage2_data_unaligned[((DQ_BITS*LANES)*7 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*6 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*5 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*4 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*3 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*2 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*1 + 0) +: 8],
-        stage2_data_unaligned[((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [63:0] trace_scope_stage2_data0_lane0 = {
-        stage2_data[0][((DQ_BITS*LANES)*7 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*6 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*5 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*4 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*3 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*2 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*1 + 0) +: 8],
-        stage2_data[0][((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [63:0] trace_scope_stage2_data1_lane0 = {
-        stage2_data[1][((DQ_BITS*LANES)*7 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*6 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*5 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*4 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*3 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*2 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*1 + 0) +: 8],
-        stage2_data[1][((DQ_BITS*LANES)*0 + 0) +: 8]
-    };
-    wire [7:0] trace_scope_calib_sel_lane0 = {
-        calib_sel[(LANES*7 + 0)], calib_sel[(LANES*6 + 0)], calib_sel[(LANES*5 + 0)], calib_sel[(LANES*4 + 0)],
-        calib_sel[(LANES*3 + 0)], calib_sel[(LANES*2 + 0)], calib_sel[(LANES*1 + 0)], calib_sel[(LANES*0 + 0)]
-    };
-    wire [7:0] trace_scope_stage1_dm_lane0 = {
-        stage1_dm[(LANES*7 + 0)], stage1_dm[(LANES*6 + 0)], stage1_dm[(LANES*5 + 0)], stage1_dm[(LANES*4 + 0)],
-        stage1_dm[(LANES*3 + 0)], stage1_dm[(LANES*2 + 0)], stage1_dm[(LANES*1 + 0)], stage1_dm[(LANES*0 + 0)]
-    };
-    wire [7:0] trace_scope_stage2_dm_unaligned_lane0 = {
-        stage2_dm_unaligned[(LANES*7 + 0)], stage2_dm_unaligned[(LANES*6 + 0)], stage2_dm_unaligned[(LANES*5 + 0)], stage2_dm_unaligned[(LANES*4 + 0)],
-        stage2_dm_unaligned[(LANES*3 + 0)], stage2_dm_unaligned[(LANES*2 + 0)], stage2_dm_unaligned[(LANES*1 + 0)], stage2_dm_unaligned[(LANES*0 + 0)]
-    };
-    wire [7:0] trace_scope_stage2_dm0_lane0 = {
-        stage2_dm[0][(LANES*7 + 0)], stage2_dm[0][(LANES*6 + 0)], stage2_dm[0][(LANES*5 + 0)], stage2_dm[0][(LANES*4 + 0)],
-        stage2_dm[0][(LANES*3 + 0)], stage2_dm[0][(LANES*2 + 0)], stage2_dm[0][(LANES*1 + 0)], stage2_dm[0][(LANES*0 + 0)]
-    };
-    wire [7:0] trace_scope_stage2_dm1_lane0 = {
-        stage2_dm[1][(LANES*7 + 0)], stage2_dm[1][(LANES*6 + 0)], stage2_dm[1][(LANES*5 + 0)], stage2_dm[1][(LANES*4 + 0)],
-        stage2_dm[1][(LANES*3 + 0)], stage2_dm[1][(LANES*2 + 0)], stage2_dm[1][(LANES*1 + 0)], stage2_dm[1][(LANES*0 + 0)]
-    };
-    wire [3:0] trace_scope_write_cmd = cmd_d[WRITE_SLOT][CMD_CS_N:CMD_WE_N];
-    wire [3:0] trace_scope_read_cmd = cmd_d[READ_SLOT][CMD_CS_N:CMD_WE_N];
-    wire trace_scope_trigger_calib_write = (state_calibrate == WAIT_INIT_WRITE_SLOT) && (instruction_address == 22);
-    wire trace_scope_trigger_read_align_transaction =
-        (state_calibrate == WAIT_INIT_WRITE_SLOT) ||
-        (state_calibrate == ISSUE_WRITE_1) ||
-        (state_calibrate == ISSUE_WRITE_2) ||
-        (state_calibrate == ISSUE_READ) ||
-        (state_calibrate == READ_DATA) ||
-        (state_calibrate == ANALYZE_DATA_PREP) ||
-        (state_calibrate == ANALYZE_DATA) ||
-        (state_calibrate == CHECK_STARTING_DATA);
-    wire [TRACE_SCOPE_WIDTH-1:0] trace_scope_sample_word = {
-        write_dqs_d,
-        write_dq_d,
-        lane_read_dq_early[0],
-        lane_write_dq_late[0],
-        late_dq[0],
-        write_dqs_val[3:0],
-        write_dqs[3:0],
-        write_dq[3:0],
-        trace_scope_stage2_dm1_lane0[7:0],
-        trace_scope_stage2_dm0_lane0[7:0],
-        trace_scope_stage2_dm_unaligned_lane0[7:0],
-        trace_scope_stage1_dm_lane0[7:0],
-        trace_scope_calib_sel_lane0[7:0],
-        trace_scope_stage2_data1_lane0[63:0],
-        trace_scope_stage2_data0_lane0[63:0],
-        trace_scope_stage2_data_unaligned_lane0[63:0],
-        trace_scope_stage1_data_lane0[63:0],
-        trace_scope_calib_data_lane0[63:0],
-        o_wb_data_q_current[31:0],
-        i_phy_iserdes_data[31:0],
-        o_aux[15:0],
-        {{(16-AUX_WIDTH){1'b0}}, o_wb_ack_read_q[0][AUX_WIDTH:0]},
-        {{(16-AUX_WIDTH){1'b0}}, shift_reg_read_pipe_q[0][AUX_WIDTH:0]},
-        instruction_address[4:0],
-        calib_addr[3:0],
-        calib_aux[1:0],
-        stage2_we,
-        stage2_pending,
-        stage1_we,
-        stage1_pending,
-        stage0_we,
-        stage0_pending,
-        trace_scope_write_cmd[3:0],
-        trace_scope_read_cmd[3:0],
-        trace_scope_phy_data_lane0[63:0],
-        trace_scope_phy_dm_lane0[7:0],
-        o_phy_dq_tri_control,
-        o_phy_dqs_tri_control,
-        calib_we,
-        calib_stb,
-        trace_scope_uncal_lane_burst0[7:0],
-        trace_scope_iserdes_lane_burst0[7:0],
-        start_index_check[5:0],
-        data_start_index[lane][6:0],
-        added_read_pipe_max[1:0],
-        added_read_pipe[lane][1:0],
-        trace_scope_lane_capture1,
-        trace_scope_lane_capture0,
-        shift_reg_read_pipe_q[1][AUX_WIDTH],
-        shift_reg_read_pipe_q[1][0],
-        delay_read_pipe[1][3:0],
-        delay_read_pipe[0][3:0],
-        index_wb_data,
-        index_read_pipe,
-        o_wb_stall_calib,
-        o_wb_ack_uncalibrated,
-        read_align_invalid_data,
-        prep_done[1:0],
-        read_align_invalid_retry_count[2:0],
-        trace_scope_lane[2:0],
-        trace_scope_state_next[4:0],
-        state_calibrate[4:0],
-        trace_scope_cycle_q
-    };
-    wire trace_scope_trigger_init2 = (instruction_address == 5'd2);
-    wire trace_scope_trigger_init13 = (instruction_address == 5'd13);
-    wire trace_scope_trigger_dqs = (state_calibrate == ANALYZE_DQS);
-    wire trace_scope_trigger_collect_dqs = (state_calibrate == COLLECT_DQS);
-    wire trace_scope_trigger_dqs_repeat_analyze = (state_calibrate == CALIBRATE_DQS) && (idelay_dqs_cntvaluein[lane] <= 5'd1) && (dqs_target_index_orig != 0);
-    wire trace_scope_trigger_read_align_reset = reset_from_calibrate;
-    wire trace_scope_trigger_bist_fail = (wrong_read_data != 32'd0);
-    wire trace_scope_trigger_success = o_calib_complete;
-    reg trace_scope_trigger_condition;
+    wire [63:0] trace_scope_event_word = {trace_scope_event_delta, trace_scope_event_core};
+    wire trace_scope_event_changed = trace_scope_event_core != trace_scope_last_event_core_q;
+    wire trace_scope_success_trigger = (instruction_address == 5'd13) && (state_calibrate != IDLE);
 `endif
     reg[781:0] panopticon_debug_q = 782'd0;
     reg[$clog2(64):0] data_start_index[LANES-1:0];   
@@ -932,11 +700,6 @@ module ddr3_controller #(
     reg[5:0] start_index_check = 0;
     reg[63:0] read_lane_data = 0;
     reg[31:0] read_lane_data_shifted = 0;
-    wire read_align_shifted_all_ones = &read_lane_data_shifted;
-    wire read_align_shifted_all_zero = ~|read_lane_data_shifted;
-    wire read_align_lane_low_all_ones = &read_lane_data[31:0];
-    wire read_align_lane_low_all_zero = ~|read_lane_data[31:0];
-    wire read_align_invalid_data = read_align_shifted_all_ones || read_align_shifted_all_zero || read_align_lane_low_all_ones || read_align_lane_low_all_zero;
     reg odelay_cntvalue_halfway = 0;
     reg initial_calibration_done = 0;
     reg final_calibration_done = 0;
@@ -999,7 +762,8 @@ module ddr3_controller #(
     reg reset_after_rank_1 = 0; // reset after calibration rank 1 to switch to rank 2
     reg current_rank = 0;
     // test calibration 
-    (* mark_debug = "true" *) reg[wb_addr_bits-1:0] read_test_address_counter = 0, check_test_address_counter = 0; ////////////////////////////////////////////////////////
+    (* mark_debug = "true" *) reg[wb_addr_bits-1:0] read_test_address_counter = 0, check_test_address_counter = 0;
+    reg[(DONE_CALIBRATE)-1:0] bist_check_state_calibrate_q = 0; ////////////////////////////////////////////////////////
     (* mark_debug = "true" *) reg[wb_addr_bits-1:0] write_test_address_counter = 0;
     (* mark_debug = "true" *) reg[31:0] correct_read_data = 0, wrong_read_data = 0;
     /* verilator lint_off UNDRIVEN */
@@ -1034,8 +798,24 @@ module ddr3_controller #(
     reg[15:0] bist_fail_byte_mask = 16'd0;
     reg[127:0] bist_fail_expected = 128'd0;
     reg[127:0] bist_fail_actual = 128'd0;
+    reg bist_fail_index_wb_data = 1'b0;
+    reg[1:0] bist_fail_delay_read_pipe0 = 2'd0;
+    reg[1:0] bist_fail_delay_read_pipe1 = 2'd0;
+    reg bist_fail_added_read_pipe0 = 1'b0;
+    reg bist_fail_added_read_pipe1 = 1'b0;
+    reg[6:0] bist_fail_data_start_index0 = 7'd0;
+    reg[6:0] bist_fail_data_start_index1 = 7'd0;
+    reg[4:0] bist_fail_idelay_data_cntvaluein0 = 5'd0;
+    reg[4:0] bist_fail_idelay_data_cntvaluein1 = 5'd0;
+    reg[4:0] bist_fail_idelay_dqs_cntvaluein0 = 5'd0;
+    reg[4:0] bist_fail_idelay_dqs_cntvaluein1 = 5'd0;
+    reg[127:0] bist_fail_wb_data_q_current = 128'd0;
+    reg[127:0] bist_fail_raw_iserdes_data = 128'd0;
     reg bist_check_pending = 1'b0;
+    localparam [1:0] BIST_INVALID_READ_TOLERANCE = 2'd3;
+    reg[1:0] bist_invalid_read_count = 2'd0;
     reg[wb_data_bits-1:0] bist_check_actual = 0;
+    reg bist_check_raw_invalid = 1'b0;
     reg[wb_data_bits-1:0] bist_check_expected = 0;
     reg[wb_addr_bits-1:0] bist_check_addr = 0;
     reg[4:0] bist_check_state = 5'd0;
@@ -1241,39 +1021,14 @@ module ddr3_controller #(
         current_rank_rst <= !i_rst_n || reset_from_wb2 || reset_from_calibrate || reset_from_test;
         sync_rst_wb2 <= !i_rst_n;
     end
-
-    always @(posedge i_controller_clk) begin
-        if(!i_rst_n) begin
-            init_diag_prev_instruction_address_q <= 5'd0;
-            init_diag_addr_regress_seen_q <= 1'b0;
-            init_diag_sync_rst_seen_q <= 1'b0;
-            init_diag_reset_from_calibrate_seen_q <= 1'b0;
-            init_diag_external_reset_seen_q <= 1'b0;
-        end
-        else begin
-            init_diag_prev_instruction_address_q <= instruction_address;
-            if(!reset_done && !sync_rst_controller && (instruction_address < init_diag_prev_instruction_address_q)) begin
-                init_diag_addr_regress_seen_q <= 1'b1;
-            end
-            if(sync_rst_controller) begin
-                init_diag_sync_rst_seen_q <= 1'b1;
-            end
-            if(reset_from_calibrate) begin
-                init_diag_reset_from_calibrate_seen_q <= 1'b1;
-            end
-            if(reset_from_wb2 || reset_from_test || reset_after_rank_1) begin
-                init_diag_external_reset_seen_q <= 1'b1;
-            end
-        end
-    end
     assign o_phy_reset = current_rank_rst; // PHY will not reset when transitioning from rank 0 to rank 1
     
     wire init_prefetch_ready = init_prefetch_address == instruction_address;
     wire init_calib_start_now = i_phy_idelayctrl_rdy && (instruction_address == 5'd13);
-    wire init_timed_counter_active = init_delay_counting_q && !pause_counter &&
+    wire init_timed_counter_active = init_effective_instruction[USE_TIMER] && !pause_counter &&
         (init_timer_phase == INIT_TIMER_COUNT_DELAY) && (delay_counter != 0);
-    wire init_counter_reaches_one = init_timed_counter_active && (delay_counter <= {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
-    wire init_counter_reaches_two = init_timed_counter_active && (delay_counter <= {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
+    wire init_counter_reaches_one = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd1});
+    wire init_counter_reaches_two = init_timed_counter_active && (delay_counter == {{(DELAY_COUNTER_WIDTH-2){1'b0}}, 2'd2});
     wire init_advance_now = init_prefetch_ready && init_advance_pending &&
         (init_timer_phase == INIT_TIMER_ADVANCE) && !pause_counter;
     wire init_self_refresh_jump = init_prefetch_ready && (instruction_address == 5'd22) && user_self_refresh_q;
@@ -1281,13 +1036,32 @@ module ddr3_controller #(
                                                (instruction_address == 5'd26) ? 5'd20 :
                                                (instruction_address + 5'd1);
     wire[4:0] init_advance_instruction_address = init_self_refresh_jump ? 5'd23 : init_next_instruction_address;
-    wire[27:0] init_advance_instruction = init_prefetch_instruction;
-    wire[DELAY_COUNTER_WIDTH-1:0] init_reload_delay_counter = instruction[DELAY_COUNTER_WIDTH - 1:0];
-    wire init_reload_delay_is_terminal = instruction[USE_TIMER] &&
+    wire[27:0] init_advance_instruction = read_rom_instruction(init_advance_instruction_address);
+    wire[27:0] init_address1_recovery_instruction = read_rom_instruction(5'd1);
+    wire[27:0] init_address2_recovery_instruction = read_rom_instruction(5'd2);
+    wire init_address1_instruction_mismatch = (instruction_address == 5'd1) && !reset_done &&
+        !instruction[USE_TIMER];
+    wire init_address2_instruction_mismatch = (instruction_address == 5'd2) && !reset_done &&
+        (instruction != init_address2_recovery_instruction);
+    wire init_early_instruction_mismatch = init_address1_instruction_mismatch || init_address2_instruction_mismatch;
+    wire[4:0] init_early_recovery_address = init_address1_instruction_mismatch ? 5'd1 : 5'd2;
+    wire[27:0] init_early_recovery_instruction = init_address1_instruction_mismatch ?
+        init_address1_recovery_instruction : init_address2_recovery_instruction;
+    reg[27:0] init_staged_instruction = INITIAL_RESET_INSTRUCTION;
+    wire[27:0] init_effective_instruction_raw = init_early_instruction_mismatch ?
+        init_early_recovery_instruction : instruction;
+    wire init_use_staged_instruction =
+        (init_timer_phase == INIT_TIMER_COUNT_DELAY) ||
+        (init_timer_phase == INIT_TIMER_ADVANCE_READY) ||
+        (init_timer_phase == INIT_TIMER_ADVANCE);
+    wire[27:0] init_effective_instruction = init_use_staged_instruction ?
+        init_staged_instruction : init_effective_instruction_raw;
+    wire[DELAY_COUNTER_WIDTH-1:0] init_reload_delay_counter = init_effective_instruction[DELAY_COUNTER_WIDTH - 1:0];
+    wire init_reload_delay_is_terminal = init_effective_instruction[USE_TIMER] &&
         ((init_reload_delay_counter == {DELAY_COUNTER_WIDTH{1'b0}}) ||
          (init_reload_delay_counter == {{(DELAY_COUNTER_WIDTH-1){1'b0}}, 1'b1}));
     wire[DELAY_COUNTER_WIDTH-1:0] init_decremented_delay_counter = delay_counter - {{(DELAY_COUNTER_WIDTH-1){1'b0}}, 1'b1};
-    wire init_reset_done_next = instruction[RST_DONE] || reset_done;
+    wire init_reset_done_next = init_effective_instruction[RST_DONE] || reset_done;
 
     always @(posedge i_controller_clk) begin
         if(sync_rst_controller) begin
@@ -1313,8 +1087,8 @@ module ddr3_controller #(
             init_advance_pending <= 1'b0;
             init_advance_ready_q <= 1'b0;
             init_timer_phase <= INIT_TIMER_COUNT_DELAY;
-            init_delay_counting_q <= INITIAL_RESET_INSTRUCTION[USE_TIMER];
             init_calib_start_q <= 1'b0;
+            init_staged_instruction <= INITIAL_RESET_INSTRUCTION;
             precharge_all_instruction <= 1'b0;
             precharge_all_instruction_d <= 1'b0;
         end
@@ -1330,17 +1104,33 @@ module ddr3_controller #(
             reset_done <= init_reset_done_next;
             reset_done_d <= init_reset_done_next;
 
-            if(init_self_refresh_jump || init_advance_now) begin
-                instruction_address <= init_advance_instruction_address;
-                instruction_address_d <= init_advance_instruction_address;
-                instruction <= init_advance_instruction;
-                instruction_d <= init_advance_instruction;
+            if(init_early_instruction_mismatch) begin
+                instruction_address <= init_early_recovery_address;
+                instruction_address_d <= init_early_recovery_address;
+                instruction <= init_early_recovery_instruction;
+                instruction_d <= init_early_recovery_instruction;
+                init_staged_instruction <= init_early_recovery_instruction;
                 delay_counter <= {DELAY_COUNTER_WIDTH{1'b0}};
                 delay_counter_d <= {DELAY_COUNTER_WIDTH{1'b0}};
                 delay_counter_is_zero <= 1'b1;
                 delay_counter_is_zero_d <= 1'b1;
                 init_timer_phase <= INIT_TIMER_LOAD_DELAY;
-                init_delay_counting_q <= 1'b0;
+                init_advance_ready_q <= 1'b0;
+                init_advance_pending <= 1'b0;
+                precharge_all_instruction <= precharge_all_instruction;
+                precharge_all_instruction_d <= precharge_all_instruction;
+            end
+            else if(init_self_refresh_jump || init_advance_now) begin
+                instruction_address <= init_advance_instruction_address;
+                instruction_address_d <= init_advance_instruction_address;
+                instruction <= init_advance_instruction;
+                instruction_d <= init_advance_instruction;
+                init_staged_instruction <= init_advance_instruction;
+                delay_counter <= {DELAY_COUNTER_WIDTH{1'b0}};
+                delay_counter_d <= {DELAY_COUNTER_WIDTH{1'b0}};
+                delay_counter_is_zero <= 1'b1;
+                delay_counter_is_zero_d <= 1'b1;
+                init_timer_phase <= INIT_TIMER_LOAD_DELAY;
                 init_advance_ready_q <= 1'b0;
                 init_advance_pending <= 1'b0;
                 precharge_all_instruction <= (init_advance_instruction_address == 5'd20) || (init_advance_instruction_address == 5'd24);
@@ -1351,15 +1141,15 @@ module ddr3_controller #(
                 instruction_address_d <= instruction_address;
                 instruction <= instruction;
                 instruction_d <= instruction;
+                init_staged_instruction <= init_effective_instruction_raw;
                 delay_counter <= init_reload_delay_counter;
                 delay_counter_d <= init_reload_delay_counter;
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
-                init_timer_phase <= (!instruction[USE_TIMER] || init_reload_delay_is_terminal) ?
+                init_timer_phase <= (!init_effective_instruction[USE_TIMER] || init_reload_delay_is_terminal) ?
                     INIT_TIMER_ADVANCE_READY : INIT_TIMER_COUNT_DELAY;
-                init_delay_counting_q <= instruction[USE_TIMER] && !init_reload_delay_is_terminal;
-                init_advance_ready_q <= !instruction[USE_TIMER] || init_reload_delay_is_terminal;
-                init_advance_pending <= !instruction[USE_TIMER] || init_reload_delay_is_terminal;
+                init_advance_ready_q <= !init_effective_instruction[USE_TIMER] || init_reload_delay_is_terminal;
+                init_advance_pending <= !init_effective_instruction[USE_TIMER] || init_reload_delay_is_terminal;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
             end
@@ -1373,7 +1163,6 @@ module ddr3_controller #(
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
                 init_timer_phase <= INIT_TIMER_ADVANCE_READY;
-                init_delay_counting_q <= 1'b0;
                 init_advance_ready_q <= 1'b0;
                 init_advance_pending <= 1'b1;
                 precharge_all_instruction <= precharge_all_instruction;
@@ -1384,26 +1173,13 @@ module ddr3_controller #(
                 instruction_address_d <= instruction_address;
                 instruction <= instruction;
                 instruction_d <= instruction;
-                if(init_counter_reaches_two) begin
-                    delay_counter <= {DELAY_COUNTER_WIDTH{1'b0}};
-                    delay_counter_d <= {DELAY_COUNTER_WIDTH{1'b0}};
-                    delay_counter_is_zero <= 1'b1;
-                    delay_counter_is_zero_d <= 1'b1;
-                    init_timer_phase <= INIT_TIMER_ADVANCE_READY;
-                    init_delay_counting_q <= 1'b0;
-                    init_advance_ready_q <= 1'b0;
-                    init_advance_pending <= 1'b1;
-                end
-                else begin
-                    delay_counter <= init_decremented_delay_counter;
-                    delay_counter_d <= init_decremented_delay_counter;
-                    delay_counter_is_zero <= 1'b0;
-                    delay_counter_is_zero_d <= 1'b0;
-                    init_timer_phase <= INIT_TIMER_COUNT_DELAY;
-                    init_delay_counting_q <= 1'b1;
-                    init_advance_ready_q <= 1'b0;
-                    init_advance_pending <= 1'b0;
-                end
+                delay_counter <= init_decremented_delay_counter;
+                delay_counter_d <= init_decremented_delay_counter;
+                delay_counter_is_zero <= 1'b0;
+                delay_counter_is_zero_d <= 1'b0;
+                init_timer_phase <= INIT_TIMER_COUNT_DELAY;
+                init_advance_ready_q <= init_counter_reaches_two;
+                init_advance_pending <= 1'b0;
                 precharge_all_instruction <= precharge_all_instruction;
                 precharge_all_instruction_d <= precharge_all_instruction;
             end
@@ -1417,7 +1193,6 @@ module ddr3_controller #(
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
                 init_timer_phase <= INIT_TIMER_ADVANCE;
-                init_delay_counting_q <= 1'b0;
                 init_advance_ready_q <= 1'b1;
                 init_advance_pending <= 1'b1;
                 precharge_all_instruction <= precharge_all_instruction;
@@ -1433,7 +1208,6 @@ module ddr3_controller #(
                 delay_counter_is_zero <= 1'b0;
                 delay_counter_is_zero_d <= 1'b0;
                 init_timer_phase <= init_timer_phase;
-                init_delay_counting_q <= init_delay_counting_q;
                 init_advance_ready_q <= init_advance_ready_q;
                 init_advance_pending <= init_advance_pending;
                 precharge_all_instruction <= precharge_all_instruction;
@@ -2178,18 +1952,18 @@ module ddr3_controller #(
         // logic for clock enable
         if(DUAL_RANK_DIMM[0]) begin
             if(current_rank) begin // if already on rank 1
-                cmd_ck_en[0] = final_calibration_done? instruction[CLOCK_EN] : 1'b0; // rank 0 is on self-refresh (clock en disabled) if calibration is not yet done for rank 1
-                cmd_ck_en[DUAL_RANK_DIMM] = instruction[CLOCK_EN]; // rank 1 follows current instruction 
+                cmd_ck_en[0] = final_calibration_done? init_effective_init_effective_instruction[CLOCK_EN] : 1'b0; // rank 0 is on self-refresh (clock en disabled) if calibration is not yet done for rank 1
+                cmd_ck_en[DUAL_RANK_DIMM] = init_effective_instruction[CLOCK_EN]; // rank 1 follows current instruction 
             end
             else begin // if on rank 0
-                cmd_ck_en[0] = instruction[CLOCK_EN]; // rank 0 follows current instruction 
+                cmd_ck_en[0] = init_effective_instruction[CLOCK_EN]; // rank 0 follows current instruction 
                 cmd_ck_en[DUAL_RANK_DIMM] = 1'b0; // rank 1 is idle
             end
         end
         else begin
-            cmd_ck_en[0] = instruction[CLOCK_EN];
+            cmd_ck_en[0] = init_effective_instruction[CLOCK_EN];
         end
-        cmd_reset_n = instruction[RESET_N] || (DUAL_RANK_DIMM[0] && current_rank); // if dual rank enabled and current rank is 1 then reset_n does not need to assert again (already asserted on rank 0)
+        cmd_reset_n = init_effective_instruction[RESET_N] || (DUAL_RANK_DIMM[0] && current_rank); // if dual rank enabled and current rank is 1 then reset_n does not need to assert again (already asserted on rank 0)
         stage1_stall = 1'b0;
         stage2_stall = 1'b0;
         ecc_stage2_stall = 1'b0;
@@ -2204,9 +1978,9 @@ module ddr3_controller #(
         end
         //set PRECHARGE_SLOT as reset instruction, the remainings are NOP (MSB is high)
         //delay_counter_is_zero high signifies start of new reset instruction (the time when the command must be issued)
-        cmd_d[PRECHARGE_SLOT][cmd_len-1-DUAL_RANK_DIMM:0] = {(!delay_counter_is_zero), instruction[DDR3_CMD_START-1:DDR3_CMD_END] | {3{(!delay_counter_is_zero)}} , cmd_odt, cmd_ck_en, cmd_reset_n, 
-                        instruction[MRS_BANK_START:(MRS_BANK_START-BA_BITS+1)], instruction[ROW_BITS-1:0]};
-        cmd_d[PRECHARGE_SLOT][10] = instruction[A10_CONTROL];
+        cmd_d[PRECHARGE_SLOT][cmd_len-1-DUAL_RANK_DIMM:0] = {(!delay_counter_is_zero), init_effective_instruction[DDR3_CMD_START-1:DDR3_CMD_END] | {3{(!delay_counter_is_zero)}} , cmd_odt, cmd_ck_en, cmd_reset_n, 
+                        init_effective_instruction[MRS_BANK_START:(MRS_BANK_START-BA_BITS+1)], init_effective_instruction[ROW_BITS-1:0]};
+        cmd_d[PRECHARGE_SLOT][10] = init_effective_instruction[A10_CONTROL];
         cmd_d[READ_SLOT][cmd_len-1-DUAL_RANK_DIMM:0] = {(!issue_read_command), CMD_RD[2:0] | {3{(!issue_read_command)}}, cmd_odt, cmd_ck_en, cmd_reset_n, {(ROW_BITS+BA_BITS){1'b0}}}; // issued during MPR reads (address does not matter)
         cmd_d[ACTIVATE_SLOT][cmd_len-1-DUAL_RANK_DIMM:0] = {1'b0, 3'b111 , cmd_odt, cmd_ck_en, cmd_reset_n, {(ROW_BITS+BA_BITS){1'b0}}};  // always NOP by default
 
@@ -2608,8 +2382,8 @@ module ddr3_controller #(
     end //end of always block
     
     always @* begin
-        force_o_wb_stall_high_d = !final_calibration_done || !instruction[REF_IDLE];
-        force_o_wb_stall_calib_high_d = !instruction[REF_IDLE];
+        force_o_wb_stall_high_d = !final_calibration_done || !init_effective_instruction[REF_IDLE];
+        force_o_wb_stall_calib_high_d = !init_effective_instruction[REF_IDLE];
         o_wb_stall = o_wb_stall_int_q || force_o_wb_stall_high_q;
         o_wb_stall_calib = o_wb_stall_int_q || force_o_wb_stall_calib_high_q;
     end
@@ -2651,6 +2425,7 @@ module ddr3_controller #(
             for(index = 0; index < 2; index = index + 1) begin
                 o_wb_data_q[index] <= 0;
             end
+            o_wb_data_q_raw_invalid <= 2'b00;
             for(index = 0; index < READ_ACK_PIPE_WIDTH; index = index + 1) begin
                 shift_reg_read_pipe_q[index] <= 0;
             end
@@ -2694,6 +2469,7 @@ module ddr3_controller #(
                 //and data is now starting to be released from ISERDES from phy BUT NOT YET ALIGNED
                 index_read_pipe <= !index_read_pipe; //control which delay_read_pipe would get updated (we have 2 read_pipes to store read data,use the read_pipe alternatingly)
                 delay_read_pipe[index_read_pipe][added_read_pipe_max] <= 1'b1; //update delay_read_pipe
+                o_wb_data_q_raw_invalid[index_read_pipe] <= 1'b0;
                 // NOTE: added_read_pipe_max can either be 0 or 1 (NOTE TO SELF: optimize by lowering the bit size of delay_read_pipe)
                 // delay_read_pipe will get the ack bit from shift_reg_read_pipe_q[1] at the bit equal to 
                 // added_read_pipe_max (0th or 1st bit). added_read_pipe_max is the max number of added controller clk cycles among all lanes
@@ -2716,7 +2492,7 @@ module ddr3_controller #(
                 // before retrieving the value from PHY. But if not the same (added_read_pipe is 0 while added_read_pipe_max is 1), then wait until
                 // the bit 1 reaches the one before LSB [1] before retrieving the value from PHY, so this means this lane with 0 delay will FIRST BE RETRIEVED
                 // while the lane with added_read_pipe_max of delay (delay of 1) will be retrieved SECOND
-                if(delay_read_pipe[0][added_read_pipe_max - added_read_pipe[index]]) begin 
+                if(delay_read_pipe[0][added_read_pipe_max != added_read_pipe[index]]) begin 
                 /* verilator lint_on WIDTH */
                 // o_wb_data[63:0] = BURST0: {LANE7,LANE6,LANE5,LANE4,LANE3,LANE2,LANE1,LANE0}
                 // o_wb_data[127:64] = BURST1: {LANE7,LANE6,LANE5,LANE4,LANE3,LANE2,LANE1,LANE0}
@@ -2729,6 +2505,7 @@ module ddr3_controller #(
                     o_wb_data_q[0][((DQ_BITS*LANES)*5 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*5 + 8*index) +: 8]; //update lane for burst 5
                     o_wb_data_q[0][((DQ_BITS*LANES)*6 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*6 + 8*index) +: 8]; //update lane for burst 6
                     o_wb_data_q[0][((DQ_BITS*LANES)*7 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*7 + 8*index) +: 8]; //update lane for burst 7
+                    o_wb_data_q_raw_invalid[0] <= o_wb_data_q_raw_invalid[0] || (&i_phy_iserdes_data[127:0]) || !(|i_phy_iserdes_data[127:0]);
                 end
                 /* verilator lint_off WIDTH */
                 // read_pipe #1
@@ -2739,7 +2516,7 @@ module ddr3_controller #(
                 // the bit 1 reaches the one before LSB [1] (which goes high already since bit 1 of delay_read_pipe is the first to go high once shift_reg_read_pipe_q
                 // bit 1 goes high) before retrieving the value from PHY. So this means this lane with 0 delay will FIRST BE RETRIEVED
                 // while the lane with added_read_pipe_max of delay (delay of 1) will be retrieved SECOND
-                if(delay_read_pipe[1][added_read_pipe_max - added_read_pipe[index]]) begin
+                if(delay_read_pipe[1][added_read_pipe_max != added_read_pipe[index]]) begin
                 /* verilator lint_on WIDTH */
                     o_wb_data_q[1][((DQ_BITS*LANES)*0 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*0 + 8*index) +: 8]; //update each lane of the burst
                     o_wb_data_q[1][((DQ_BITS*LANES)*1 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*1 + 8*index) +: 8]; //update each lane of the burst
@@ -2749,6 +2526,7 @@ module ddr3_controller #(
                     o_wb_data_q[1][((DQ_BITS*LANES)*5 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*5 + 8*index) +: 8]; //update each lane of the burst
                     o_wb_data_q[1][((DQ_BITS*LANES)*6 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*6 + 8*index) +: 8]; //update each lane of the burst
                     o_wb_data_q[1][((DQ_BITS*LANES)*7 + 8*index) +: 8] <= i_phy_iserdes_data[((DQ_BITS*LANES)*7 + 8*index) +: 8]; //update each lane of the burst
+                    o_wb_data_q_raw_invalid[1] <= o_wb_data_q_raw_invalid[1] || (&i_phy_iserdes_data[127:0]) || !(|i_phy_iserdes_data[127:0]);
                 end
                 // why are we alternatingly use the read_pipes?
                 //               time |   0    |   1     |   2     |   3     |
@@ -2783,7 +2561,7 @@ module ddr3_controller #(
                 o_wb_ack_read_q[index-1] <= o_wb_ack_read_q[index]; // shift rightward [ack] -> [] -> [LSB]
             end
             o_wb_ack_read_q[MAX_ADDED_READ_ACK_DELAY-1] <= 0; // MSB always gets zero and is shifted rightwards
-            o_wb_ack_read_q[added_read_pipe_max] <= shift_reg_read_pipe_q[0];
+            o_wb_ack_read_q[read_ack_delay_index] <= shift_reg_read_pipe_q[0];
             // o_wb_ack_read_q[0] is the wishbone ack
             // so once data is available from ISERDES (shift_reg_read_pipe_q[0] high) then need to wait added_read_pipe_max
             // before the data is properly stored to o_wb_data_q and can be sent outside as wishbone data
@@ -2822,6 +2600,8 @@ module ddr3_controller #(
        end
     end
     assign o_wb_data_q_current = o_wb_data_q[index_wb_data];
+
+    wire[wb_addr_bits-1:0] bist_expected_address_counter = (state_calibrate == ALTERNATE_WRITE_READ) ? write_test_address_counter : check_test_address_counter;
 
     generate
         if(ECC_ENABLE == 0) begin: ecc_disabled_wishbone_out
@@ -2910,6 +2690,7 @@ module ddr3_controller #(
             calib_addr <= 0;
             calib_data <= 0;
             pause_counter <= 0;
+            alternate_bist_phase <= ALT_BIST_PHASE_WRITE_REQ;
             read_data_store <= 0;
             write_pattern <= 0;
             write_pattern_lane <= 0;
@@ -2917,7 +2698,6 @@ module ddr3_controller #(
             write_pattern_matches <= 0;
             added_read_pipe_max <= 0;
             dqs_start_index_stored <= 0;
-            dqs_capture_extra_delay <= 2'd0;
             dqs_start_index_repeat <= 0;        
             delay_before_write_level_feedback <= 0;
             delay_before_read_data <= 0;
@@ -2927,6 +2707,7 @@ module ddr3_controller #(
             write_level_fail <= 0;
             read_test_address_counter <= 0;
             write_test_address_counter <= 0;
+            random_read_drain_pending <= 1'b0;
             reset_from_calibrate <= 0;
             write_by_byte_counter <= 0;
             initial_calibration_done <= 1'b0;
@@ -2937,22 +2718,6 @@ module ddr3_controller #(
             shift_read_pipe <= 0;
             bitslip_counter <= 0;
             prep_done <= 0;
-            if(!i_rst_n) begin
-                read_align_reset_code_q <= 4'd0;
-                read_align_state_q <= 5'd0;
-                read_align_lane_q <= 3'd0;
-                read_align_data_start_index_q <= 7'd0;
-                read_align_start_index_check_q <= 6'd0;
-                read_align_prep_done_q <= 2'd0;
-                read_align_write_pattern_matches_q <= 1'b0;
-                read_align_lane_write_dq_late_q <= 1'b0;
-                read_align_lane_read_dq_early_q <= 1'b0;
-                read_align_read_lane_data_shifted_q <= 32'd0;
-                read_align_write_pattern_lane_low_q <= 32'd0;
-                read_align_read_lane_data_low_q <= 32'd0;
-                read_align_invalid_retry_count <= 3'd0;
-                read_align_invalid_idelay_count <= 5'd0;
-            end
             `ifdef UART_DEBUG
                 uart_start_send <= 0;
                 uart_text <= 0;
@@ -3018,11 +2783,10 @@ module ddr3_controller #(
                 dqs_target_index_orig <= dqs_target_index_value; // this will remain the same until we finish calibrating this whole lane
             end
             if(idelay_dqs_cntvaluein[lane] == 0) begin //the DQS got past cntvalue of 31 (and goes back to zero) THUS the target index should also go back (to previous odd)
-                dqs_target_index <= dqs_target_index_wrap_value;
-                dq_target_index[lane] <= {1'b0, dqs_target_index_wrap_value};
+                dqs_target_index <= dqs_target_index_orig - 2;
             end
             if(idelay_data_cntvaluein[lane] == 0 && idelay_data_cntvaluein_prev == 31) begin //the DQ got past cntvalue of 31 (and goes back to zero) thus the target index should also go back (to previous odd)
-                dq_target_index[lane] <= {1'b0, dqs_target_index_wrap_value};
+                dq_target_index[lane] <= dqs_target_index_orig - 2;
             end
 
             // FSM
@@ -3041,7 +2805,6 @@ module ddr3_controller #(
                         initial_calibration_done <= 1'b0;
                         final_calibration_done <= 1'b0;
                         shift_read_pipe <= 0;
-                        dqs_capture_extra_delay <= 2'd0;
                         write_test_address_counter <= 0;
                         read_test_address_counter <= 0;
                         `ifdef UART_DEBUG_READ_LEVEL
@@ -3068,7 +2831,7 @@ module ddr3_controller #(
                             initial_dqs <= 1;
                             dqs_start_index_repeat <= 0;
                             dqs_start_index_stored <= 0;
-                            `ifdef UART_DEBUG_READ_LEVEL
+                                            `ifdef UART_DEBUG_READ_LEVEL
                                 uart_start_send <= 1'b1;
                                 uart_text <= {"state=BITSLIP_DQS_TRAIN_1",8'h0a};
                                 state_calibrate <= WAIT_UART;
@@ -3084,7 +2847,7 @@ module ddr3_controller #(
             MPR_READ: if(delay_before_read_data == 0) begin //align the incoming DQS during reads to the controller clock 
                              //issue_read_command = 1;
                              /* verilator lint_off WIDTH */
-                             delay_before_read_data <= READ_DELAY + 1 + 2 + 1 - 1 + dqs_capture_extra_delay; ///NOTE TO SELF: why these numbers? 1=issue command delay (OSERDES delay), 2 =  ISERDES delay 
+                             delay_before_read_data <= READ_DELAY + 1 + 2 + 1 - 1; ///NOTE TO SELF: why these numbers? 1=issue command delay (OSERDES delay), 2 =  ISERDES delay 
                              /* verilator lint_on WIDTH */
                              state_calibrate <= COLLECT_DQS;
                              dqs_count_repeat <= 0;
@@ -3133,11 +2896,11 @@ module ddr3_controller #(
                         end
                       end
                         // find the bit where the DQS starts to be issued (by finding when the pattern 10'b01_01_01_01_00 starts)
-         ANALYZE_DQS: if(analyze_dqs_match) begin
+                    ANALYZE_DQS: if(analyze_dqs_match) begin
                          //increase dqs_start_index_repeat when index is the same as before   
                         dqs_start_index_repeat <= (dqs_start_index == dqs_start_index_stored)? dqs_start_index_repeat + 1: 0;   
                          //the same dqs_start_index_repeat appeared REPEAT_DQS_ANALYZE times in a row, thus we can trust the value we got is accurate and not affected by glitch
-                         if(dqs_start_index_repeat == REPEAT_DQS_ANALYZE) begin
+                         if(analyze_dqs_repeat_done) begin
                              // since we already know the starting bit when the dqs (and dq since they are aligned) will come,
                              // we will now start calibrating the IDELAY for dqs and dq (via CALIBRATE_DQS). 
                              // high initial_dqs is the time when the IDELAY of dqs and dq is not yet calibrated so we zero this starting now
@@ -3164,14 +2927,9 @@ module ddr3_controller #(
                         end
                       end 
                       else begin
-                        if(analyze_dqs_at_end) begin //if we reached/passed end then most likely we hit a glitch where 01_01_01_01_00 is muddied
+                        if(analyze_dqs_at_end) begin //if we reached end then most likely we hit a glitch where 01_01_01_01_00 is muddied
                             o_phy_idelay_data_ld[lane] <= 1;
                             o_phy_idelay_dqs_ld[lane] <= 1;
-                            if(idelay_dqs_cntvaluein[lane] == 5'd31 && dqs_capture_extra_delay != 2'd3) begin
-                                dqs_capture_extra_delay <= dqs_capture_extra_delay + 2'd1;
-                            end
-                            dqs_start_index <= 0;
-                            dqs_start_index_repeat <= 0;
                             state_calibrate <= MPR_READ;
                             delay_before_read_data <= DQS_IDELAY_SETTLE_CYCLES; //wait for sometime to make sure idelay load settles
                             `ifdef UART_DEBUG_READ_LEVEL
@@ -3191,10 +2949,10 @@ module ddr3_controller #(
                             `endif
                         end
                       end
-                        // check if the index when the dqs starts has reached or crossed the target index aligned to ddr3_clk.
-                        // dqs_target_index is the next odd number to dqs_start_index BEFORE IDELAY CALIBRATION. Some placements do not
-                        // produce every intermediate index as IDELAY changes, so exact equality can miss the target and loop forever.
-        CALIBRATE_DQS: if(dqs_target_index_reached_or_crossed) begin
+                        // check if the index when the dqs starts is the same as the target index which is aligned to the ddr3_clk
+                        // dqs_target_index is the next odd number to dqs_start_index BEFORE IDELAY CALIBRATION. We will increase the IDELAY
+                        // until the dqs_start_index_stored (current value of dqs_start_index) matches the target index which is aligned to ddr3_clk
+        CALIBRATE_DQS: if(dqs_start_index_stored == dqs_target_index) begin
                             // dq_target_index still stores the original dqs_target_index_value. The bit size of dq_target_index is just enough
                             // to count the bits in dqs_store (the received 8 DQS stored STORED_DQS_SIZE times)
                             added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] } 
@@ -3260,7 +3018,6 @@ module ddr3_controller #(
                                  end
                                  else begin
                                      lane <= lane + 1;
-                                     dqs_capture_extra_delay <= 2'd0;
                                      state_calibrate <= BITSLIP_DQS_TRAIN_1;// current lane is done so go back to BITSLIP_DQS_TRAIN_1 to train next lane
                                      `ifdef UART_DEBUG_READ_LEVEL
                                         uart_start_send <= 1'b1;
@@ -3284,7 +3041,7 @@ module ddr3_controller #(
     START_WRITE_LEVEL:  if(!ODELAY_SUPPORTED) begin //skip write levelling if ODELAY is not supported
                             pause_counter <= 0;
                             lane <= 0;
-                            state_calibrate <= WAIT_INIT_WRITE_SLOT;
+                            state_calibrate <= ISSUE_WRITE_1;
                             write_calib_odt <= 0;
                             o_phy_write_leveling_calib <= 0;
                         end
@@ -3317,12 +3074,12 @@ module ddr3_controller #(
                                                 pause_counter <= 0; //write calibration now complete so continue the reset instruction sequence
                                                 lane <= 0;
                                                 o_phy_write_leveling_calib <= 0;
-                                                state_calibrate <= WAIT_INIT_WRITE_SLOT;
+                                                state_calibrate <= ISSUE_WRITE_1;
                                                 `ifdef UART_DEBUG_WRITE_LEVEL
                                                     uart_start_send <= 1'b1;
                                                     uart_text <= {"state=WAIT_FOR_FEEDBACK, All Lanes Done",8'h0a,"----------------------",8'h0a};
                                                     state_calibrate <= WAIT_UART;
-                                                    state_calibrate_next <= WAIT_INIT_WRITE_SLOT;
+                                                    state_calibrate_next <= ISSUE_WRITE_1;
                                                 `endif
                                         end
                                         else begin
@@ -3369,14 +3126,6 @@ module ddr3_controller #(
                             end
                         end
                             
-
-    WAIT_INIT_WRITE_SLOT: begin
-                        pause_counter <= 0;
-                        if(instruction_address == 22) begin
-                            state_calibrate <= ISSUE_WRITE_1;
-                        end
-                       end
-
         ISSUE_WRITE_1: if(instruction_address == 22 && !o_wb_stall_calib) begin
                         calib_stb <= 1;//actual request flag
                         calib_aux <= 0; //AUX ID to determine later if ACK is for read or write
@@ -3520,7 +3269,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                         end
                                     end
                                 end
-                                state_calibrate <= WAIT_INIT_WRITE_SLOT;
+                                state_calibrate <= ISSUE_WRITE_1;
                                 `ifdef UART_DEBUG_ALIGN
                                     uart_start_send <= 1'b1;
                                     uart_text <= {8'h0a,8'h0a, "lane=", hex_to_ascii(lane), ", bitslip_counter=", hex_to_ascii(bitslip_counter), ", shift_read_pipe=", hex_to_ascii(shift_read_pipe), 
@@ -3530,7 +3279,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                                             read_data_store[((DQ_BITS*LANES)*2 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*1 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*0 + 8*lane) +: 8] },
                                                 8'h0a,8'h0a,8'h0a,8'h0a};
                                     state_calibrate <= WAIT_UART;
-                                    state_calibrate_next <= WAIT_INIT_WRITE_SLOT;
+                                    state_calibrate_next <= ISSUE_WRITE_1;
                                 `endif
                             end
                         end
@@ -3548,216 +3297,151 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
                        end
 
         ANALYZE_DATA:   if(prep_done[1]) begin
-                            if(write_pattern_matches) begin
-                                read_align_invalid_retry_count <= 3'd0;
-                                read_align_invalid_idelay_count <= 5'd0;
+                            if(write_pattern_matches) begin   
                                 /* verilator lint_off WIDTH */
                                 if(lane == LANES - 1) begin
                                 /* verilator lint_on WIDTH */
-                                    state_calibrate <= BIST_MODE == 0? FINISH_READ : BURST_WRITE;
+                                    state_calibrate <= BIST_MODE == 0? FINISH_READ : BURST_WRITE; // go straight to FINISH_READ if BIST_MODE == 0
                                     initial_calibration_done <= 1'b1;
-                                end
+                                    `ifdef UART_DEBUG_ALIGN
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"state=ANALYZE_DATA, Done All Lanes",8'h0a,"-----------------",8'h0a,8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= BIST_MODE == 0? FINISH_READ : BURST_WRITE;
+                                    `endif
+                                end        
                                 else begin
                                     lane <= lane + 1;
                                     data_start_index[lane+1] <= 0;
                                     state_calibrate <= ANALYZE_DATA_PREP;
+                                    `ifdef UART_DEBUG_ALIGN
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"state=ANALYZE_DATA, Done lane=",hex_to_ascii(lane),8'h0a,"-----------------",8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= ANALYZE_DATA_PREP;
+                                    `endif
                                 end
-                            end
-                            else if(read_align_invalid_data) begin
-                                if(added_read_pipe[lane] < 2'd1) begin
-                                    added_read_pipe[lane] <= added_read_pipe[lane] + 2'd1;
-                                    if(added_read_pipe_max < (added_read_pipe[lane] + 2'd1)) begin
-                                        added_read_pipe_max <= added_read_pipe[lane] + 2'd1;
-                                    end
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else if(read_align_invalid_retry_count < READ_ALIGN_INVALID_RETRY_LIMIT) begin
-                                    read_align_invalid_retry_count <= read_align_invalid_retry_count + 3'd1;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else if(read_align_invalid_idelay_count != READ_ALIGN_INVALID_IDELAY_LIMIT) begin
-                                    o_phy_idelay_data_ld[lane] <= 1'b1;
-                                    read_align_invalid_idelay_count <= read_align_invalid_idelay_count + 5'd1;
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else begin
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    read_align_invalid_idelay_count <= 5'd0;
-                                    data_start_index[lane] <= data_start_index[lane] + 8;
-                                    if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
-                                        reset_from_calibrate <= 1;
-                                        read_align_reset_code_q <= 4'd1;
-                                        read_align_state_q <= ANALYZE_DATA[4:0];
-                                        read_align_lane_q <= {{(3-lanes_clog2){1'b0}}, lane};
-                                        read_align_data_start_index_q <= data_start_index[lane];
-                                        read_align_start_index_check_q <= start_index_check;
-                                        read_align_prep_done_q <= prep_done;
-                                        read_align_write_pattern_matches_q <= write_pattern_matches;
-                                        read_align_lane_write_dq_late_q <= lane_write_dq_late[lane];
-                                        read_align_lane_read_dq_early_q <= lane_read_dq_early[lane];
-                                        read_align_read_lane_data_shifted_q <= read_lane_data_shifted;
-                                        read_align_write_pattern_lane_low_q <= write_pattern_lane[31:0];
-                                        read_align_read_lane_data_low_q <= read_lane_data[31:0];
-                                    end
-                                    else if(lane_write_dq_late[lane]) begin
-                                        data_start_index[lane] <= 0;
-                                        if(data_start_index[lane] == 0) begin
-                                            state_calibrate <= CHECK_STARTING_DATA;
-                                        end
-                                        else begin
-                                            state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                        end
-                                    end
-                                    else if(data_start_index[lane] == 56) begin
-                                        data_start_index[lane] <= 0;
-                                        start_index_check <= 0;
-                                        state_calibrate <= CHECK_STARTING_DATA;
-                                    end
-                                    else begin
-                                        state_calibrate <= ANALYZE_DATA_PREP;
-                                    end
-                                end
-                            end
+                            end 
                             else begin
-                                read_align_invalid_retry_count <= 3'd0;
-                                read_align_invalid_idelay_count <= 5'd0;
-                                data_start_index[lane] <= data_start_index[lane] + 8;
-                                if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin
+                                data_start_index[lane] <= data_start_index[lane] + 8; //skip by 8 (basically we want to delay DQ since it was too early)
+                                if(lane_write_dq_late[lane] && lane_read_dq_early[lane]) begin // both assumption is wrong so we reset the controller
                                     reset_from_calibrate <= 1;
-                                    read_align_reset_code_q <= 4'd1;
-                                    read_align_state_q <= ANALYZE_DATA[4:0];
-                                    read_align_lane_q <= {{(3-lanes_clog2){1'b0}}, lane};
-                                    read_align_data_start_index_q <= data_start_index[lane];
-                                    read_align_start_index_check_q <= start_index_check;
-                                    read_align_prep_done_q <= prep_done;
-                                    read_align_write_pattern_matches_q <= write_pattern_matches;
-                                    read_align_lane_write_dq_late_q <= lane_write_dq_late[lane];
-                                    read_align_lane_read_dq_early_q <= lane_read_dq_early[lane];
-                                    read_align_read_lane_data_shifted_q <= read_lane_data_shifted;
-                                    read_align_write_pattern_lane_low_q <= write_pattern_lane[31:0];
-                                    read_align_read_lane_data_low_q <= read_lane_data[31:0];
                                 end
-                                else if(lane_write_dq_late[lane]) begin
-                                    data_start_index[lane] <= 0;
-                                    if(data_start_index[lane] == 0) begin
+                                // first assumption (write DQ is late) is wrong so we repeat write-read with data_start_index back to 0
+                                else if(lane_write_dq_late[lane]) begin 
+                                    data_start_index[lane] <= 0; // set delay to outgoing stage2_data back to zero
+                                    if(data_start_index[lane] == 0) begin // if already set to zero then we already did write-read with default zero data_start_index, so we go to CHECK_STARTING_DATA to try second assumtpion
                                         state_calibrate <= CHECK_STARTING_DATA;
+                                        `ifdef UART_DEBUG_ALIGN
+                                            uart_start_send <= 1'b1;
+                                            uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", First Assumption wrong, Start second assumption: Read too early",8'h0a,8'h0a,
+                                            8'h0a,8'h0a,
+                                            {read_data_store[((DQ_BITS*LANES)*7 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*6 + 8*lane) +: 8],
+                                            read_data_store[((DQ_BITS*LANES)*5 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*4 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*3 + 8*lane) +: 8],
+                                            read_data_store[((DQ_BITS*LANES)*2 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*1 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*0 + 8*lane) +: 8] },
+                                                8'h0a,8'h0a,8'h0a,8'h0a};
+                                            state_calibrate <= WAIT_UART;
+                                            state_calibrate_next <= CHECK_STARTING_DATA;
+                                        `endif
                                     end
-                                    else begin
-                                        state_calibrate <= WAIT_INIT_WRITE_SLOT;
+                                    else begin // if not yet zero then we have to write-read again
+                                        state_calibrate <= ISSUE_WRITE_1;
                                     end
                                 end
-                                else if(data_start_index[lane] == 56) begin
-                                    data_start_index[lane] <= 0;
+                                //reached the end but STILL has error, issue might be WRITING TOO LATE (298cd0ad51c1XXXX is written) OR READING TOO EARLY ([9177]_298cd0ad51c1XXXX is read)
+                                else if(data_start_index[lane] == 56) begin 
+                                    data_start_index[lane] <= 0;     
                                     start_index_check <= 0;
                                     state_calibrate <= CHECK_STARTING_DATA;
+                                    `ifdef UART_DEBUG_ALIGN
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", Reached end",8'h0a,8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= CHECK_STARTING_DATA;
+                                    `endif
                                 end
                                 else begin
                                     state_calibrate <= ANALYZE_DATA_PREP;
+                            `ifdef UART_DEBUG_ALIGN
+                                    uart_start_send <= 1'b1;
+                                    uart_text <= {"state=ANALYZE_DATA, lane=",hex_to_ascii(lane), ", data_start_index[lane]=0x",
+                                        hex_to_ascii(data_start_index[lane][6:4]),hex_to_ascii(data_start_index[lane][3:0]),8'h0a,8'h0a,8'h0a,8'h0a,
+                                        {read_data_store[((DQ_BITS*LANES)*7 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*6 + 8*lane) +: 8],
+                                        read_data_store[((DQ_BITS*LANES)*5 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*4 + 8*lane) +: 8], read_data_store[((DQ_BITS*LANES)*3 + 8*lane) +: 8],
+                                        read_data_store[((DQ_BITS*LANES)*2 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*1 + 8*lane) +: 8],read_data_store[((DQ_BITS*LANES)*0 + 8*lane) +: 8] },
+                                            8'h0a,8'h0a,8'h0a,8'h0a
+                                        };
+                                    state_calibrate <= WAIT_UART;
+                                    state_calibrate_next <= ANALYZE_DATA_PREP;
+                            `endif
                                 end
-                            end
+                            end     
                         end
                         else begin
                             prep_done <= {prep_done[0],1'b1};
                         end
 
+                      // check when the 4 MSB of write_pattern {d0ad51c1} starts on read_lane_data (read_lane_data is just the concatenation of read_data_store of a specific lane)
+                      // assumption here read_lane_data ~= 298cd0ad51c1XXXX is written: either because we write too late (thus we need to delay outgoing stage2_data) OR we read too early (thus we need to calibrate incoming iserdes_dq)
  CHECK_STARTING_DATA: if(prep_done[1]) begin
                             /* verilator lint_off WIDTHTRUNC */
                             if(read_lane_data_shifted == write_pattern[0 +: 32]) begin
                             /* verilator lint_on WIDTHTRUNC */
-                                read_align_invalid_retry_count <= 3'd0;
-                                read_align_invalid_idelay_count <= 5'd0;
-                                if(!lane_write_dq_late[lane]) begin
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                    data_start_index[lane] <= 64 - start_index_check;
+                                // first assumption: controller DQ is late WHEN WRITING(THUS WE NEED TO CALIBRATE data_start_index of outgoing stage2_data)
+                                if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not  yet set so we know this first assunmption is not yet tested
+                                    state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
+                                    data_start_index[lane] <= 64 - start_index_check; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, so we subtract from 64 so the burst we will be forwarded to the tip of stage2_data
                                     lane_write_dq_late[lane] <= 1'b1;
+                                    `ifdef UART_DEBUG_ALIGN
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing First Assumption",8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= ISSUE_WRITE_1;
+                                    `endif
                                 end
-                                else begin
-                                    lane_read_dq_early[lane] <= 1'b1;
+                                // if first assumption is not the fix then second assmption: controller reads the DQ too early (THUS WE NEED TO CALIBRATE INCOMING DQ SIGNAL starting from bitslip training)
+                                else begin 
+                                    lane_read_dq_early[lane] <= 1'b1; // set to 1 to see later what lanes has this problem
                                     state_calibrate <= BITSLIP_DQS_TRAIN_3;
-                                    added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] }
-                                                                + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0;
+                                    added_read_pipe[lane] <= |({ {( 4 - ($clog2(STORED_DQS_SIZE*8) - (3+1)) ){1'b0}} , dq_target_index[lane][$clog2(STORED_DQS_SIZE*8)-1:(3+1)] } 
+                                                                + { 3'b0 , (dq_target_index[lane][3:0] >= (5+8)) })? 'd1 : 'd0; // added_read_pipe can just be 1 or 0
                                     dqs_bitslip_arrangement <= 16'b0011_1100_0011_1100 >> dq_target_index[lane][2:0];
-                                end
-                            end
-                            else if(read_align_invalid_data) begin
-                                if(added_read_pipe[lane] < 2'd1) begin
-                                    added_read_pipe[lane] <= added_read_pipe[lane] + 2'd1;
-                                    if(added_read_pipe_max < (added_read_pipe[lane] + 2'd1)) begin
-                                        added_read_pipe_max <= added_read_pipe[lane] + 2'd1;
-                                    end
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else if(read_align_invalid_retry_count < READ_ALIGN_INVALID_RETRY_LIMIT) begin
-                                    read_align_invalid_retry_count <= read_align_invalid_retry_count + 3'd1;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else if(read_align_invalid_idelay_count != READ_ALIGN_INVALID_IDELAY_LIMIT) begin
-                                    o_phy_idelay_data_ld[lane] <= 1'b1;
-                                    read_align_invalid_idelay_count <= read_align_invalid_idelay_count + 5'd1;
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                end
-                                else begin
-                                    read_align_invalid_retry_count <= 3'd0;
-                                    read_align_invalid_idelay_count <= 5'd0;
-                                    start_index_check <= start_index_check + 16;
-                                    dq_target_index[lane] <= dq_target_index[lane] + 2;
-                                    if(start_index_check == 48) begin
-                                        if(!lane_write_dq_late[lane]) begin
-                                            state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                            data_start_index[lane] <= 1;
-                                            lane_write_dq_late[lane] <= 1'b1;
-                                        end
-                                        else begin
-                                            reset_from_calibrate <= 1;
-                                            read_align_reset_code_q <= 4'd2;
-                                            read_align_state_q <= CHECK_STARTING_DATA[4:0];
-                                            read_align_lane_q <= {{(3-lanes_clog2){1'b0}}, lane};
-                                            read_align_data_start_index_q <= data_start_index[lane];
-                                            read_align_start_index_check_q <= start_index_check;
-                                            read_align_prep_done_q <= prep_done;
-                                            read_align_write_pattern_matches_q <= write_pattern_matches;
-                                            read_align_lane_write_dq_late_q <= lane_write_dq_late[lane];
-                                            read_align_lane_read_dq_early_q <= lane_read_dq_early[lane];
-                                            read_align_read_lane_data_shifted_q <= read_lane_data_shifted;
-                                            read_align_write_pattern_lane_low_q <= write_pattern_lane[31:0];
-                                            read_align_read_lane_data_low_q <= read_lane_data[31:0];
-                                        end
-                                    end
-                                    else begin
-                                        state_calibrate <= CHECK_STARTING_DATA;
-                                    end
+                                    `ifdef UART_DEBUG_ALIGN
+                                        uart_start_send <= 1'b1;
+                                        uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=0x",hex8_to_ascii(start_index_check), ", Ongoing Second Assumption",8'h0a};
+                                        state_calibrate <= WAIT_UART;
+                                        state_calibrate_next <= BITSLIP_DQS_TRAIN_3;
+                                    `endif
                                 end
                             end
                             else begin
-                                read_align_invalid_retry_count <= 3'd0;
-                                start_index_check <= start_index_check + 16;
+                                start_index_check <= start_index_check + 16; // plus 16, we assume here that DQ will be late BY 1 DDR3 CLK CYCLE (if only +8, then it will be late by half DDR3 cycle, that should NOT happen)
                                 dq_target_index[lane] <= dq_target_index[lane] + 2;
-                                if(start_index_check == 48) begin
-                                    if(!lane_write_dq_late[lane]) begin
-                                        state_calibrate <= WAIT_INIT_WRITE_SLOT;
-                                        data_start_index[lane] <= 1;
+                                if(start_index_check == 48)begin // start_index_check is now outside the possible values
+                                    // first assumption: controller DQ is 1 CONTROLLER CYCLE late WHEN WRITING (data is written to address 1 and not address 0)
+                                    if(!lane_write_dq_late[lane]) begin // lane_write_dq_late is not yet set so we know this first assunmption is not yet tested
+                                        state_calibrate <= ISSUE_WRITE_1; // start writing again (the next write should fix the late DQ for this current lane)
+                                        data_start_index[lane] <= 1; // stage2_data_unaligned is forwarded to stage[1] so we are now 8-bursts early, since assumption is we are 1 controller cycle early then data_start_index is 64 
                                         lane_write_dq_late[lane] <= 1'b1;
+                                        `ifdef UART_DEBUG_ALIGN
+                                            uart_start_send <= 1'b1;
+                                            uart_text <= {"state=CHECK_STARTING_DATA, Reached end, First Assumption: Write is 1 Controller cycle early",8'h0a};
+                                            state_calibrate <= WAIT_UART;
+                                            state_calibrate_next <= ISSUE_WRITE_1;
+                                        `endif
                                     end
-                                    else begin
+                                    else begin // if first assumption is wrong and start_index_check is still outside of possible values then reset
                                         reset_from_calibrate <= 1;
-                                        read_align_reset_code_q <= 4'd2;
-                                        read_align_state_q <= CHECK_STARTING_DATA[4:0];
-                                        read_align_lane_q <= {{(3-lanes_clog2){1'b0}}, lane};
-                                        read_align_data_start_index_q <= data_start_index[lane];
-                                        read_align_start_index_check_q <= start_index_check;
-                                        read_align_prep_done_q <= prep_done;
-                                        read_align_write_pattern_matches_q <= write_pattern_matches;
-                                        read_align_lane_write_dq_late_q <= lane_write_dq_late[lane];
-                                        read_align_lane_read_dq_early_q <= lane_read_dq_early[lane];
-                                        read_align_read_lane_data_shifted_q <= read_lane_data_shifted;
-                                        read_align_write_pattern_lane_low_q <= write_pattern_lane[31:0];
-                                        read_align_read_lane_data_low_q <= read_lane_data[31:0];
                                     end
                                 end
+                            `ifdef UART_DEBUG_ALIGN
+                                else begin
+                                    uart_start_send <= 1'b1;
+                                    uart_text <= {"state=CHECK_STARTING_DATA, start_index_check=", hex_to_ascii(start_index_check[5:4]), hex_to_ascii(start_index_check[3:0]),8'h0a};
+                                    state_calibrate <= WAIT_UART;
+                                    state_calibrate_next <= CHECK_STARTING_DATA;
+                                end
+                            `endif
                             end
                         end
                     else begin
@@ -3766,7 +3450,7 @@ ANALYZE_DATA_LOW_FREQ: if(DLL_OFF) begin // read_data_store should have the expe
       
 BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to capture the DQ correctly
                         if(i_phy_iserdes_bitslip_reference[lane*serdes_ratio*2 +: 8] == dqs_bitslip_arrangement[7:0]) begin
-                             state_calibrate <= WAIT_INIT_WRITE_SLOT; //finished bitslip calibration so we can now issue again new write and then read 
+                             state_calibrate <= ISSUE_WRITE_1; //finished bitslip calibration so we can now issue again new write and then read 
                              added_read_pipe_max <= added_read_pipe_max > added_read_pipe[lane]? added_read_pipe_max:added_read_pipe[lane];
                         end
                         else begin
@@ -3775,7 +3459,8 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                         end
                      end
                                    
-       BURST_WRITE: if(!o_wb_stall_calib) begin // Test 1: Burst write (per byte write to test datamask feature), then burst read
+       BURST_WRITE: begin
+                        if(!o_wb_stall_calib) begin // Test 1: Burst write (per byte write to test datamask feature), then burst read
                             calib_stb <= 1'b1; 
                             calib_aux <= 2; // write
                             if(BIST_TEST_DATAMASK && TDQS == 0 && ECC_ENABLE == 0) begin //Test datamask by writing 1 byte at a time
@@ -3792,6 +3477,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                         if(BIST_MODE == 2) begin // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
                                             write_test_address_counter <= 0;
                                         end
+                                        train_delay <= 15;
                                         state_calibrate <= BURST_READ;
                                         `ifdef UART_DEBUG_BIST
                                             uart_start_send <= 1'b1;
@@ -3815,6 +3501,7 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                     if(BIST_MODE == 2) begin // mode 2 = burst write-read the WHOLE address space so always set the address counter back to zero
                                         write_test_address_counter <= 0;
                                     end
+                                    train_delay <= 19;
                                     state_calibrate <= BURST_READ;
                                     `ifdef UART_DEBUG_BIST
                                         uart_start_send <= 1'b1;
@@ -3825,8 +3512,12 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                                 end 
                            end
                      end
+                   end
                    
-         BURST_READ: if(!o_wb_stall_calib) begin
+         BURST_READ: if(train_delay != 0) begin
+                            calib_stb <= 1'b0;
+                       end
+                       else if(!o_wb_stall_calib) begin
                             calib_stb <= 1'b1;
                             calib_aux <= 3; // read
                             calib_we <= 0; 
@@ -3876,7 +3567,16 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                             end
                       end
                     
-        RANDOM_READ: if(!o_wb_stall_calib) begin
+        RANDOM_READ: if(random_read_drain_pending) begin
+                        calib_stb <= 1'b0;
+                        if(train_delay == 0) begin
+                            random_read_drain_pending <= 1'b0;
+                            read_test_address_counter <= 0;
+                            state_calibrate <= ALTERNATE_WRITE_READ;
+                            alternate_bist_phase <= ALT_BIST_PHASE_WRITE_REQ;
+                        end
+                     end
+                     else if(!o_wb_stall_calib) begin
                         calib_stb <= 1'b1;
                         calib_aux <= 3; // read
                         calib_we <= 0;
@@ -3889,10 +3589,8 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                             /* verilator lint_off WIDTHEXPAND */
                         if( read_test_address_counter == { 1'b1 , BIST_MODE[1], {(wb_addr_bits_sim-2){1'b1}} }) begin //MUST END AT ODD NUMBER since ALTERNATE_WRITE_READ must start at even
                             /* verilator lint_on WIDTHEXPAND */
-                            if(BIST_MODE == 2) begin  // mode 2 = random write-read the WHOLE address space so always set the address counter back to zero
-                                read_test_address_counter <= 0;
-                            end
-                            state_calibrate <= ALTERNATE_WRITE_READ;
+                            train_delay <= 63;
+                            random_read_drain_pending <= 1'b1;
                             `ifdef UART_DEBUG_BIST
                                 uart_start_send <= 1'b1;
                                 uart_text <= {"DONE RANDOM READ: BIST_MODE=",hex_to_ascii(BIST_MODE),8'h0a};
@@ -3902,28 +3600,63 @@ BITSLIP_DQS_TRAIN_3: if(train_delay == 0) begin //train again the ISERDES to cap
                         end
                      end
                      
-ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
-                        calib_stb <= 1'b1;
-                        calib_aux <= 2 + (calib_we? 1:0); //2 (write), 3 (read)
-                        calib_sel <= {wb_sel_bits{1'b1}};
-                        calib_we <= !calib_we; // alternating write-read
-                        calib_addr <= write_test_address_counter; 
-                        calib_data <= calib_data_randomized;
-                        if(calib_we) begin // if current operation is write, then dont increment address since we will read the same address next
-                            write_test_address_counter <= write_test_address_counter + 1;  
-                        end
-                        /* verilator lint_off WIDTHEXPAND */
-                        if( write_test_address_counter == { 2'b11 , {(wb_addr_bits_sim-2){1'b1}} } ) begin
-                        /* verilator lint_on WIDTHEXPAND */
-                            train_delay <= 15;
-                            state_calibrate <= FINISH_READ;
-                            `ifdef UART_DEBUG_BIST
-                                uart_start_send <= 1'b1;
-                                uart_text <= {"DONE ALTERNATING WRITE-READ",8'h0a};
-                                state_calibrate <= WAIT_UART;
-                                state_calibrate_next <= FINISH_READ;
-                            `endif
-                        end
+ALTERNATE_WRITE_READ: begin
+                        case(alternate_bist_phase)
+                            ALT_BIST_PHASE_WRITE_REQ: if(!o_wb_stall_calib) begin
+                                calib_stb <= 1'b1;
+                                calib_aux <= 2;
+                                calib_sel <= {wb_sel_bits{1'b1}};
+                                calib_we <= 1'b1;
+                                calib_addr <= write_test_address_counter;
+                                calib_data <= calib_data_randomized;
+                                alternate_bist_phase <= ALT_BIST_PHASE_WAIT_WRITE_ACK;
+                            end
+                            ALT_BIST_PHASE_WAIT_WRITE_ACK: begin
+                                calib_stb <= 1'b0;
+                                if(o_wb_ack_uncalibrated && (o_aux[1:0] == 2'd2)) begin
+                                    train_delay <= 63;
+                                    alternate_bist_phase <= ALT_BIST_PHASE_READ_REQ;
+                                end
+                            end
+                            ALT_BIST_PHASE_READ_REQ: if(train_delay != 0) begin
+                                calib_stb <= 1'b0;
+                            end
+                            else if(!o_wb_stall_calib) begin
+                                calib_stb <= 1'b1;
+                                calib_aux <= 3;
+                                calib_sel <= {wb_sel_bits{1'b1}};
+                                calib_we <= 1'b0;
+                                calib_addr <= write_test_address_counter;
+                                calib_data <= calib_data_randomized;
+                                alternate_bist_phase <= ALT_BIST_PHASE_WAIT_READ_ACK;
+                            end
+                            ALT_BIST_PHASE_WAIT_READ_ACK: begin
+                                calib_stb <= 1'b0;
+                                if(o_wb_ack_uncalibrated && (o_aux[1:0] == 2'd3)) begin
+                                    /* verilator lint_off WIDTHEXPAND */
+                                    if(write_test_address_counter == { 2'b11 , {(wb_addr_bits_sim-2){1'b1}} }) begin
+                                    /* verilator lint_on WIDTHEXPAND */
+                                        train_delay <= 15;
+                                        alternate_bist_phase <= ALT_BIST_PHASE_WRITE_REQ;
+                                        state_calibrate <= FINISH_READ;
+                                        `ifdef UART_DEBUG_BIST
+                                            uart_start_send <= 1'b1;
+                                            uart_text <= {"DONE ALTERNATING WRITE-READ",8'h0a};
+                                            state_calibrate <= WAIT_UART;
+                                            state_calibrate_next <= FINISH_READ;
+                                        `endif
+                                    end
+                                    else begin
+                                        write_test_address_counter <= write_test_address_counter + 1;
+                                        alternate_bist_phase <= ALT_BIST_PHASE_WRITE_REQ;
+                                    end
+                                end
+                            end
+                            default: begin
+                                calib_stb <= 1'b0;
+                                alternate_bist_phase <= ALT_BIST_PHASE_WRITE_REQ;
+                            end
+                        endcase
                     end         
        FINISH_READ: begin
                         calib_stb <= 0;
@@ -4189,41 +3922,41 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     generate
         if(ECC_ENABLE == 0 || ECC_ENABLE == 3) begin : ecc_enable_0_correct_data
             assign correct_data = {
-                {(wb_sel_bits/8){check_test_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
-                check_test_address_counter[0 +: 8] | 8'h1A,  // Byte 6
-                check_test_address_counter[0 +: 8] & 8'h33,  // Byte 5
-                check_test_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
-                check_test_address_counter[0 +: 8] & 8'h21,  // Byte 3
-                check_test_address_counter[0 +: 8] | 8'hC7,  // Byte 2
-                check_test_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
-                check_test_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
+                {(wb_sel_bits/8){bist_expected_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
+                bist_expected_address_counter[0 +: 8] | 8'h1A,  // Byte 6
+                bist_expected_address_counter[0 +: 8] & 8'h33,  // Byte 5
+                bist_expected_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
+                bist_expected_address_counter[0 +: 8] & 8'h21,  // Byte 3
+                bist_expected_address_counter[0 +: 8] | 8'hC7,  // Byte 2
+                bist_expected_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
+                bist_expected_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
             };
         end
         else if(ECC_ENABLE == 1) begin : ecc_enable_1_correct_data
             wire[wb_data_bits-1:0] correct_data_orig;
             assign correct_data = {
-                {(wb_sel_bits/8){check_test_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
-                check_test_address_counter[0 +: 8] | 8'h1A,  // Byte 6
-                check_test_address_counter[0 +: 8] & 8'h33,  // Byte 5
-                check_test_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
-                check_test_address_counter[0 +: 8] & 8'h21,  // Byte 3
-                check_test_address_counter[0 +: 8] | 8'hC7,  // Byte 2
-                check_test_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
-                check_test_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
+                {(wb_sel_bits/8){bist_expected_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
+                bist_expected_address_counter[0 +: 8] | 8'h1A,  // Byte 6
+                bist_expected_address_counter[0 +: 8] & 8'h33,  // Byte 5
+                bist_expected_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
+                bist_expected_address_counter[0 +: 8] & 8'h21,  // Byte 3
+                bist_expected_address_counter[0 +: 8] | 8'hC7,  // Byte 2
+                bist_expected_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
+                bist_expected_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
             };
             assign correct_data = {{(wb_data_bits-ECC_INFORMATION_BITS*8){1'b0}} , correct_data_orig[ECC_INFORMATION_BITS*8 - 1 : 0]}; //only ECC_INFORMATION_BITS are valid in o_wb_data
         end
         else if(ECC_ENABLE == 2) begin : ecc_enable_2_correct_data
             wire[wb_data_bits-1:0] correct_data_orig;
             assign correct_data = {
-                {(wb_sel_bits/8){check_test_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
-                check_test_address_counter[0 +: 8] | 8'h1A,  // Byte 6
-                check_test_address_counter[0 +: 8] & 8'h33,  // Byte 5
-                check_test_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
-                check_test_address_counter[0 +: 8] & 8'h21,  // Byte 3
-                check_test_address_counter[0 +: 8] | 8'hC7,  // Byte 2
-                check_test_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
-                check_test_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
+                {(wb_sel_bits/8){bist_expected_address_counter[0 +: 8] ^ 8'hA5,  // Byte 7
+                bist_expected_address_counter[0 +: 8] | 8'h1A,  // Byte 6
+                bist_expected_address_counter[0 +: 8] & 8'h33,  // Byte 5
+                bist_expected_address_counter[0 +: 8] ^ 8'h5A,  // Byte 4
+                bist_expected_address_counter[0 +: 8] & 8'h21,  // Byte 3
+                bist_expected_address_counter[0 +: 8] | 8'hC7,  // Byte 2
+                bist_expected_address_counter[0 +: 8] ^ 8'h7E,  // Byte 1
+                bist_expected_address_counter[0 +: 8] ^ 8'h3C }}  // Byte 0
             };
             assign correct_data = {{(wb_data_bits-ECC_INFORMATION_BITS){1'b0}} , correct_data_orig[ECC_INFORMATION_BITS - 1 : 0]}; //only ECC_INFORMATION_BITS are valid in o_wb_data
         end
@@ -4236,23 +3969,42 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
         end
     endgenerate
 
+    wire bist_check_actual_invalid = (&bist_check_actual) || !(|bist_check_actual) || bist_check_raw_invalid;
+
     always @(posedge i_controller_clk) begin
         if(sync_rst_controller) begin
             check_test_address_counter <= 0;
+            bist_check_state_calibrate_q <= 0;
             // correct_read_data <= 0; // dont reset so data is preserved when forced reset after wrong data
             // wrong_read_data <= 0;
             reset_from_test <= 0;
             bist_check_pending <= 1'b0;
+            bist_invalid_read_count <= 2'd0;
+            bist_check_raw_invalid <= 1'b0;
         end
         else begin
             reset_from_test <= 0;
+            bist_check_state_calibrate_q <= state_calibrate;
             if(!final_calibration_done) begin
+                if(state_calibrate != bist_check_state_calibrate_q) begin
+                    case(state_calibrate)
+                        BURST_READ: check_test_address_counter <= read_test_address_counter;
+                        RANDOM_READ: check_test_address_counter <= read_test_address_counter;
+                        ALTERNATE_WRITE_READ: check_test_address_counter <= write_test_address_counter;
+                        default: begin end
+                    endcase
+                end
                 if(bist_check_pending) begin
                     bist_check_pending <= 1'b0;
                     if(bist_check_actual == bist_check_expected) begin
                         correct_read_data <= correct_read_data + 1;
+                        bist_invalid_read_count <= 2'd0;
+                    end
+                    else if(bist_check_actual_invalid && (bist_invalid_read_count != BIST_INVALID_READ_TOLERANCE)) begin
+                        bist_invalid_read_count <= bist_invalid_read_count + 1'b1;
                     end
                     else begin
+                        bist_invalid_read_count <= 2'd0;
                         wrong_read_data <= wrong_read_data + 1;
                         wrong_data <= bist_check_actual;
                         expected_data <= bist_check_expected;
@@ -4263,6 +4015,19 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                             bist_fail_byte_mask <= bist_mismatch_byte_mask;
                             bist_fail_actual <= bist_check_actual[127:0];
                             bist_fail_expected <= bist_check_expected[127:0];
+                            bist_fail_index_wb_data <= index_wb_data;
+                            bist_fail_delay_read_pipe0 <= delay_read_pipe[0];
+                            bist_fail_delay_read_pipe1 <= delay_read_pipe[1];
+                            bist_fail_added_read_pipe0 <= added_read_pipe[0];
+                            bist_fail_added_read_pipe1 <= added_read_pipe[1];
+                            bist_fail_data_start_index0 <= data_start_index[0];
+                            bist_fail_data_start_index1 <= data_start_index[1];
+                            bist_fail_idelay_data_cntvaluein0 <= idelay_data_cntvaluein[0];
+                            bist_fail_idelay_data_cntvaluein1 <= idelay_data_cntvaluein[1];
+                            bist_fail_idelay_dqs_cntvaluein0 <= idelay_dqs_cntvaluein[0];
+                            bist_fail_idelay_dqs_cntvaluein1 <= idelay_dqs_cntvaluein[1];
+                            bist_fail_wb_data_q_current <= o_wb_data_q_current[127:0];
+                            bist_fail_raw_iserdes_data <= i_phy_iserdes_data[127:0];
                         end
                         `ifdef UART_DEBUG
                             state_calibrate_last <= bist_check_state;
@@ -4277,8 +4042,9 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 if ( o_aux[2:0] == 3'd3 && o_wb_ack_uncalibrated ) begin //o_aux = 3 is for read from calibration
                     bist_check_pending <= 1'b1;
                     bist_check_actual <= o_wb_data;
+                    bist_check_raw_invalid <= o_wb_data_q_raw_invalid[index_wb_data];
                     bist_check_expected <= correct_data;
-                    bist_check_addr <= check_test_address_counter;
+                    bist_check_addr <= bist_expected_address_counter;
                     bist_check_state <= state_calibrate;
                     /* verilator lint_off WIDTHEXPAND */
                     check_test_address_counter <= check_test_address_counter + 1;
@@ -4301,7 +4067,21 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                 bist_fail_byte_mask <= 16'd0;
                 bist_fail_actual <= 128'd0;
                 bist_fail_expected <= 128'd0;
+                bist_fail_index_wb_data <= 1'b0;
+                bist_fail_delay_read_pipe0 <= 2'd0;
+                bist_fail_delay_read_pipe1 <= 2'd0;
+                bist_fail_added_read_pipe0 <= 1'b0;
+                bist_fail_added_read_pipe1 <= 1'b0;
+                bist_fail_data_start_index0 <= 7'd0;
+                bist_fail_data_start_index1 <= 7'd0;
+                bist_fail_idelay_data_cntvaluein0 <= 5'd0;
+                bist_fail_idelay_data_cntvaluein1 <= 5'd0;
+                bist_fail_idelay_dqs_cntvaluein0 <= 5'd0;
+                bist_fail_idelay_dqs_cntvaluein1 <= 5'd0;
+                bist_fail_wb_data_q_current <= 128'd0;
+                bist_fail_raw_iserdes_data <= 128'd0;
                 bist_check_pending <= 1'b0;
+                bist_invalid_read_count <= 2'd0;
                 bist_check_actual <= 0;
                 bist_check_expected <= 0;
                 bist_check_addr <= 0;
@@ -4491,212 +4271,103 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     endgenerate
 
 `ifdef UBERDDR3_TRACE_SCOPE
-    always @* begin
-        case(trace_scope_trigger_select_q)
-            3'd0: trace_scope_trigger_condition = trace_scope_manual_trigger_q;
-            3'd1: trace_scope_trigger_condition = trace_scope_trigger_init2;
-            3'd2: trace_scope_trigger_condition = trace_scope_trigger_init2 && (delay_counter != 0);
-            3'd3: trace_scope_trigger_condition = trace_scope_trigger_init13;
-            3'd4: trace_scope_trigger_condition = trace_scope_trigger_dqs;
-            3'd5: trace_scope_trigger_condition = trace_scope_trigger_calib_write;
-            3'd6: trace_scope_trigger_condition = trace_scope_trigger_success;
-            3'd7: trace_scope_trigger_condition = trace_scope_trigger_read_align_reset;
-            default: trace_scope_trigger_condition = trace_scope_manual_trigger_q;
-        endcase
-        if(trace_scope_trigger_select_q == 3'd5) begin
-            trace_scope_trigger_condition = trace_scope_trigger_calib_write || trace_scope_trigger_read_align_transaction;
-        end
-    end
-
+    integer trace_scope_index;
     always @(posedge i_controller_clk) begin
-        if(1'b0) begin
-            trace_scope_sample_count_q <= 12'd0;
+        if(sync_rst_controller) begin
+            trace_scope_event_count_q <= 8'd0;
             trace_scope_write_index_q <= {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-            trace_scope_read_index_q <= {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-            trace_scope_post_count_q <= 12'd0;
-            trace_scope_armed_q <= 1'b1;
-            trace_scope_triggered_q <= 1'b0;
             trace_scope_frozen_q <= 1'b0;
             trace_scope_overflow_q <= 1'b0;
-            trace_scope_manual_trigger_q <= 1'b0;
-            trace_scope_control_reset_q <= 1'b0;
-            trace_scope_control_manual_q <= 1'b0;
-            trace_scope_control_freeze_q <= 1'b0;
-            trace_scope_control_unfreeze_q <= 1'b0;
             trace_scope_cycle_q <= 32'd0;
-            o_trace_wb_ack <= 1'b0;
-            o_trace_wb_data <= 32'd0;
+            trace_scope_last_event_cycle_q <= 32'd0;
+            trace_scope_last_event_core_q <= 53'd0;
+            for(trace_scope_index = 0; trace_scope_index < TRACE_SCOPE_DEPTH; trace_scope_index = trace_scope_index + 1) begin
+                trace_scope_events_q[trace_scope_index] <= 64'd0;
+            end
         end
         else begin
             trace_scope_cycle_q <= trace_scope_cycle_q + 32'd1;
-            trace_scope_manual_trigger_q <= 1'b0;
-            o_trace_wb_ack <= i_trace_wb_cyc && i_trace_wb_stb && !o_trace_wb_ack;
-
-            if(trace_scope_control_reset_q) begin
-                trace_scope_sample_count_q <= 12'd0;
-                trace_scope_write_index_q <= {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-                trace_scope_post_count_q <= 12'd0;
-                trace_scope_armed_q <= 1'b1;
-                trace_scope_triggered_q <= 1'b0;
-                trace_scope_frozen_q <= 1'b0;
-                trace_scope_overflow_q <= 1'b0;
-                trace_scope_control_reset_q <= 1'b0;
-            end
-            if(trace_scope_control_manual_q) begin
-                trace_scope_triggered_q <= 1'b1;
-                trace_scope_post_count_q <= 12'd0;
-                trace_scope_control_manual_q <= 1'b0;
-            end
-            if(trace_scope_control_freeze_q) begin
-                trace_scope_frozen_q <= 1'b1;
-                trace_scope_control_freeze_q <= 1'b0;
-            end
-            if(trace_scope_control_unfreeze_q) begin
-                trace_scope_frozen_q <= 1'b0;
-                trace_scope_armed_q <= 1'b1;
-                trace_scope_control_unfreeze_q <= 1'b0;
-            end
-
-            if(!trace_scope_frozen_q && trace_scope_armed_q) begin
-                trace_scope_samples_q[trace_scope_write_index_q] <= trace_scope_sample_word;
+            if(!trace_scope_frozen_q && trace_scope_event_changed) begin
+                trace_scope_events_q[trace_scope_write_index_q] <= trace_scope_event_word;
+                trace_scope_last_event_core_q <= trace_scope_event_core;
+                trace_scope_last_event_cycle_q <= trace_scope_cycle_q;
                 trace_scope_write_index_q <= (trace_scope_write_index_q == (TRACE_SCOPE_DEPTH - 1)) ?
                     {TRACE_SCOPE_INDEX_WIDTH{1'b0}} :
                     (trace_scope_write_index_q + {{(TRACE_SCOPE_INDEX_WIDTH-1){1'b0}}, 1'b1});
-                if(trace_scope_sample_count_q != TRACE_SCOPE_DEPTH_COUNT) begin
-                    trace_scope_sample_count_q <= trace_scope_sample_count_q + 12'd1;
+                if(trace_scope_event_count_q != TRACE_SCOPE_DEPTH_COUNT) begin
+                    trace_scope_event_count_q <= trace_scope_event_count_q + 8'd1;
                 end
                 else begin
                     trace_scope_overflow_q <= 1'b1;
                 end
-
-                if(!trace_scope_triggered_q && trace_scope_trigger_condition) begin
-                    trace_scope_triggered_q <= 1'b1;
-                    trace_scope_post_count_q <= 12'd0;
-                end
-                else if(trace_scope_triggered_q) begin
-                    if(trace_scope_post_count_q >= trace_scope_holdoff_q) begin
-                        trace_scope_frozen_q <= 1'b1;
-                    end
-                    else begin
-                        trace_scope_post_count_q <= trace_scope_post_count_q + 12'd1;
-                    end
-                end
             end
-
-            if(i_trace_wb_cyc && i_trace_wb_stb && !o_trace_wb_ack) begin
-                if(i_trace_wb_we) begin
-                    case(i_trace_wb_addr[7:0])
-                        8'h02: trace_scope_holdoff_q <= i_trace_wb_data[11:0];
-                        8'h03: trace_scope_trigger_select_q <= i_trace_wb_data[2:0];
-                        8'h04: begin
-                            trace_scope_read_index_q <= i_trace_wb_data[TRACE_SCOPE_INDEX_WIDTH-1:0];
-                            trace_scope_read_sample_q <= trace_scope_samples_q[i_trace_wb_data[TRACE_SCOPE_INDEX_WIDTH-1:0]];
-                            trace_scope_frozen_q <= 1'b1;
-                        end
-                        8'h05: begin
-                            trace_scope_sample_count_q <= 12'd0;
-                            trace_scope_write_index_q <= {TRACE_SCOPE_INDEX_WIDTH{1'b0}};
-                            trace_scope_post_count_q <= 12'd0;
-                            trace_scope_armed_q <= 1'b1;
-                            trace_scope_triggered_q <= 1'b0;
-                            trace_scope_frozen_q <= 1'b0;
-                            trace_scope_overflow_q <= 1'b0;
-                            trace_scope_read_sample_q <= {TRACE_SCOPE_WIDTH{1'b0}};
-                        end
-                        8'h06: begin
-                            trace_scope_triggered_q <= 1'b1;
-                            trace_scope_post_count_q <= 12'd0;
-                        end
-                        8'h07: trace_scope_frozen_q <= 1'b1;
-                        8'h08: begin
-                            trace_scope_frozen_q <= 1'b0;
-                            trace_scope_armed_q <= 1'b1;
-                        end
-                        default: begin end
-                    endcase
-                end
-                else begin
-                    if((i_trace_wb_addr[7:0] == 8'h00) || (i_trace_wb_addr[7:0] == 8'h01) || ((i_trace_wb_addr[7:0] >= 8'h08) && (i_trace_wb_addr[7:0] <= 8'h0a))) begin
-                        trace_scope_frozen_q <= 1'b1;
-                    end
-                    case(i_trace_wb_addr[7:0])
-                        8'h00: o_trace_wb_data <= TRACE_SCOPE_MAGIC;
-                        8'h01: o_trace_wb_data <= {
-                            2'd0,
-                            trace_scope_overflow_q,
-                            trace_scope_frozen_q,
-                            trace_scope_triggered_q,
-                            trace_scope_armed_q,
-                            trace_scope_trigger_select_q,
-                            {{(11-TRACE_SCOPE_INDEX_WIDTH){1'b0}}, trace_scope_write_index_q},
-                            trace_scope_sample_count_q
-                        };
-                        8'h02: o_trace_wb_data <= {20'd0, trace_scope_holdoff_q};
-                        8'h03: o_trace_wb_data <= {29'd0, trace_scope_trigger_select_q};
-                        8'h04: o_trace_wb_data <= {{(32-TRACE_SCOPE_INDEX_WIDTH){1'b0}}, trace_scope_read_index_q};
-                        8'h05: o_trace_wb_data <= {28'd0, trace_scope_control_unfreeze_q, trace_scope_control_freeze_q, trace_scope_control_manual_q, trace_scope_control_reset_q};
-                        8'h08: o_trace_wb_data <= trace_scope_read_sample_q[31:0];
-                        8'h09: o_trace_wb_data <= trace_scope_read_sample_q[63:32];
-                        8'h0a: o_trace_wb_data <= trace_scope_read_sample_q[95:64];
-                        8'h0b: o_trace_wb_data <= trace_scope_read_sample_q[127:96];
-                        8'h0c: o_trace_wb_data <= trace_scope_read_sample_q[159:128];
-                        8'h0d: o_trace_wb_data <= trace_scope_read_sample_q[191:160];
-                        8'h0e: o_trace_wb_data <= trace_scope_read_sample_q[223:192];
-                        8'h0f: o_trace_wb_data <= trace_scope_read_sample_q[255:224];
-                        8'h10: o_trace_wb_data <= trace_scope_read_sample_q[287:256];
-                        8'h11: o_trace_wb_data <= trace_scope_read_sample_q[319:288];
-                        8'h12: o_trace_wb_data <= trace_scope_read_sample_q[351:320];
-                        8'h13: o_trace_wb_data <= trace_scope_read_sample_q[383:352];
-                        8'h14: o_trace_wb_data <= trace_scope_read_sample_q[415:384];
-                        8'h15: o_trace_wb_data <= trace_scope_read_sample_q[447:416];
-                        8'h16: o_trace_wb_data <= trace_scope_read_sample_q[479:448];
-                        8'h17: o_trace_wb_data <= trace_scope_read_sample_q[511:480];
-                        8'h18: o_trace_wb_data <= trace_scope_read_sample_q[543:512];
-                        8'h19: o_trace_wb_data <= trace_scope_read_sample_q[575:544];
-                        8'h1a: o_trace_wb_data <= trace_scope_read_sample_q[607:576];
-                        8'h1b: o_trace_wb_data <= trace_scope_read_sample_q[639:608];
-                        8'h1c: o_trace_wb_data <= trace_scope_read_sample_q[671:640];
-                        8'h1d: o_trace_wb_data <= {12'd0, trace_scope_read_sample_q[691:672]};
-                        default: o_trace_wb_data <= 32'd0;
-                    endcase
-                end
+            if(trace_scope_success_trigger) begin
+                trace_scope_frozen_q <= 1'b1;
             end
         end
     end
-    assign o_trace_wb_stall = 1'b0;
 
     wire [63:0] trace_scope_header = {
-        19'd0,
+        7'd0,
         trace_scope_overflow_q,
         trace_scope_frozen_q,
-        {1'b0, trace_scope_write_index_q},
-        trace_scope_sample_count_q[7:0],
-        8'h02,
+        trace_scope_write_index_q,
+        trace_scope_event_count_q,
+        8'h01,
         32'h54524345
     };
     always @(posedge i_controller_clk) begin
         case(i_trace_debug_addr)
             6'd0: o_trace_debug_word <= trace_scope_header;
+            6'd1: o_trace_debug_word <= trace_scope_events_q[0];
+            6'd2: o_trace_debug_word <= trace_scope_events_q[1];
+            6'd3: o_trace_debug_word <= trace_scope_events_q[2];
+            6'd4: o_trace_debug_word <= trace_scope_events_q[3];
+            6'd5: o_trace_debug_word <= trace_scope_events_q[4];
+            6'd6: o_trace_debug_word <= trace_scope_events_q[5];
+            6'd7: o_trace_debug_word <= trace_scope_events_q[6];
+            6'd8: o_trace_debug_word <= trace_scope_events_q[7];
+            6'd9: o_trace_debug_word <= trace_scope_events_q[8];
+            6'd10: o_trace_debug_word <= trace_scope_events_q[9];
+            6'd11: o_trace_debug_word <= trace_scope_events_q[10];
+            6'd12: o_trace_debug_word <= trace_scope_events_q[11];
+            6'd13: o_trace_debug_word <= trace_scope_events_q[12];
+            6'd14: o_trace_debug_word <= trace_scope_events_q[13];
+            6'd15: o_trace_debug_word <= trace_scope_events_q[14];
+            6'd16: o_trace_debug_word <= trace_scope_events_q[15];
+            6'd17: o_trace_debug_word <= trace_scope_events_q[16];
+            6'd18: o_trace_debug_word <= trace_scope_events_q[17];
+            6'd19: o_trace_debug_word <= trace_scope_events_q[18];
+            6'd20: o_trace_debug_word <= trace_scope_events_q[19];
+            6'd21: o_trace_debug_word <= trace_scope_events_q[20];
+            6'd22: o_trace_debug_word <= trace_scope_events_q[21];
+            6'd23: o_trace_debug_word <= trace_scope_events_q[22];
+            6'd24: o_trace_debug_word <= trace_scope_events_q[23];
+            6'd25: o_trace_debug_word <= trace_scope_events_q[24];
+            6'd26: o_trace_debug_word <= trace_scope_events_q[25];
+            6'd27: o_trace_debug_word <= trace_scope_events_q[26];
+            6'd28: o_trace_debug_word <= trace_scope_events_q[27];
+            6'd29: o_trace_debug_word <= trace_scope_events_q[28];
+            6'd30: o_trace_debug_word <= trace_scope_events_q[29];
+            6'd31: o_trace_debug_word <= trace_scope_events_q[30];
+            6'd32: o_trace_debug_word <= trace_scope_events_q[31];
             default: o_trace_debug_word <= 64'd0;
         endcase
     end
 `else
     always @* begin
         o_trace_debug_word = 64'd0;
-        o_trace_wb_ack = 1'b0;
-        o_trace_wb_data = 32'd0;
     end
-    assign o_trace_wb_stall = 1'b1;
 `endif
 
     // Logic connected to debug port
 //    wire debug_trigger;
    assign o_debug1 = {27'd0, state_calibrate[4:0]};
    assign o_init_reset_debug = {
-        init_diag_external_reset_seen_q,
-        init_diag_reset_from_calibrate_seen_q,
-        init_diag_sync_rst_seen_q,
-        init_diag_addr_regress_seen_q,
+        delay_counter_is_zero,
+        current_rank,
+        user_self_refresh_q,
+        final_calibration_done,
         initial_calibration_done,
         pause_counter,
         reset_done,
@@ -4712,43 +4383,26 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
    };
 `ifdef UBERDDR3_PANOPTICON
    wire [15:0] init_event_word = {
-        init_delay_counting_q,
-        instruction[USE_TIMER],
-        reset_done,
-        init_counter_reaches_two,
-        init_timed_counter_active,
+        instruction_address,
+        instruction_address_d,
         delay_counter_is_zero,
+        reset_done,
         init_advance_now,
         init_advance_pending,
-        init_advance_ready_q,
-        init_timer_phase,
-        instruction_address
+        instruction[USE_TIMER],
+        instruction[RST_DONE]
    };
    wire init_event_changed = init_event_word != init_event_last_q;
 
    always @(posedge i_controller_clk) begin
-       if(!i_rst_n) begin
+       if(sync_rst_controller) begin
            init_seq_debug_q <= 128'd0;
            init_event_trace_q <= 112'd0;
            init_event_count_q <= 5'd0;
            init_event_write_index_q <= 3'd0;
            init_event_last_q <= 16'd0;
-           init_sync_rst_edge_count_q <= 6'd0;
-           init_sync_rst_controller_prev_q <= 1'b0;
        end
        else begin
-           init_sync_rst_controller_prev_q <= sync_rst_controller;
-           if(sync_rst_controller && !init_sync_rst_controller_prev_q && (init_sync_rst_edge_count_q != 6'h3f)) begin
-               init_sync_rst_edge_count_q <= init_sync_rst_edge_count_q + 6'd1;
-           end
-           if(sync_rst_controller) begin
-               init_seq_debug_q <= 128'd0;
-               init_event_trace_q <= 112'd0;
-               init_event_count_q <= 5'd0;
-               init_event_write_index_q <= 3'd0;
-               init_event_last_q <= 16'd0;
-           end
-           else begin
            if(init_event_changed) begin
                init_event_last_q <= init_event_word;
                case(init_event_write_index_q)
@@ -4767,7 +4421,6 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
                end
            end
            init_seq_debug_q <= {8'hE7, init_event_count_q, init_event_write_index_q, init_event_trace_q};
-           end
        end
    end
 
@@ -4797,12 +4450,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
    };
 `endif
    assign o_calib_debug = {
-        12'd0,
-        read_align_reset_code_q,
-        write_pattern_matches,
-        prep_done[1],
-        lane_write_dq_late[lane],
-        lane_read_dq_early[lane],
+        20'd0,
         analyze_dqs_action,
         analyze_dqs_repeat_done,
         analyze_dqs_repeat_same,
@@ -4873,28 +4521,13 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
    };
 
    wire [127:0] panopticon_cmd = {{(128-(cmd_len*serdes_ratio)){1'b0}}, o_phy_cmd};
-   wire [127:0] panopticon_read_align_context = {
-        read_align_reset_code_q,
-        read_align_state_q,
-        read_align_lane_q,
-        read_align_data_start_index_q,
-        read_align_start_index_check_q,
-        read_align_prep_done_q,
-        read_align_write_pattern_matches_q,
-        read_align_lane_write_dq_late_q,
-        read_align_lane_read_dq_early_q,
-        read_align_read_lane_data_shifted_q,
-        read_align_write_pattern_lane_low_q,
-        read_align_read_lane_data_low_q,
-        2'd0
-   };
 
    always @(posedge i_controller_clk) begin
        panopticon_debug_q <= {
-            init_sync_rst_edge_count_q,
+            6'd0,
             8'hA5,
             panopticon_control,
-            panopticon_read_align_context,
+            panopticon_cmd,
             stage2_data_unaligned[127:0],
             stage2_data[0][127:0],
             stage2_data[1][127:0],
@@ -4908,8 +4541,20 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
    assign o_panopticon_debug = panopticon_debug_q;
 
    assign o_bist_debug = {
-        306'd0,
-        1'b0,
+        10'd0,
+        bist_fail_raw_iserdes_data,
+        bist_fail_wb_data_q_current,
+        bist_fail_idelay_dqs_cntvaluein1,
+        bist_fail_idelay_data_cntvaluein1,
+        bist_fail_data_start_index1,
+        bist_fail_added_read_pipe1,
+        bist_fail_idelay_dqs_cntvaluein0,
+        bist_fail_idelay_data_cntvaluein0,
+        bist_fail_data_start_index0,
+        bist_fail_added_read_pipe0,
+        bist_fail_delay_read_pipe1,
+        bist_fail_delay_read_pipe0,
+        bist_fail_index_wb_data,
         bist_fail_valid,
         bist_fail_state,
         {{(25-wb_addr_bits){1'b0}}, bist_fail_addr},

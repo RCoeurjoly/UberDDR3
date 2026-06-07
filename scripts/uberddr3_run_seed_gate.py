@@ -84,13 +84,6 @@ SIGNATURE_PATHS = [
     ("pass",),
     ("fail_reasons",),
     ("fields", "state_calibrate"),
-    ("fields", "canonical_status", "instruction_address"),
-    ("fields", "canonical_status", "state_calibrate"),
-    ("fields", "canonical_status", "reset_done"),
-    ("fields", "canonical_status", "addr_regress_seen"),
-    ("fields", "canonical_status", "sync_rst_seen"),
-    ("fields", "canonical_status", "reset_from_calibrate_seen"),
-    ("fields", "canonical_status", "external_reset_seen"),
     ("fields", "calib_debug", "instruction_address"),
     ("fields", "calib_debug", "init_i_rst_n"),
     ("fields", "calib_debug", "init_idelayctrl_rdy"),
@@ -164,12 +157,9 @@ def coarse_family(result: dict[str, object], stage_name: str, failure_class: str
     if not isinstance(bist, dict):
         bist = {}
 
-    canonical = fields.get("canonical_status", {})
-    if not isinstance(canonical, dict):
-        canonical = {}
-    state = canonical.get("state_calibrate", fields.get("state_calibrate", ""))
-    instruction = canonical.get("instruction_address", calib.get("instruction_address", pan.get("instruction_address", "")))
-    reset_done = canonical.get("reset_done", init_reset.get("controller_reset_done", ""))
+    state = fields.get("state_calibrate", "")
+    instruction = calib.get("instruction_address", pan.get("instruction_address", ""))
+    reset_done = init_reset.get("controller_reset_done", "")
 
     if failure_class == "programming":
         return "programming"
@@ -184,10 +174,6 @@ def coarse_family(result: dict[str, object], stage_name: str, failure_class: str
             bist.get("fail_burst_slot", ""),
         )
     if stage_name == "init_before_calibration":
-        reset_from_calibrate_seen = canonical.get("reset_from_calibrate_seen", False)
-        addr_regress_seen = canonical.get("addr_regress_seen", False)
-        if reset_from_calibrate_seen:
-            return "calibration_reset_restart.addr_%s.regress_%s" % (instruction, addr_regress_seen)
         if instruction in (1, 2, "1", "2"):
             return "init_before_calibration.addr_1_2.reset_done_%s" % reset_done
         return "init_before_calibration.addr_%s.reset_done_%s" % (instruction, reset_done)
@@ -252,11 +238,7 @@ def classify_stage(fields: dict[str, object], reasons: list[object], passed: boo
     bist_debug = fields.get("bist_debug", {})
     if not isinstance(bist_debug, dict):
         bist_debug = {}
-    canonical = fields.get("canonical_status", {})
-    if not isinstance(canonical, dict):
-        canonical = {}
-    instruction_address = canonical.get("instruction_address", calib_debug.get("instruction_address", ""))
-    state = canonical.get("state_calibrate", state)
+    instruction_address = calib_debug.get("instruction_address", "")
 
     if "wrong_read_data_nonzero" in reasons:
         return 6, "bist_mismatch"

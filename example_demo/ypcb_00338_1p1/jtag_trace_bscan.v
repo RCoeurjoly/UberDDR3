@@ -2,18 +2,15 @@
 `timescale 1ps / 1ps
 
 module jtag_trace_bscan #(
-    parameter integer ADDR_WIDTH = 16,
+    parameter integer WORD_WIDTH = 64,
+    parameter integer ADDR_WIDTH = 6,
     parameter integer JTAG_CHAIN = 2
 ) (
-    input  wire [31:0]                response_data,
-    input  wire [31:0]                response_status,
-    output reg                        command_toggle = 1'b0,
-    output reg                        command_we = 1'b0,
-    output reg  [ADDR_WIDTH-1:0]      command_addr = {ADDR_WIDTH{1'b0}},
-    output reg  [31:0]                command_data = 32'd0,
+    input  wire [WORD_WIDTH-1:0]      trace_word,
+    output reg  [ADDR_WIDTH-1:0]      read_addr = {ADDR_WIDTH{1'b0}},
     output wire                       selected
 );
-    localparam integer DR_WIDTH = 72;
+    localparam integer DR_WIDTH = WORD_WIDTH + ADDR_WIDTH;
 
     wire capture;
     wire drck;
@@ -28,6 +25,8 @@ module jtag_trace_bscan #(
     wire tdo;
 
     reg [DR_WIDTH-1:0] shift_reg = {DR_WIDTH{1'b0}};
+    integer addr_bit;
+
     BSCANE2 #(
         .JTAG_CHAIN(JTAG_CHAIN)
     ) bscan_inst (
@@ -48,7 +47,7 @@ module jtag_trace_bscan #(
         if (reset) begin
             shift_reg <= {DR_WIDTH{1'b0}};
         end else if (sel && capture) begin
-            shift_reg <= {8'd0, response_status, response_data};
+            shift_reg <= {{ADDR_WIDTH{1'b0}}, trace_word};
         end else if (sel && shift) begin
             shift_reg <= {tdi, shift_reg[DR_WIDTH-1:1]};
         end
@@ -56,15 +55,11 @@ module jtag_trace_bscan #(
 
     always @(posedge update or posedge reset) begin
         if (reset) begin
-            command_toggle <= 1'b0;
-            command_we <= 1'b0;
-            command_addr <= {ADDR_WIDTH{1'b0}};
-            command_data <= 32'd0;
-        end else if (shift_reg[17]) begin
-            command_addr <= shift_reg[ADDR_WIDTH-1:0];
-            command_we <= shift_reg[16];
-            command_data <= shift_reg[63:32];
-            command_toggle <= !command_toggle;
+            read_addr <= {ADDR_WIDTH{1'b0}};
+        end else begin
+            for (addr_bit = 0; addr_bit < ADDR_WIDTH; addr_bit = addr_bit + 1) begin
+                read_addr[addr_bit] <= shift_reg[addr_bit];
+            end
         end
     end
 

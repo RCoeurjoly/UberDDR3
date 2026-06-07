@@ -70,15 +70,15 @@ DBEOF
         src = self;
         ypcbSrcs = lib.concatStringsSep " " ypcb.sources;
 
-        writeToolMetadata = ''
+        writeToolMetadata = { byteLanes ? 2, bistMode ? 2 }: ''
           {
             echo '{'
             echo '  "part": "${ypcb.part}",'
             echo '  "dbpart": "${ypcb.dbpart}",'
             echo '  "family": "${ypcb.family}",'
             echo '  "top": "${ypcb.top}",'
-            echo '  "bist_mode": 2,'
-            echo '  "byte_lanes": 2,'
+            echo '  "bist_mode": ${toString bistMode},'
+            echo '  "byte_lanes": ${toString byteLanes},'
             echo '  "bist_test_datamask": 0,'
             echo '  "datamask_evidence": "YPCB MIG configuration uses <DataMask>0</DataMask>",'
             echo '  "yosys_version": '"$(yosys -V | ${pkgs.jq}/bin/jq -Rs .)"','
@@ -88,7 +88,7 @@ DBEOF
           } > metadata/toolchain.json
         '';
 
-        mkYosysJson = { name, verilogDefines ? "" }: pkgs.runCommand name {
+        mkYosysJson = { name, verilogDefines ? "", byteLanes ? 2, bistMode ? 2 }: pkgs.runCommand name {
           nativeBuildInputs = [ pkgs.yosys pkgs.jq pkgs.coreutils ];
         } ''
           cp -R ${src} src
@@ -98,7 +98,7 @@ DBEOF
           yosys -l metadata/yosys.log -p "read_verilog ${verilogDefines} ${ypcbSrcs}; synth_xilinx -flatten -abc9 -arch xc7 -top ${ypcb.top}; stat; write_json $out/${ypcb.project}.json"
           sha256sum $out/${ypcb.project}.json > metadata/yosys-json.sha256
           echo ${builtins.toJSON verilogDefines} > metadata/verilog-defines.json
-          ${writeToolMetadata}
+          ${writeToolMetadata { inherit byteLanes bistMode; }}
           cp -R metadata $out/metadata
         '';
 
@@ -115,6 +115,21 @@ DBEOF
           name = "ypcb-ddr3-yosys-json-trace-scope";
           verilogDefines = "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON -DUBERDDR3_TRACE_SCOPE";
         };
+        ypcbDdr3PanopticonSweepVariants = [
+          { suffix = "panopticon-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
+          { suffix = "panopticon-lanes1-bist2"; byteLanes = 1; bistMode = 2; }
+          { suffix = "panopticon-lanes2-bist1"; byteLanes = 2; bistMode = 1; }
+          { suffix = "panopticon-lanes2-bist2"; byteLanes = 2; bistMode = 2; }
+        ];
+        mkYpcbPanopticonVariantDefines = { byteLanes, bistMode, ... }:
+          "-DUBERDDR3_DEBUG_JTAG -DUBERDDR3_PANOPTICON -DUBERDDR3_YPCB_BYTE_LANES=${toString byteLanes} -DUBERDDR3_YPCB_BIST_MODE=${toString bistMode}";
+        ypcbDdr3PanopticonSweepYosysJsons = lib.listToAttrs (map (variant:
+          lib.nameValuePair variant.suffix (mkYosysJson {
+            name = "ypcb-ddr3-yosys-json-${variant.suffix}";
+            verilogDefines = mkYpcbPanopticonVariantDefines variant;
+            inherit (variant) byteLanes bistMode;
+          })
+        ) ypcbDdr3PanopticonSweepVariants);
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
           PRJXRAY_DB_DIR = patchedPrjxrayDb;
@@ -434,6 +449,18 @@ README
           mkCandidate { suffix = "panopticon-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3PanopticonYosysJson; });
         traceScopeSeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
           mkCandidate { suffix = "trace-scope-seed-${seed}"; seed = lib.toInt seed; pnrArgs = "--no-tmdriv"; yosysJson = ypcbDdr3TraceScopeYosysJson; });
+        panopticonSweepSeedCandidates = lib.listToAttrs (lib.concatMap (variant:
+          map (seed:
+            let
+              seedString = toString seed;
+              suffix = "${variant.suffix}-seed-${seedString}";
+            in lib.nameValuePair suffix (mkCandidate {
+              inherit suffix seed;
+              pnrArgs = "--no-tmdriv";
+              yosysJson = ypcbDdr3PanopticonSweepYosysJsons.${variant.suffix};
+            })
+          ) reliabilitySeeds
+        ) ypcbDdr3PanopticonSweepVariants);
         seedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-seed-${seed}" candidate.bitstream) seedCandidates;
         prodSeedBitstreams = lib.mapAttrs' (seed: candidate:
@@ -454,6 +481,16 @@ README
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-panopticon-seed-${seed}" candidate.pnr) panopticonSeedCandidates;
         traceScopeSeedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-trace-scope-seed-${seed}" candidate.pnr) traceScopeSeedCandidates;
+        panopticonSweepYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
+          lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonSweepYosysJsons;
+        panopticonSweepSeedPnrs = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonSweepSeedCandidates;
+        panopticonSweepSeedFasms = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-${suffix}" candidate.fasmDrv) panopticonSweepSeedCandidates;
+        panopticonSweepSeedFrames = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-frames-${suffix}" candidate.frames) panopticonSweepSeedCandidates;
+        panopticonSweepSeedBitstreams = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) panopticonSweepSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
@@ -648,6 +685,6 @@ README
             repeats = 3;
           };
           default = baseline.bitstream;
-        } // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // seedFasms // seedSdfs;
+        } // panopticonSweepYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepSeedPnrs // seedFasms // panopticonSweepSeedFasms // panopticonSweepSeedFrames // panopticonSweepSeedBitstreams // seedSdfs;
       });
 }

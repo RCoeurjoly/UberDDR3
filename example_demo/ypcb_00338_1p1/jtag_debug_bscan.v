@@ -6,8 +6,7 @@ module jtag_debug_bscan #(
     parameter integer JTAG_CHAIN = 1
 ) (
     input  wire [WIDTH-1:0] debug_data,
-    output wire             selected,
-    output reg              capture_toggle = 1'b0
+    output wire             selected
 );
     wire capture;
     wire drck;
@@ -21,6 +20,8 @@ module jtag_debug_bscan #(
     wire update;
     wire tdo;
 
+    reg [WIDTH-1:0] debug_sync_0 = {WIDTH{1'b0}};
+    reg [WIDTH-1:0] debug_sync_1 = {WIDTH{1'b0}};
     reg [WIDTH-1:0] shift_reg = {WIDTH{1'b0}};
 
     BSCANE2 #(
@@ -40,12 +41,13 @@ module jtag_debug_bscan #(
     );
 
     always @(posedge tck) begin
+        debug_sync_0 <= debug_data;
+        debug_sync_1 <= debug_sync_0;
+
         if (reset) begin
-            capture_toggle <= 1'b0;
             shift_reg <= {WIDTH{1'b0}};
         end else if (sel && capture) begin
-            capture_toggle <= !capture_toggle;
-            shift_reg <= debug_data;
+            shift_reg <= debug_sync_1;
         end else if (sel && shift) begin
             shift_reg <= {tdi, shift_reg[WIDTH-1:1]};
         end
