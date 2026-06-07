@@ -271,6 +271,121 @@ DBEOF
         }) [ 0 1 2 3 5 6 ]);
 
         ypcbDdr3PanopticonSweepVariants = lib.imap0 mkYpcbDdr3GeneratedVariant ypcbDdr3TopParameterSweepEntries;
+        ypcbDdr3Bist2EnvelopeEntries = [
+          { name = "baseline-low-bist2"; label = "baseline-low-bist2"; axis = "baseline"; overrides = { bistMode = 2; }; notes = "Lowest-cost YPCB-compatible starting point; BIST_MODE fixed to 2."; }
+        ]
+        ++ (map (clock: {
+          name = "${clock.name}-bist2";
+          label = "${clock.label}-bist2";
+          axis = "clockPeriod";
+          overrides = clock.overrides // { bistMode = 2; };
+        }) [
+          { name = "clk100"; label = "controller-clock-100mhz"; overrides = { controllerClkPeriod = 10000; ddr3ClkPeriod = 2500; speedBin = 3; }; }
+        ])
+        ++ (map (rowBits: {
+          name = "row${toString rowBits}-bist2";
+          label = "row-bits-${toString rowBits}-bist2";
+          axis = "rowBits";
+          overrides = { inherit rowBits; bistMode = 2; };
+        }) [ 13 14 15 16 ])
+        ++ (map (colBits: {
+          name = "col${toString colBits}-bist2";
+          label = "col-bits-${toString colBits}-bist2";
+          axis = "colBits";
+          overrides = { inherit colBits; bistMode = 2; };
+        }) [ 11 12 ])
+        ++ (map (byteLanes: {
+          name = "lanes${toString byteLanes}-bist2";
+          label = "byte-lanes-${toString byteLanes}-bist2";
+          axis = "byteLanes";
+          overrides = { inherit byteLanes; bistMode = 2; };
+        }) [ 2 4 8 ])
+        ++ (map (auxWidth: {
+          name = "aux${toString auxWidth}-bist2";
+          label = "aux-width-${toString auxWidth}-bist2";
+          axis = "auxWidth";
+          overrides = { inherit auxWidth; bistMode = 2; };
+        }) [ 8 ])
+        ++ (map (wb2AddrBits: {
+          name = "wb2a${toString wb2AddrBits}-bist2";
+          label = "wb2-addr-${toString wb2AddrBits}-bist2";
+          axis = "wb2AddrBits";
+          overrides = { inherit wb2AddrBits; bistMode = 2; };
+        }) [ 32 ])
+        ++ (map (secondWishbone: {
+          name = "secondwb${toString secondWishbone}-bist2";
+          label = "second-wishbone-${toString secondWishbone}-bist2";
+          axis = "secondWishbone";
+          overrides = { inherit secondWishbone; bistMode = 2; };
+        }) [ 1 ])
+        ++ (map (wbError: {
+          name = "wberr${toString wbError}-bist2";
+          label = "wb-error-${toString wbError}-bist2";
+          axis = "wbError";
+          overrides = { inherit wbError; bistMode = 2; };
+        }) [ 1 ])
+        ++ (map (bistTestDatamask: {
+          name = "datamask${toString bistTestDatamask}-bist2";
+          label = "bist-datamask-${toString bistTestDatamask}-bist2";
+          axis = "bistTestDatamask";
+          overrides = { inherit bistTestDatamask; bistMode = 2; };
+          notes = "May be board-incompatible when MIG reports DataMask disabled; included for BIST2 envelope coverage.";
+        }) [ 1 ])
+        ++ (map (eccEnable: {
+          name = "ecc${toString eccEnable}-bist2";
+          label = "ecc-${toString eccEnable}-bist2";
+          axis = "eccEnable";
+          overrides = { inherit eccEnable; bistMode = 2; };
+        }) [ 1 2 3 ])
+        ++ (map (dic: {
+          name = "dic${toString dic.code}-bist2";
+          label = "dic-${dic.label}-bist2";
+          axis = "dic";
+          overrides = { dic = dic.value; bistMode = 2; };
+        }) [
+          { value = "2'b01"; code = 1; label = "rzq7"; }
+        ])
+        ++ (map (rttNom: {
+          name = "rtt${toString rttNom.code}-bist2";
+          label = "rtt-nom-${rttNom.label}-bist2";
+          axis = "rttNom";
+          overrides = { rttNom = rttNom.value; bistMode = 2; };
+        }) [
+          { value = "3'b001"; code = 1; label = "rzq4"; }
+          { value = "3'b010"; code = 2; label = "rzq2"; }
+          { value = "3'b011"; code = 3; label = "rzq6"; }
+        ])
+        ++ (map (selfRefresh: {
+          name = "sref${toString selfRefresh.code}-bist2";
+          label = "self-refresh-${selfRefresh.label}-bist2";
+          axis = "selfRefresh";
+          overrides = { selfRefresh = selfRefresh.value; bistMode = 2; };
+        }) [
+          { value = "2'b01"; code = 1; label = "64"; }
+          { value = "2'b10"; code = 2; label = "128"; }
+          { value = "2'b11"; code = 3; label = "256"; }
+        ])
+        ++ (map (speedBin: {
+          name = "speed${toString speedBin}-bist2";
+          label = "speed-bin-${toString speedBin}-bist2";
+          axis = "speedBin";
+          overrides = { inherit speedBin; bistMode = 2; };
+        }) [ 2 3 ])
+        ++ (map (sdramCapacity: {
+          name = "cap${toString sdramCapacity}-bist2";
+          label = "sdram-capacity-${toString sdramCapacity}-bist2";
+          axis = "sdramCapacity";
+          overrides = { inherit sdramCapacity; bistMode = 2; };
+        }) [ 0 1 2 3 5 6 ]);
+        ypcbDdr3Bist2EnvelopeVariants = lib.imap0 (index: entry:
+          mkYpcbDdr3TopParamVariant {
+            suffix = "panopticon-envelope-p${lib.fixedWidthNumber 3 index}-${entry.name}";
+            label = entry.label;
+            axis = entry.axis;
+            overrides = entry.overrides;
+            notes = entry.notes or "";
+          }
+        ) ypcbDdr3Bist2EnvelopeEntries;
         ypcbDdr3PanopticonTraceVariants = [
           { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
         ];
@@ -310,6 +425,13 @@ DBEOF
             inherit (variant) byteLanes bistMode;
           })
         ) ypcbDdr3PanopticonSweepVariants);
+        ypcbDdr3Bist2EnvelopeYosysJsons = lib.listToAttrs (map (variant:
+          lib.nameValuePair variant.suffix (mkYosysJson {
+            name = "ypcb-ddr3-yosys-json-${variant.suffix}";
+            verilogDefines = mkYpcbPanopticonVariantDefines variant;
+            inherit (variant) byteLanes bistMode;
+          })
+        ) ypcbDdr3Bist2EnvelopeVariants);
         ypcbDdr3PanopticonTraceYosysJsons = lib.listToAttrs (map (variant:
           lib.nameValuePair variant.suffix (mkYosysJson {
             name = "ypcb-ddr3-yosys-json-${variant.suffix}";
@@ -655,6 +777,16 @@ README
             })
           ) reliabilitySeeds
         ) ypcbDdr3PanopticonSweepVariants);
+        bist2EnvelopeSeedCandidates = lib.listToAttrs (map (variant:
+          let
+            suffix = "${variant.suffix}-seed-1";
+          in lib.nameValuePair suffix (mkCandidate {
+            inherit suffix;
+            seed = 1;
+            pnrArgs = "--no-tmdriv --timing-allow-fail";
+            yosysJson = ypcbDdr3Bist2EnvelopeYosysJsons.${variant.suffix};
+          })
+        ) ypcbDdr3Bist2EnvelopeVariants);
         panopticonTraceSeedCandidates = lib.listToAttrs (lib.concatMap (variant:
           map (seed:
             let
@@ -691,12 +823,16 @@ README
           lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonSweepYosysJsons;
         panopticonTraceYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
           lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonTraceYosysJsons;
+        bist2EnvelopeYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
+          lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3Bist2EnvelopeYosysJsons;
         panopticonSweepPnrs = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonSweepCandidates;
         panopticonSweepSeedPnrs = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonSweepSeedCandidates;
         panopticonTraceSeedPnrs = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) panopticonTraceSeedCandidates;
+        bist2EnvelopeSeedPnrs = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-${suffix}" candidate.pnr) bist2EnvelopeSeedCandidates;
         panopticonSweepFasms = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-${suffix}" candidate.fasmDrv) panopticonSweepCandidates;
         panopticonSweepSeedFasms = lib.mapAttrs' (suffix: candidate:
@@ -715,6 +851,8 @@ README
           lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) panopticonSweepSeedCandidates;
         panopticonTraceSeedBitstreams = lib.mapAttrs' (suffix: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) panopticonTraceSeedCandidates;
+        bist2EnvelopeSeedBitstreams = lib.mapAttrs' (suffix: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) bist2EnvelopeSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
@@ -759,6 +897,49 @@ README
             ];
             rows = lib.imap0 row ypcbDdr3PanopticonSweepVariants;
           in pkgs.writeText "ypcb-ddr3-top-parameter-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + (lib.concatStringsSep "\n" rows) + "\n");
+
+        ypcbDdr3Bist2EnvelopeMatrixCsv =
+          let
+            fields = [
+              "index" "suffix" "label" "axis" "controller_clk_period" "ddr3_clk_period"
+              "row_bits" "col_bits" "ba_bits" "byte_lanes" "aux_width"
+              "wb2_addr_bits" "wb2_data_bits" "micron_sim" "odelay_supported"
+              "second_wishbone" "wb_error" "bist_mode" "bist_test_datamask"
+              "ecc_enable" "dic" "rtt_nom" "self_refresh" "speed_bin"
+              "sdram_capacity" "seed" "bitstream_package" "notes"
+            ];
+            row = index: variant: lib.concatStringsSep "," [
+              (toString index)
+              variant.suffix
+              variant.label
+              variant.axis
+              (toString variant.controllerClkPeriod)
+              (toString variant.ddr3ClkPeriod)
+              (toString variant.rowBits)
+              (toString variant.colBits)
+              (toString variant.baBits)
+              (toString variant.byteLanes)
+              (toString variant.auxWidth)
+              (toString variant.wb2AddrBits)
+              (toString variant.wb2DataBits)
+              (toString variant.micronSim)
+              (toString variant.odelaySupported)
+              (toString variant.secondWishbone)
+              (toString variant.wbError)
+              (toString variant.bistMode)
+              (toString variant.bistTestDatamask)
+              (toString variant.eccEnable)
+              variant.dic
+              variant.rttNom
+              variant.selfRefresh
+              (toString variant.speedBin)
+              (toString variant.sdramCapacity)
+              "1"
+              "ypcb-ddr3-bitstream-${variant.suffix}-seed-1"
+              variant.notes
+            ];
+            rows = lib.imap0 row ypcbDdr3Bist2EnvelopeVariants;
+          in pkgs.writeText "ypcb-ddr3-bist2-envelope-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + (lib.concatStringsSep "\n" rows) + "\n");
 
         mkBoardManifest = { name, variant, candidates, seeds, repeats ? 1 }:
           let
@@ -862,6 +1043,7 @@ README
           ypcb-ddr3-yosys-json-panopticon = ypcbDdr3PanopticonYosysJson;
           ypcb-ddr3-yosys-json-trace-scope = ypcbDdr3TraceScopeYosysJson;
           ypcb-ddr3-top-parameter-matrix = ypcbDdr3TopParameterMatrixCsv;
+          ypcb-ddr3-bist2-envelope-matrix = ypcbDdr3Bist2EnvelopeMatrixCsv;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -951,6 +1133,6 @@ README
             repeats = 3;
           };
           default = baseline.bitstream;
-        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // seedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // seedSdfs;
+        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // bist2EnvelopeYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // bist2EnvelopeSeedPnrs // seedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // bist2EnvelopeSeedBitstreams // seedSdfs;
       });
 }
