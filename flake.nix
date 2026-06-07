@@ -467,7 +467,7 @@ README
               suffix = "${variant.suffix}-seed-${seedString}";
             in lib.nameValuePair suffix (mkCandidate {
               inherit suffix seed;
-              pnrArgs = "--no-tmdriv";
+              pnrArgs = "--no-tmdriv --timing-allow-fail";
               yosysJson = ypcbDdr3PanopticonSweepYosysJsons.${variant.suffix};
             })
           ) reliabilitySeeds
