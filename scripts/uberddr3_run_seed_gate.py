@@ -377,6 +377,14 @@ def run(command: list[str], log_path: Path) -> int:
     return completed.returncode
 
 
+def infer_byte_lanes(variant: str) -> int:
+    if "lanes1" in variant:
+        return 1
+    if "lanes2" in variant:
+        return 2
+    return 2
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", required=True, help="Variant label for output rows, e.g. no-tmdriv")
@@ -392,8 +400,10 @@ def main() -> int:
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--stable-samples", type=int, default=0, help="Board test stable-signature early exit count. 0 disables.")
     parser.add_argument("--stable-min-attempt", type=int, default=10, help="Board test attempt before stable-signature early exit can trigger.")
+    parser.add_argument("--byte-lanes", type=int, choices=(1, 2), help="DDR3 byte lanes for board-test decode. Defaults from --variant lanesN.")
     parser.add_argument("--continue-on-fail", action="store_true")
     args = parser.parse_args()
+    byte_lanes = args.byte_lanes if args.byte_lanes is not None else infer_byte_lanes(args.variant)
 
     if "-" in args.seeds and "," not in args.seeds:
         start, end = [int(part) for part in args.seeds.split("-", 1)]
@@ -456,6 +466,8 @@ def main() -> int:
                 str(args.poll_count),
                 "--poll-interval",
                 str(args.poll_interval),
+                "--byte-lanes",
+                str(byte_lanes),
             ]
             if args.stable_samples:
                 command.extend(["--stable-samples", str(args.stable_samples), "--stable-min-attempt", str(args.stable_min_attempt)])

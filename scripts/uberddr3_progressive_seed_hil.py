@@ -31,6 +31,14 @@ def load_json(path: Path) -> dict[str, object]:
         return json.load(handle)
 
 
+def infer_byte_lanes(variant: str) -> int:
+    if "lanes1" in variant:
+        return 1
+    if "lanes2" in variant:
+        return 2
+    return 2
+
+
 def classify(result: dict[str, object]) -> tuple[str, str, str]:
     if result.get("pass") is True:
         return "pass", "pass", "pass"
@@ -65,8 +73,10 @@ def main() -> int:
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--stable-samples", type=int, default=5)
     parser.add_argument("--stable-min-attempt", type=int, default=10)
+    parser.add_argument("--byte-lanes", type=int, choices=(1, 2), help="DDR3 byte lanes for board-test decode. Defaults from --variant lanesN.")
     parser.add_argument("--continue-on-fail", action="store_true")
     args = parser.parse_args()
+    byte_lanes = args.byte_lanes if args.byte_lanes is not None else infer_byte_lanes(args.variant)
 
     repo = Path.cwd()
     args.out_dir.mkdir(parents=True, exist_ok=True)
@@ -105,6 +115,7 @@ def main() -> int:
                     "--poll-interval", str(args.poll_interval),
                     "--stable-samples", str(args.stable_samples),
                     "--stable-min-attempt", str(args.stable_min_attempt),
+                    "--byte-lanes", str(byte_lanes),
                 ]
                 test = run(command, repo)
                 if json_path.exists():

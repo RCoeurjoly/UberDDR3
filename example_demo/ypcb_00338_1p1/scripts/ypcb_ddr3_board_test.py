@@ -224,7 +224,86 @@ def field(payload: int, offset: int, width: int) -> int:
     return (payload >> offset) & ((1 << width) - 1)
 
 
-def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
+
+def decode_calib_debug(payload: int, calib_debug_offset: int, byte_lanes: int, init_reset_debug: dict[str, object]) -> dict[str, object]:
+    offset = calib_debug_offset
+
+    def take(width: int) -> int:
+        nonlocal offset
+        value = field(payload, offset, width)
+        offset += width
+        return value
+
+    calib_debug: dict[str, object] = {
+        "state_calibrate": take(5),
+        "instruction_address": take(5),
+        "delay_counter": take(19),
+        "delay_counter_is_zero": bool(take(1)),
+        # lanes_clog2 is intentionally one bit even when LANES == 1.
+        "lane": take(1),
+        "bitslip": take(byte_lanes),
+        "lane_read_dq_early": take(byte_lanes),
+        "lane_write_dq_late": take(byte_lanes),
+        "train_delay": take(4),
+        "delay_before_read_data": take(4),
+        "idelay_dqs_cntvaluein": take(5),
+    }
+    take(5)
+    calib_debug["idelay_data_cntvaluein"] = take(5)
+    take(5)
+    calib_debug.update({
+        # REPEAT_DQS_ANALYZE is currently 1, so reg[$clog2(REPEAT_DQS_ANALYZE):0] is one bit.
+        "dqs_count_repeat": take(3),
+        "dqs_start_index_repeat": take(1),
+        "dqs_start_index": take(6),
+        "dqs_start_index_stored": take(6),
+        "dqs_target_index": take(6),
+        "dqs_target_index_value": take(6),
+        "dqs_target_index_orig": take(6),
+        "dqs_store": take(40),
+        "iserdes_dqs": take(8 * byte_lanes),
+        "iserdes_bitslip_reference": take(8 * byte_lanes),
+        "read_lane_data_shifted": take(32),
+        "read_lane_data": take(64),
+        "calib_bus_init_i_rst_n": bool(take(1)),
+        "calib_bus_init_o_phy_reset": bool(take(1)),
+        "calib_bus_init_idelayctrl_rdy": bool(take(1)),
+        "init_i_rst_n": init_reset_debug["controller_i_rst_n"],
+        "init_o_phy_reset": init_reset_debug["controller_o_phy_reset"],
+        "init_idelayctrl_rdy": init_reset_debug["controller_i_phy_idelayctrl_rdy"],
+        "init_instruction": take(28),
+        "init_cmd_ck_en": bool(take(1)),
+        "init_cmd_reset_n": bool(take(1)),
+        "init_cmd_odt": bool(take(1)),
+        "calib_bus_init_pause_counter": bool(take(1)),
+        "calib_bus_init_final_calibration_done": bool(take(1)),
+        "calib_bus_init_initial_calibration_done": bool(take(1)),
+        "calib_bus_init_reset_from_calibrate": bool(take(1)),
+        "init_pause_counter": init_reset_debug["controller_pause_counter"],
+        "init_final_calibration_done": init_reset_debug["controller_final_calibration_done"],
+        "init_initial_calibration_done": init_reset_debug["controller_initial_calibration_done"],
+        "init_reset_from_calibrate": init_reset_debug["controller_reset_from_calibrate"],
+        "analyze_dqs_window": take(10),
+        "analyze_dqs_match": bool(take(1)),
+        "analyze_dqs_at_end": bool(take(1)),
+        "analyze_dqs_repeat_same": bool(take(1)),
+        "analyze_dqs_repeat_done": bool(take(1)),
+        "analyze_dqs_action": take(3),
+    })
+    calib_debug["idelay_dqs_cntvaluein_lane0"] = calib_debug["idelay_dqs_cntvaluein"]
+    calib_debug["idelay_data_cntvaluein_lane0"] = calib_debug["idelay_data_cntvaluein"]
+    phy_debug_offset = calib_debug_offset + 332
+    calib_debug.update({
+        "phy_idelayctrl_aggregate_rdy": bool(field(payload, phy_debug_offset + 0, 1)),
+        "phy_idelayctrl_raw_rdy": bool(field(payload, phy_debug_offset + 1, 1)),
+        "phy_dci_locked": bool(field(payload, phy_debug_offset + 2, 1)),
+        "phy_sync_rst": bool(field(payload, phy_debug_offset + 3, 1)),
+        "phy_reset_delay_counter": field(payload, phy_debug_offset + 4, 12),
+    })
+    return calib_debug
+
+
+def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[str, object]:
     debug1 = field(payload, 28, 32)
     bist_counts = field(payload, 448, 64)
     init_reset_debug_offset = 512
@@ -368,63 +447,7 @@ def decode_payload(payload: int, bit_count: int) -> dict[str, object]:
     bist_debug["fail_burst_slot"] = fail_byte_index // 2
 
     calib_debug_offset = 100
-    calib_debug = {
-        "state_calibrate": field(payload, calib_debug_offset, 5),
-        "instruction_address": field(payload, calib_debug_offset + 5, 5),
-        "delay_counter": field(payload, calib_debug_offset + 10, 19),
-        "delay_counter_is_zero": bool(field(payload, calib_debug_offset + 29, 1)),
-        "lane": field(payload, calib_debug_offset + 30, 1),
-        "bitslip": field(payload, calib_debug_offset + 31, 2),
-        "lane_read_dq_early": field(payload, calib_debug_offset + 33, 2),
-        "lane_write_dq_late": field(payload, calib_debug_offset + 35, 2),
-        "train_delay": field(payload, calib_debug_offset + 37, 4),
-        "delay_before_read_data": field(payload, calib_debug_offset + 41, 4),
-        "idelay_dqs_cntvaluein_lane0": field(payload, calib_debug_offset + 45, 5),
-        "idelay_dqs_cntvaluein_lane1": field(payload, calib_debug_offset + 50, 5),
-        "idelay_data_cntvaluein_lane0": field(payload, calib_debug_offset + 55, 5),
-        "idelay_data_cntvaluein_lane1": field(payload, calib_debug_offset + 60, 5),
-        "dqs_count_repeat": field(payload, calib_debug_offset + 65, 3),
-        "dqs_start_index_repeat": field(payload, calib_debug_offset + 68, 7),
-        "dqs_start_index": field(payload, calib_debug_offset + 75, 6),
-        "dqs_start_index_stored": field(payload, calib_debug_offset + 81, 6),
-        "dqs_target_index": field(payload, calib_debug_offset + 87, 6),
-        "dqs_target_index_value": field(payload, calib_debug_offset + 93, 6),
-        "dqs_target_index_orig": field(payload, calib_debug_offset + 99, 6),
-        "dqs_store": field(payload, calib_debug_offset + 105, 40),
-        "iserdes_dqs": field(payload, calib_debug_offset + 145, 16),
-        "iserdes_bitslip_reference": field(payload, calib_debug_offset + 161, 16),
-        "read_lane_data_shifted": field(payload, calib_debug_offset + 177, 32),
-        "read_lane_data": field(payload, calib_debug_offset + 209, 64),
-        "calib_bus_init_i_rst_n": bool(field(payload, calib_debug_offset + 273, 1)),
-        "calib_bus_init_o_phy_reset": bool(field(payload, calib_debug_offset + 274, 1)),
-        "calib_bus_init_idelayctrl_rdy": bool(field(payload, calib_debug_offset + 275, 1)),
-        "init_i_rst_n": init_reset_debug["controller_i_rst_n"],
-        "init_o_phy_reset": init_reset_debug["controller_o_phy_reset"],
-        "init_idelayctrl_rdy": init_reset_debug["controller_i_phy_idelayctrl_rdy"],
-        "init_instruction": field(payload, calib_debug_offset + 276, 28),
-        "init_cmd_ck_en": bool(field(payload, calib_debug_offset + 304, 1)),
-        "init_cmd_reset_n": bool(field(payload, calib_debug_offset + 305, 1)),
-        "init_cmd_odt": bool(field(payload, calib_debug_offset + 306, 1)),
-        "calib_bus_init_pause_counter": bool(field(payload, calib_debug_offset + 307, 1)),
-        "calib_bus_init_final_calibration_done": bool(field(payload, calib_debug_offset + 308, 1)),
-        "calib_bus_init_initial_calibration_done": bool(field(payload, calib_debug_offset + 309, 1)),
-        "calib_bus_init_reset_from_calibrate": bool(field(payload, calib_debug_offset + 310, 1)),
-        "init_pause_counter": init_reset_debug["controller_pause_counter"],
-        "init_final_calibration_done": init_reset_debug["controller_final_calibration_done"],
-        "init_initial_calibration_done": init_reset_debug["controller_initial_calibration_done"],
-        "init_reset_from_calibrate": init_reset_debug["controller_reset_from_calibrate"],
-        "analyze_dqs_window": field(payload, calib_debug_offset + 311, 10),
-        "analyze_dqs_match": bool(field(payload, calib_debug_offset + 321, 1)),
-        "analyze_dqs_at_end": bool(field(payload, calib_debug_offset + 322, 1)),
-        "analyze_dqs_repeat_same": bool(field(payload, calib_debug_offset + 323, 1)),
-        "analyze_dqs_repeat_done": bool(field(payload, calib_debug_offset + 324, 1)),
-        "analyze_dqs_action": field(payload, calib_debug_offset + 325, 3),
-        "phy_idelayctrl_aggregate_rdy": bool(field(payload, calib_debug_offset + 332, 1)),
-        "phy_idelayctrl_raw_rdy": bool(field(payload, calib_debug_offset + 333, 1)),
-        "phy_dci_locked": bool(field(payload, calib_debug_offset + 334, 1)),
-        "phy_sync_rst": bool(field(payload, calib_debug_offset + 335, 1)),
-        "phy_reset_delay_counter": field(payload, calib_debug_offset + 336, 12),
-    }
+    calib_debug = decode_calib_debug(payload, calib_debug_offset, byte_lanes, init_reset_debug)
     decoded = {
         "rst_n": bool(field(payload, 0, 1)),
         "clk_locked": bool(field(payload, 1, 1)),
@@ -566,6 +589,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--freq-hz", type=int, default=1_000_000)
     parser.add_argument("--tdo-bit", type=int, choices=(0, 7), default=7)
     parser.add_argument("--bits", type=int, default=DEFAULT_BITS)
+    parser.add_argument("--byte-lanes", type=int, choices=(1, 2), default=2, help="DDR3 byte lanes in the debug bitstream.")
     parser.add_argument("--trace-scope", action="store_true", help="Read the USER2 BSCAN addressed trace scope.")
     parser.add_argument("--trace-ir", type=lambda value: int(value, 0), default=0x03)
     parser.add_argument("--trace-settle-cycles", type=int, default=2048)
@@ -666,7 +690,7 @@ def main() -> int:
         stable_signature_count = 0
         poll_stop_reason = "poll_count"
         for attempt in range(1, args.poll_count + 1):
-            decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits, args.capture_settle_cycles), args.bits)
+            decoded = decode_payload(read_payload(client, args.ir_len, args.user_ir, args.bits, args.capture_settle_cycles), args.bits, args.byte_lanes)
             stability_signature = poll_stability_signature(decoded)
             if stability_signature == last_stability_signature:
                 stable_signature_count += 1
