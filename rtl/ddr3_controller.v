@@ -4484,6 +4484,16 @@ ALTERNATE_WRITE_READ: begin
         instruction_address,
         state_calibrate
    };
+   wire [15:0] panopticon_aux = {
+        analyze_dqs_action,
+        analyze_dqs_repeat_done,
+        analyze_dqs_repeat_same,
+        analyze_dqs_at_end,
+        analyze_dqs_match,
+        dqs_start_index,
+        dqs_count_repeat
+   };
+
    wire [63:0] panopticon_control = {
         state_calibrate,
         instruction_address,
@@ -4499,7 +4509,7 @@ ALTERNATE_WRITE_READ: begin
         lane_write_dq_late[0],
         lane_read_dq_early[0],
         o_wb_ack_uncalibrated,
-        {{(16-AUX_WIDTH){1'b0}}, o_aux},
+        panopticon_aux,
         o_wb_stall_calib,
         stage1_pending,
         stage2_pending,

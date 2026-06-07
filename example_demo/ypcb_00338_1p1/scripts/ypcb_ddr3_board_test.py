@@ -404,6 +404,7 @@ def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[st
     }
     panopticon_debug_offset = 1266
     panopticon_control_offset = panopticon_debug_offset + 688
+    panopticon_aux = field(payload, panopticon_control_offset + 10, 16)
     panopticon_debug = {
         "wb_data_q_current": field(payload, panopticon_debug_offset + 0, 128),
         "stage2_dm1": field(payload, panopticon_debug_offset + 128, 16),
@@ -420,7 +421,14 @@ def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[st
         "stage2_pending": bool(field(payload, panopticon_control_offset + 7, 1)),
         "stage1_pending": bool(field(payload, panopticon_control_offset + 8, 1)),
         "o_wb_stall_calib": bool(field(payload, panopticon_control_offset + 9, 1)),
-        "aux": field(payload, panopticon_control_offset + 10, 16),
+        "aux": panopticon_aux,
+        "analyze_dqs_count_repeat": field(panopticon_aux, 0, 3),
+        "analyze_dqs_start_index": field(panopticon_aux, 3, 6),
+        "analyze_dqs_match": bool(field(panopticon_aux, 9, 1)),
+        "analyze_dqs_at_end": bool(field(panopticon_aux, 10, 1)),
+        "analyze_dqs_repeat_same": bool(field(panopticon_aux, 11, 1)),
+        "analyze_dqs_repeat_done": bool(field(panopticon_aux, 12, 1)),
+        "analyze_dqs_action": field(panopticon_aux, 13, 3),
         "o_wb_ack_uncalibrated": bool(field(payload, panopticon_control_offset + 26, 1)),
         "lane_read_dq_early0": bool(field(payload, panopticon_control_offset + 27, 1)),
         "lane_write_dq_late0": bool(field(payload, panopticon_control_offset + 28, 1)),
