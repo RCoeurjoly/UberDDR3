@@ -386,6 +386,17 @@ DBEOF
             notes = entry.notes or "";
           }
         ) ypcbDdr3Bist2EnvelopeEntries;
+        ypcbDdr3Llm2fpgaMinBist2Variant = mkYpcbDdr3TopParamVariant {
+          suffix = "llm2fpga-min-bist2";
+          label = "llm2fpga-minimum-bist2";
+          axis = "llm2fpgaMinimum";
+          overrides = {
+            rowBits = 15;
+            byteLanes = 2;
+            bistMode = 2;
+          };
+          notes = "LLM2FPGA minimum practical YPCB profile: device row geometry retained, two byte lanes, BIST mode 2.";
+        };
         ypcbDdr3PanopticonTraceVariants = [
           { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
         ];
@@ -439,6 +450,11 @@ DBEOF
             inherit (variant) byteLanes bistMode;
           })
         ) ypcbDdr3PanopticonTraceVariants);
+        ypcbDdr3Llm2fpgaMinBist2YosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-${ypcbDdr3Llm2fpgaMinBist2Variant.suffix}";
+          verilogDefines = mkYpcbPanopticonVariantDefines ypcbDdr3Llm2fpgaMinBist2Variant;
+          inherit (ypcbDdr3Llm2fpgaMinBist2Variant) byteLanes bistMode;
+        };
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
           PRJXRAY_DB_DIR = patchedPrjxrayDb;
@@ -787,6 +803,13 @@ README
             yosysJson = ypcbDdr3Bist2EnvelopeYosysJsons.${variant.suffix};
           })
         ) ypcbDdr3Bist2EnvelopeVariants);
+        llm2fpgaMinBist2SeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate {
+            suffix = "llm2fpga-min-bist2-seed-${seed}";
+            seed = lib.toInt seed;
+            pnrArgs = "--no-tmdriv --timing-allow-fail";
+            yosysJson = ypcbDdr3Llm2fpgaMinBist2YosysJson;
+          });
         panopticonTraceSeedCandidates = lib.listToAttrs (lib.concatMap (variant:
           map (seed:
             let
@@ -809,6 +832,8 @@ README
           lib.nameValuePair "ypcb-ddr3-bitstream-panopticon-seed-${seed}" candidate.bitstream) panopticonSeedCandidates;
         traceScopeSeedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-trace-scope-seed-${seed}" candidate.bitstream) traceScopeSeedCandidates;
+        llm2fpgaMinBist2SeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-${seed}" candidate.bitstream) llm2fpgaMinBist2SeedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
         prodSeedPnrs = lib.mapAttrs' (seed: candidate:
@@ -819,6 +844,8 @@ README
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-panopticon-seed-${seed}" candidate.pnr) panopticonSeedCandidates;
         traceScopeSeedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-trace-scope-seed-${seed}" candidate.pnr) traceScopeSeedCandidates;
+        llm2fpgaMinBist2SeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-llm2fpga-min-bist2-seed-${seed}" candidate.pnr) llm2fpgaMinBist2SeedCandidates;
         panopticonSweepYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
           lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonSweepYosysJsons;
         panopticonTraceYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
@@ -855,6 +882,8 @@ README
           lib.nameValuePair "ypcb-ddr3-bitstream-${suffix}" candidate.bitstream) bist2EnvelopeSeedCandidates;
         seedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
+        llm2fpgaMinBist2SeedFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-llm2fpga-min-bist2-seed-${seed}" candidate.fasmDrv) llm2fpgaMinBist2SeedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}" candidate.sdf) seedCandidates;
         ypcbDdr3TopParameterMatrixCsv =
@@ -940,6 +969,61 @@ README
             ];
             rows = lib.imap0 row ypcbDdr3Bist2EnvelopeVariants;
           in pkgs.writeText "ypcb-ddr3-bist2-envelope-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + (lib.concatStringsSep "\n" rows) + "\n");
+
+        ypcbDdr3Llm2fpgaMinBist2MatrixCsv =
+          let
+            variant = ypcbDdr3Llm2fpgaMinBist2Variant;
+            fields = [
+              "suffix" "label" "controller_clk_period" "ddr3_clk_period"
+              "row_bits" "col_bits" "ba_bits" "byte_lanes" "aux_width"
+              "wb2_addr_bits" "wb2_data_bits" "micron_sim" "odelay_supported"
+              "second_wishbone" "wb_error" "bist_mode" "bist_test_datamask"
+              "ecc_enable" "dic" "rtt_nom" "self_refresh" "speed_bin"
+              "sdram_capacity" "seed_package_template" "notes"
+            ];
+            row = lib.concatStringsSep "," [
+              variant.suffix
+              variant.label
+              (toString variant.controllerClkPeriod)
+              (toString variant.ddr3ClkPeriod)
+              (toString variant.rowBits)
+              (toString variant.colBits)
+              (toString variant.baBits)
+              (toString variant.byteLanes)
+              (toString variant.auxWidth)
+              (toString variant.wb2AddrBits)
+              (toString variant.wb2DataBits)
+              (toString variant.micronSim)
+              (toString variant.odelaySupported)
+              (toString variant.secondWishbone)
+              (toString variant.wbError)
+              (toString variant.bistMode)
+              (toString variant.bistTestDatamask)
+              (toString variant.eccEnable)
+              variant.dic
+              variant.rttNom
+              variant.selfRefresh
+              (toString variant.speedBin)
+              (toString variant.sdramCapacity)
+              "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-{seed}"
+              variant.notes
+            ];
+          in pkgs.writeText "ypcb-ddr3-llm2fpga-min-bist2-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + row + "\n");
+
+        mkProgressiveBoardManifest = { name, variant, packagePrefix, byteLanes, seeds, repeats ? 1 }:
+          let
+            lines = lib.concatMap (seed:
+              map (repeat:
+                let
+                  seedString = toString seed;
+                  repeatString = toString repeat;
+                in "${variant}-seed-${seedString}-repeat-${repeatString},${seedString},${repeatString},${variant},${packagePrefix}${seedString},${toString byteLanes}"
+              ) (lib.range 1 repeats)
+            ) seeds;
+            csv = lib.concatStringsSep "\n" ([
+              "experiment_id,seed,repeat,variant,bitstream_package,byte_lanes"
+            ] ++ lines) + "\n";
+          in pkgs.writeText name csv;
 
         mkBoardManifest = { name, variant, candidates, seeds, repeats ? 1 }:
           let
@@ -1042,8 +1126,10 @@ README
           ypcb-ddr3-yosys-json-debug-jtag = ypcbDdr3DebugYosysJson;
           ypcb-ddr3-yosys-json-panopticon = ypcbDdr3PanopticonYosysJson;
           ypcb-ddr3-yosys-json-trace-scope = ypcbDdr3TraceScopeYosysJson;
+          ypcb-ddr3-yosys-json-llm2fpga-min-bist2 = ypcbDdr3Llm2fpgaMinBist2YosysJson;
           ypcb-ddr3-top-parameter-matrix = ypcbDdr3TopParameterMatrixCsv;
           ypcb-ddr3-bist2-envelope-matrix = ypcbDdr3Bist2EnvelopeMatrixCsv;
+          ypcb-ddr3-llm2fpga-min-bist2-matrix = ypcbDdr3Llm2fpgaMinBist2MatrixCsv;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -1132,7 +1218,23 @@ README
             seeds = lib.range 31 60;
             repeats = 3;
           };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-stage1 = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-stage1.csv";
+            variant = "llm2fpga-min-bist2";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Variant.byteLanes;
+            seeds = lib.range 1 30;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-heldout = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-heldout.csv";
+            variant = "llm2fpga-min-bist2";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Variant.byteLanes;
+            seeds = lib.range 31 60;
+            repeats = 3;
+          };
           default = baseline.bitstream;
-        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // bist2EnvelopeYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // bist2EnvelopeSeedPnrs // seedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // bist2EnvelopeSeedBitstreams // seedSdfs;
+        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // bist2EnvelopeYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // llm2fpgaMinBist2SeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // llm2fpgaMinBist2SeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // bist2EnvelopeSeedPnrs // seedFasms // llm2fpgaMinBist2SeedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // bist2EnvelopeSeedBitstreams // seedSdfs;
       });
 }
