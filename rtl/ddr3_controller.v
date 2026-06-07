@@ -812,8 +812,6 @@ module ddr3_controller #(
     reg[127:0] bist_fail_wb_data_q_current = 128'd0;
     reg[127:0] bist_fail_raw_iserdes_data = 128'd0;
     reg bist_check_pending = 1'b0;
-    localparam [1:0] BIST_INVALID_READ_TOLERANCE = 2'd3;
-    reg[1:0] bist_invalid_read_count = 2'd0;
     reg[wb_data_bits-1:0] bist_check_actual = 0;
     reg bist_check_raw_invalid = 1'b0;
     reg[wb_data_bits-1:0] bist_check_expected = 0;
@@ -3969,8 +3967,6 @@ ALTERNATE_WRITE_READ: begin
         end
     endgenerate
 
-    wire bist_check_actual_invalid = (&bist_check_actual) || !(|bist_check_actual) || bist_check_raw_invalid;
-
     always @(posedge i_controller_clk) begin
         if(sync_rst_controller) begin
             check_test_address_counter <= 0;
@@ -3979,7 +3975,6 @@ ALTERNATE_WRITE_READ: begin
             // wrong_read_data <= 0;
             reset_from_test <= 0;
             bist_check_pending <= 1'b0;
-            bist_invalid_read_count <= 2'd0;
             bist_check_raw_invalid <= 1'b0;
         end
         else begin
@@ -3996,15 +3991,10 @@ ALTERNATE_WRITE_READ: begin
                 end
                 if(bist_check_pending) begin
                     bist_check_pending <= 1'b0;
-                    if(bist_check_actual == bist_check_expected) begin
+                    if((bist_check_actual == bist_check_expected) && !bist_check_raw_invalid) begin
                         correct_read_data <= correct_read_data + 1;
-                        bist_invalid_read_count <= 2'd0;
-                    end
-                    else if(bist_check_actual_invalid && (bist_invalid_read_count != BIST_INVALID_READ_TOLERANCE)) begin
-                        bist_invalid_read_count <= bist_invalid_read_count + 1'b1;
                     end
                     else begin
-                        bist_invalid_read_count <= 2'd0;
                         wrong_read_data <= wrong_read_data + 1;
                         wrong_data <= bist_check_actual;
                         expected_data <= bist_check_expected;
@@ -4081,7 +4071,6 @@ ALTERNATE_WRITE_READ: begin
                 bist_fail_wb_data_q_current <= 128'd0;
                 bist_fail_raw_iserdes_data <= 128'd0;
                 bist_check_pending <= 1'b0;
-                bist_invalid_read_count <= 2'd0;
                 bist_check_actual <= 0;
                 bist_check_expected <= 0;
                 bist_check_addr <= 0;
