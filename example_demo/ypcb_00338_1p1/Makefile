@@ -25,11 +25,11 @@ TOP_VERILOG ?= ${TOP}.v
 PNR_DEBUG ?= # --verbose --debug
 PNR_ARGS ?=
 PNR_FREQ_MHZ ?= 83.333
-BEL_LOCKS_JSON ?= constraints/ypcb_00338_1p1_ddr3_bel_locks.json
+BEL_LOCKS_JSON ?=
 BEL_LOCKS_PRE_PLACE ?= ${PROJECT}_bel_locks_pre_place.py
 BEL_LOCKS_ALLOW_MISSING ?= 0
 UNLOCKED_PLACED_JSON ?= ${PROJECT}.placed.unlocked.json
-PNR_PRE_PLACE_ARGS = $(if $(wildcard ${BEL_LOCKS_JSON}),--pre-place ${BEL_LOCKS_PRE_PLACE},)
+PNR_PRE_PLACE_ARGS = $(if ${BEL_LOCKS_JSON},$(if $(wildcard ${BEL_LOCKS_JSON}),--pre-place ${BEL_LOCKS_PRE_PLACE},),)
 
 JTAG_LINK ?= -c digilent_hs3
 

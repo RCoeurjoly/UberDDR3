@@ -118,6 +118,11 @@ DBEOF
         ypcbDdr3DefaultTopParams = {
           controllerClkPeriod = 12000;
           ddr3ClkPeriod = 3000;
+          pllFbMult = 20;
+          pllClkout0Divide = 12;
+          pllClkout1Divide = 3;
+          pllClkout2Divide = 5;
+          pllClkout3Divide = 3;
           rowBits = 12;
           colBits = 10;
           baBits = 3;
@@ -386,22 +391,54 @@ DBEOF
             notes = entry.notes or "";
           }
         ) ypcbDdr3Bist2EnvelopeEntries;
-        ypcbDdr3Llm2fpgaMinBist2Variant = mkYpcbDdr3TopParamVariant {
+        ypcbDdr3Llm2fpgaMinBist2Variant = (mkYpcbDdr3TopParamVariant {
           suffix = "llm2fpga-min-bist2";
           label = "llm2fpga-minimum-bist2";
           axis = "llm2fpgaMinimum";
           overrides = {
+            controllerClkPeriod = 15000;
+            ddr3ClkPeriod = 3750;
+            pllFbMult = 16;
+            pllClkout0Divide = 12;
+            pllClkout1Divide = 3;
+            pllClkout2Divide = 4;
+            pllClkout3Divide = 3;
             rowBits = 15;
-            byteLanes = 2;
+            byteLanes = 1;
             bistMode = 2;
           };
-          notes = "LLM2FPGA minimum practical YPCB profile: device row geometry retained, two byte lanes, BIST mode 2.";
+          notes = "LLM2FPGA YPCB profile: device row geometry retained, one byte lane, BIST mode 2, no datamask BIST, actual clocks lowered to 66.667 MHz controller and 266.667 MHz DDR3, nextpnr target frequency 100 MHz, no placement locks.";
+        }) // {
+          pnrFreqMHz = "100";
+        };
+        ypcbDdr3Llm2fpgaMinBist2Lanes1Variant = mkYpcbDdr3TopParamVariant {
+          suffix = "llm2fpga-min-bist2-lanes1";
+          label = "llm2fpga-minimum-bist2-lanes1";
+          axis = "llm2fpgaMinimumByteLanes";
+          overrides = {
+            rowBits = 15;
+            byteLanes = 1;
+            bistMode = 2;
+          };
+          notes = "Compatibility alias for the LLM2FPGA one-lane BIST2 profile; prefer the pnr100 package aliases for new tests.";
+        };
+        ypcbDdr3Llm2fpgaMinBist2Pnr100Variant = ypcbDdr3Llm2fpgaMinBist2Variant // {
+          suffix = "llm2fpga-min-bist2-pnr100";
+          label = "llm2fpga-minimum-bist2-pnr100";
+          pnrFreqMHz = "100";
+          notes = "Compatibility alias for the LLM2FPGA one-lane BIST2 profile; actual clocks lowered to 66.667 MHz controller and 266.667 MHz DDR3 and nextpnr-xilinx target frequency set to 100 MHz.";
+        };
+        ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant = ypcbDdr3Llm2fpgaMinBist2Variant // {
+          suffix = "llm2fpga-min-bist2-lanes1-pnr100";
+          label = "llm2fpga-minimum-bist2-lanes1-pnr100";
+          pnrFreqMHz = "100";
+          notes = "LLM2FPGA one-lane BIST2 profile with actual clocks lowered to 66.667 MHz controller and 266.667 MHz DDR3 and nextpnr-xilinx target frequency raised to 100 MHz for timing margin, no placement locks.";
         };
         ypcbDdr3PanopticonTraceVariants = [
           { suffix = "panopticon-trace-lanes1-bist1"; byteLanes = 1; bistMode = 1; }
         ];
         mkYpcbPanopticonVariantDefines = {
-          controllerClkPeriod, ddr3ClkPeriod, rowBits, colBits, baBits, byteLanes,
+          controllerClkPeriod, ddr3ClkPeriod, pllFbMult, pllClkout0Divide, pllClkout1Divide, pllClkout2Divide, pllClkout3Divide, rowBits, colBits, baBits, byteLanes,
           auxWidth, wb2AddrBits, wb2DataBits, micronSim, odelaySupported,
           secondWishbone, wbError, bistMode, bistTestDatamask, eccEnable, dic,
           rttNom, selfRefresh, speedBin, sdramCapacity, traceScope ? false, ...
@@ -410,6 +447,11 @@ DBEOF
           + lib.optionalString traceScope "-DUBERDDR3_TRACE_SCOPE "
           + "-DUBERDDR3_YPCB_CONTROLLER_CLK_PERIOD=${toString controllerClkPeriod} "
           + "-DUBERDDR3_YPCB_DDR3_CLK_PERIOD=${toString ddr3ClkPeriod} "
+          + "-DUBERDDR3_YPCB_PLL_FB_MULT=${toString pllFbMult} "
+          + "-DUBERDDR3_YPCB_PLL_CLKOUT0_DIVIDE=${toString pllClkout0Divide} "
+          + "-DUBERDDR3_YPCB_PLL_CLKOUT1_DIVIDE=${toString pllClkout1Divide} "
+          + "-DUBERDDR3_YPCB_PLL_CLKOUT2_DIVIDE=${toString pllClkout2Divide} "
+          + "-DUBERDDR3_YPCB_PLL_CLKOUT3_DIVIDE=${toString pllClkout3Divide} "
           + "-DUBERDDR3_YPCB_ROW_BITS=${toString rowBits} "
           + "-DUBERDDR3_YPCB_COL_BITS=${toString colBits} "
           + "-DUBERDDR3_YPCB_BA_BITS=${toString baBits} "
@@ -455,6 +497,21 @@ DBEOF
           verilogDefines = mkYpcbPanopticonVariantDefines ypcbDdr3Llm2fpgaMinBist2Variant;
           inherit (ypcbDdr3Llm2fpgaMinBist2Variant) byteLanes bistMode;
         };
+        ypcbDdr3Llm2fpgaMinBist2Lanes1YosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-" + ypcbDdr3Llm2fpgaMinBist2Lanes1Variant.suffix;
+          verilogDefines = mkYpcbPanopticonVariantDefines ypcbDdr3Llm2fpgaMinBist2Lanes1Variant;
+          inherit (ypcbDdr3Llm2fpgaMinBist2Lanes1Variant) byteLanes bistMode;
+        };
+        ypcbDdr3Llm2fpgaMinBist2Pnr100YosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-" + ypcbDdr3Llm2fpgaMinBist2Pnr100Variant.suffix;
+          verilogDefines = mkYpcbPanopticonVariantDefines ypcbDdr3Llm2fpgaMinBist2Pnr100Variant;
+          inherit (ypcbDdr3Llm2fpgaMinBist2Pnr100Variant) byteLanes bistMode;
+        };
+        ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100YosysJson = mkYosysJson {
+          name = "ypcb-ddr3-yosys-json-" + ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant.suffix;
+          verilogDefines = mkYpcbPanopticonVariantDefines ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant;
+          inherit (ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant) byteLanes bistMode;
+        };
         ypcbDdr3Chipdb = pkgs.runCommand "ypcb-ddr3-chipdb" {
           nativeBuildInputs = [ pkgs.pypy3 nextpnrXilinx pkgs.coreutils ];
           PRJXRAY_DB_DIR = patchedPrjxrayDb;
@@ -466,7 +523,7 @@ DBEOF
           cp -R metadata $out/metadata
         '';
 
-        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson }:
+        mkNextpnrJson = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson, pnrFreqMHz ? ypcb.freqMHz }:
           let
             seedArg = if seed == null then "" else "--seed ${toString seed}";
             placerArg = if placer == null then "" else "--placer ${placer}";
@@ -490,18 +547,18 @@ DBEOF
               --json ${yosysJson}/${ypcb.project}.json \
               --write $out/${ypcb.project}.placed.json \
               --fasm $out/${ypcb.project}.fasm \
-              --freq ${ypcb.freqMHz} \
+              --freq ${pnrFreqMHz} \
               ${seedArg} ${placerArg} ${routerArg} ${pnrArgs} $prePlaceArg \
               2>&1 | tee metadata/nextpnr.log
             sha256sum $out/${ypcb.project}.placed.json > metadata/nextpnr-json.sha256
             grep -E "(Checksum|checksum|Placed|Routed|Error|Warning|Info: Device utilisation|Info: Critical path)" metadata/nextpnr.log > metadata/nextpnr-summary.txt || true
             cat > metadata/candidate.json <<META
-{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "yosys_json": "${yosysJson}"}
+{"seed": ${if seed == null then "null" else toString seed}, "placer": ${if placer == null then "null" else ''"${placer}"''}, "router": ${if router == null then "null" else ''"${router}"''}, "pnr_args": ${builtins.toJSON pnrArgs}, "lock_file": ${if lockFile == null then "null" else builtins.toJSON lockFile}, "pnr_freq_mhz": "${pnrFreqMHz}", "actual_controller_freq_mhz": "${ypcb.freqMHz}", "yosys_json": "${yosysJson}"}
 META
             cp -R metadata $out/metadata
           '';
 
-        mkSdf = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson }:
+        mkSdf = { name, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson, pnrFreqMHz ? ypcb.freqMHz }:
           let
             seedArg = if seed == null then "" else "--seed ${toString seed}";
             placerArg = if placer == null then "" else "--placer ${placer}";
@@ -524,7 +581,7 @@ META
               --xdc ${ypcb.project}.xdc \
               --json ${yosysJson}/${ypcb.project}.json \
               --write $out/${ypcb.project}.placed.json \
-              --freq ${ypcb.freqMHz} \
+              --freq ${pnrFreqMHz} \
               ${seedArg} ${placerArg} ${routerArg} ${pnrArgs} $prePlaceArg \
               --sdf $out/${ypcb.project}.sdf \
               2>&1 | tee metadata/nextpnr-sdf.log
@@ -740,13 +797,13 @@ README
             cp -R metadata $out/metadata
           '';
 
-        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson }:
+        mkCandidate = { suffix, seed ? null, pnrArgs ? "", placer ? null, router ? null, lockFile ? null, yosysJson ? ypcbDdr3YosysJson, pnrFreqMHz ? ypcb.freqMHz }:
           let
-            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson; };
+            pnr = mkNextpnrJson { name = "ypcb-ddr3-nextpnr-json-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson pnrFreqMHz; };
             fasmDrv = mkFasm { name = "ypcb-ddr3-fasm-${suffix}"; nextpnrJson = pnr; };
             frames = mkFrames { name = "ypcb-ddr3-frames-${suffix}"; inherit fasmDrv; };
             bitstream = mkBitstream { name = "ypcb-ddr3-bitstream-${suffix}"; framesDrv = frames; };
-            sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson; };
+            sdf = mkSdf { name = "ypcb-ddr3-sdf-${suffix}"; inherit seed pnrArgs placer router lockFile yosysJson pnrFreqMHz; };
             gateNetlist = mkGateNetlist { name = "ypcb-ddr3-gate-netlist-${suffix}"; inherit yosysJson; };
             icarusGateBist = mkIcarusGateBist { name = "ypcb-ddr3-icarus-gate-bist-${suffix}"; inherit gateNetlist; };
             icarusSdfBist = mkIcarusGateBist { name = "ypcb-ddr3-icarus-sdf-bist-${suffix}"; inherit gateNetlist sdf; annotateSdf = true; };
@@ -808,7 +865,32 @@ README
             suffix = "llm2fpga-min-bist2-seed-${seed}";
             seed = lib.toInt seed;
             pnrArgs = "--no-tmdriv --timing-allow-fail";
+            pnrFreqMHz = ypcbDdr3Llm2fpgaMinBist2Variant.pnrFreqMHz;
             yosysJson = ypcbDdr3Llm2fpgaMinBist2YosysJson;
+          });
+        llm2fpgaMinBist2Lanes1SeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate {
+            suffix = "llm2fpga-min-bist2-lanes1-seed-${seed}";
+            seed = lib.toInt seed;
+            pnrArgs = "--no-tmdriv --timing-allow-fail";
+            pnrFreqMHz = ypcbDdr3Llm2fpgaMinBist2Variant.pnrFreqMHz;
+            yosysJson = ypcbDdr3Llm2fpgaMinBist2Lanes1YosysJson;
+          });
+        llm2fpgaMinBist2Pnr100SeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate {
+            suffix = "llm2fpga-min-bist2-pnr100-seed-${seed}";
+            seed = lib.toInt seed;
+            pnrArgs = "--no-tmdriv --timing-allow-fail";
+            pnrFreqMHz = ypcbDdr3Llm2fpgaMinBist2Pnr100Variant.pnrFreqMHz;
+            yosysJson = ypcbDdr3Llm2fpgaMinBist2Pnr100YosysJson;
+          });
+        llm2fpgaMinBist2Lanes1Pnr100SeedCandidates = lib.genAttrs (map toString reliabilitySeeds) (seed:
+          mkCandidate {
+            suffix = "llm2fpga-min-bist2-lanes1-pnr100-seed-${seed}";
+            seed = lib.toInt seed;
+            pnrArgs = "--no-tmdriv --timing-allow-fail";
+            pnrFreqMHz = ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant.pnrFreqMHz;
+            yosysJson = ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100YosysJson;
           });
         panopticonTraceSeedCandidates = lib.listToAttrs (lib.concatMap (variant:
           map (seed:
@@ -834,6 +916,12 @@ README
           lib.nameValuePair "ypcb-ddr3-bitstream-trace-scope-seed-${seed}" candidate.bitstream) traceScopeSeedCandidates;
         llm2fpgaMinBist2SeedBitstreams = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-${seed}" candidate.bitstream) llm2fpgaMinBist2SeedCandidates;
+        llm2fpgaMinBist2Lanes1SeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-seed-${seed}" candidate.bitstream) llm2fpgaMinBist2Lanes1SeedCandidates;
+        llm2fpgaMinBist2Pnr100SeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-llm2fpga-min-bist2-pnr100-seed-${seed}" candidate.bitstream) llm2fpgaMinBist2Pnr100SeedCandidates;
+        llm2fpgaMinBist2Lanes1Pnr100SeedBitstreams = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-pnr100-seed-${seed}" candidate.bitstream) llm2fpgaMinBist2Lanes1Pnr100SeedCandidates;
         seedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-seed-${seed}" candidate.pnr) seedCandidates;
         prodSeedPnrs = lib.mapAttrs' (seed: candidate:
@@ -846,6 +934,12 @@ README
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-trace-scope-seed-${seed}" candidate.pnr) traceScopeSeedCandidates;
         llm2fpgaMinBist2SeedPnrs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-nextpnr-json-llm2fpga-min-bist2-seed-${seed}" candidate.pnr) llm2fpgaMinBist2SeedCandidates;
+        llm2fpgaMinBist2Lanes1SeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-llm2fpga-min-bist2-lanes1-seed-${seed}" candidate.pnr) llm2fpgaMinBist2Lanes1SeedCandidates;
+        llm2fpgaMinBist2Pnr100SeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-llm2fpga-min-bist2-pnr100-seed-${seed}" candidate.pnr) llm2fpgaMinBist2Pnr100SeedCandidates;
+        llm2fpgaMinBist2Lanes1Pnr100SeedPnrs = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-nextpnr-json-llm2fpga-min-bist2-lanes1-pnr100-seed-${seed}" candidate.pnr) llm2fpgaMinBist2Lanes1Pnr100SeedCandidates;
         panopticonSweepYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
           lib.nameValuePair "ypcb-ddr3-yosys-json-${suffix}" yosysJson) ypcbDdr3PanopticonSweepYosysJsons;
         panopticonTraceYosysJsonPackages = lib.mapAttrs' (suffix: yosysJson:
@@ -884,6 +978,12 @@ README
           lib.nameValuePair "ypcb-ddr3-fasm-seed-${seed}" candidate.fasmDrv) seedCandidates;
         llm2fpgaMinBist2SeedFasms = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-fasm-llm2fpga-min-bist2-seed-${seed}" candidate.fasmDrv) llm2fpgaMinBist2SeedCandidates;
+        llm2fpgaMinBist2Lanes1SeedFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-llm2fpga-min-bist2-lanes1-seed-${seed}" candidate.fasmDrv) llm2fpgaMinBist2Lanes1SeedCandidates;
+        llm2fpgaMinBist2Pnr100SeedFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-llm2fpga-min-bist2-pnr100-seed-${seed}" candidate.fasmDrv) llm2fpgaMinBist2Pnr100SeedCandidates;
+        llm2fpgaMinBist2Lanes1Pnr100SeedFasms = lib.mapAttrs' (seed: candidate:
+          lib.nameValuePair "ypcb-ddr3-fasm-llm2fpga-min-bist2-lanes1-pnr100-seed-${seed}" candidate.fasmDrv) llm2fpgaMinBist2Lanes1Pnr100SeedCandidates;
         seedSdfs = lib.mapAttrs' (seed: candidate:
           lib.nameValuePair "ypcb-ddr3-sdf-seed-${seed}" candidate.sdf) seedCandidates;
         ypcbDdr3TopParameterMatrixCsv =
@@ -970,11 +1070,11 @@ README
             rows = lib.imap0 row ypcbDdr3Bist2EnvelopeVariants;
           in pkgs.writeText "ypcb-ddr3-bist2-envelope-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + (lib.concatStringsSep "\n" rows) + "\n");
 
-        ypcbDdr3Llm2fpgaMinBist2MatrixCsv =
+        mkYpcbDdr3Llm2fpgaMinBist2MatrixCsv = variant:
           let
-            variant = ypcbDdr3Llm2fpgaMinBist2Variant;
             fields = [
               "suffix" "label" "controller_clk_period" "ddr3_clk_period"
+              "actual_controller_freq_mhz" "pnr_freq_mhz"
               "row_bits" "col_bits" "ba_bits" "byte_lanes" "aux_width"
               "wb2_addr_bits" "wb2_data_bits" "micron_sim" "odelay_supported"
               "second_wishbone" "wb_error" "bist_mode" "bist_test_datamask"
@@ -986,6 +1086,8 @@ README
               variant.label
               (toString variant.controllerClkPeriod)
               (toString variant.ddr3ClkPeriod)
+              ypcb.freqMHz
+              (variant.pnrFreqMHz or ypcb.freqMHz)
               (toString variant.rowBits)
               (toString variant.colBits)
               (toString variant.baBits)
@@ -1005,10 +1107,14 @@ README
               variant.selfRefresh
               (toString variant.speedBin)
               (toString variant.sdramCapacity)
-              "ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-{seed}"
+              "ypcb-ddr3-bitstream-${variant.suffix}-seed-{seed}"
               variant.notes
             ];
-          in pkgs.writeText "ypcb-ddr3-llm2fpga-min-bist2-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + row + "\n");
+          in pkgs.writeText "ypcb-ddr3-${variant.suffix}-matrix.csv" ((lib.concatStringsSep "," fields) + "\n" + row + "\n");
+        ypcbDdr3Llm2fpgaMinBist2MatrixCsv = mkYpcbDdr3Llm2fpgaMinBist2MatrixCsv ypcbDdr3Llm2fpgaMinBist2Variant;
+        ypcbDdr3Llm2fpgaMinBist2Lanes1MatrixCsv = mkYpcbDdr3Llm2fpgaMinBist2MatrixCsv ypcbDdr3Llm2fpgaMinBist2Lanes1Variant;
+        ypcbDdr3Llm2fpgaMinBist2Pnr100MatrixCsv = mkYpcbDdr3Llm2fpgaMinBist2MatrixCsv ypcbDdr3Llm2fpgaMinBist2Pnr100Variant;
+        ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100MatrixCsv = mkYpcbDdr3Llm2fpgaMinBist2MatrixCsv ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant;
 
         mkProgressiveBoardManifest = { name, variant, packagePrefix, byteLanes, seeds, repeats ? 1 }:
           let
@@ -1127,9 +1233,13 @@ README
           ypcb-ddr3-yosys-json-panopticon = ypcbDdr3PanopticonYosysJson;
           ypcb-ddr3-yosys-json-trace-scope = ypcbDdr3TraceScopeYosysJson;
           ypcb-ddr3-yosys-json-llm2fpga-min-bist2 = ypcbDdr3Llm2fpgaMinBist2YosysJson;
+          ypcb-ddr3-yosys-json-llm2fpga-min-bist2-lanes1 = ypcbDdr3Llm2fpgaMinBist2Lanes1YosysJson;
           ypcb-ddr3-top-parameter-matrix = ypcbDdr3TopParameterMatrixCsv;
           ypcb-ddr3-bist2-envelope-matrix = ypcbDdr3Bist2EnvelopeMatrixCsv;
           ypcb-ddr3-llm2fpga-min-bist2-matrix = ypcbDdr3Llm2fpgaMinBist2MatrixCsv;
+          ypcb-ddr3-llm2fpga-min-bist2-lanes1-matrix = ypcbDdr3Llm2fpgaMinBist2Lanes1MatrixCsv;
+          ypcb-ddr3-llm2fpga-min-bist2-pnr100-matrix = ypcbDdr3Llm2fpgaMinBist2Pnr100MatrixCsv;
+          ypcb-ddr3-llm2fpga-min-bist2-lanes1-pnr100-matrix = ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100MatrixCsv;
           ypcb-ddr3-chipdb = ypcbDdr3Chipdb;
           ypcb-ddr3-nextpnr-json = baseline.pnr;
           ypcb-ddr3-nextpnr-json-baseline = baseline.pnr;
@@ -1202,7 +1312,7 @@ README
             variant = "debug-calib-bist";
             candidates = seedCandidates;
             seeds = lib.range 31 60;
-            repeats = 1;
+            repeats = 3;
           };
           ypcb-ddr3-board-manifest-panopticon-stage1 = mkBoardManifest {
             name = "ypcb-ddr3-board-manifest-panopticon-stage1.csv";
@@ -1234,7 +1344,55 @@ README
             seeds = lib.range 31 60;
             repeats = 3;
           };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-stage1 = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-stage1.csv";
+            variant = "llm2fpga-min-bist2-lanes1";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Lanes1Variant.byteLanes;
+            seeds = lib.range 1 30;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-heldout = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-heldout.csv";
+            variant = "llm2fpga-min-bist2-lanes1";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Lanes1Variant.byteLanes;
+            seeds = lib.range 31 60;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-pnr100-stage1 = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-pnr100-stage1.csv";
+            variant = "llm2fpga-min-bist2-pnr100";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-pnr100-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Pnr100Variant.byteLanes;
+            seeds = lib.range 1 30;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-pnr100-heldout = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-pnr100-heldout.csv";
+            variant = "llm2fpga-min-bist2-pnr100";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-pnr100-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Pnr100Variant.byteLanes;
+            seeds = lib.range 31 60;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-pnr100-stage1 = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-pnr100-stage1.csv";
+            variant = "llm2fpga-min-bist2-lanes1-pnr100";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-pnr100-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant.byteLanes;
+            seeds = lib.range 1 30;
+            repeats = 3;
+          };
+          ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-pnr100-heldout = mkProgressiveBoardManifest {
+            name = "ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-lanes1-pnr100-heldout.csv";
+            variant = "llm2fpga-min-bist2-lanes1-pnr100";
+            packagePrefix = "ypcb-ddr3-bitstream-llm2fpga-min-bist2-lanes1-pnr100-seed-";
+            byteLanes = ypcbDdr3Llm2fpgaMinBist2Lanes1Pnr100Variant.byteLanes;
+            seeds = lib.range 31 60;
+            repeats = 3;
+          };
           default = baseline.bitstream;
-        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // bist2EnvelopeYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // llm2fpgaMinBist2SeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // llm2fpgaMinBist2SeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // bist2EnvelopeSeedPnrs // seedFasms // llm2fpgaMinBist2SeedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // bist2EnvelopeSeedBitstreams // seedSdfs;
+        } // panopticonSweepYosysJsonPackages // panopticonTraceYosysJsonPackages // bist2EnvelopeYosysJsonPackages // seedBitstreams // prodSeedBitstreams // noTmdrivSeedBitstreams // panopticonSeedBitstreams // traceScopeSeedBitstreams // llm2fpgaMinBist2SeedBitstreams // llm2fpgaMinBist2Lanes1SeedBitstreams // llm2fpgaMinBist2Pnr100SeedBitstreams // llm2fpgaMinBist2Lanes1Pnr100SeedBitstreams // seedPnrs // prodSeedPnrs // noTmdrivSeedPnrs // panopticonSeedPnrs // traceScopeSeedPnrs // llm2fpgaMinBist2SeedPnrs // llm2fpgaMinBist2Lanes1SeedPnrs // llm2fpgaMinBist2Pnr100SeedPnrs // llm2fpgaMinBist2Lanes1Pnr100SeedPnrs // panopticonSweepPnrs // panopticonSweepSeedPnrs // panopticonTraceSeedPnrs // bist2EnvelopeSeedPnrs // seedFasms // llm2fpgaMinBist2SeedFasms // llm2fpgaMinBist2Lanes1SeedFasms // llm2fpgaMinBist2Pnr100SeedFasms // llm2fpgaMinBist2Lanes1Pnr100SeedFasms // panopticonSweepFasms // panopticonSweepSeedFasms // panopticonTraceSeedFasms // panopticonSweepFrames // panopticonSweepSeedFrames // panopticonTraceSeedFrames // panopticonSweepBitstreams // panopticonSweepSeedBitstreams // panopticonTraceSeedBitstreams // bist2EnvelopeSeedBitstreams // seedSdfs;
       });
 }

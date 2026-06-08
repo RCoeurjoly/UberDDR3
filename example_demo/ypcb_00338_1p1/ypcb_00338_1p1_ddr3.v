@@ -2,7 +2,7 @@
 `timescale 1ps / 1ps
 
 `ifndef UBERDDR3_YPCB_BYTE_LANES
-`define UBERDDR3_YPCB_BYTE_LANES 2
+`define UBERDDR3_YPCB_BYTE_LANES 1
 `endif
 
 `ifndef UBERDDR3_YPCB_BIST_MODE
