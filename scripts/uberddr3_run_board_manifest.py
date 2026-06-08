@@ -2,6 +2,8 @@
 """Run YPCB DDR3 board tests for each row in a build manifest.
 
 Expected CSV columns: experiment_id, seed, variant, bitstream_file.
+Package manifests may use bitstream_package instead of bitstream_file and
+should include byte_lanes when the debug payload is not the default 2 lanes.
 """
 
 from __future__ import annotations
@@ -18,6 +20,7 @@ STATUS_FIELDS = [
     "seed",
     "repeat",
     "variant",
+    "byte_lanes",
     "bitstream",
     "bitstream_sha256",
     "result_json",
@@ -27,7 +30,10 @@ STATUS_FIELDS = [
     "failure_class",
     "fail_reasons",
     "attempts",
+    "clk_locked",
+    "calib_complete",
     "state_calibrate",
+    "bist_done",
     "correct_read_data",
     "wrong_read_data",
 ]
@@ -94,7 +100,10 @@ def classify_result(result_path: Path) -> dict[str, object]:
         "failure_class": failure_class,
         "fail_reasons": ",".join(str(reason) for reason in fail_reasons),
         "attempts": result.get("attempts", ""),
+        "clk_locked": fields.get("clk_locked", ""),
+        "calib_complete": fields.get("calib_complete", ""),
         "state_calibrate": fields.get("state_calibrate", ""),
+        "bist_done": fields.get("bist_done", ""),
         "correct_read_data": fields.get("correct_read_data", ""),
         "wrong_read_data": fields.get("wrong_read_data", ""),
     }
@@ -105,6 +114,7 @@ def main() -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, default=Path("local-artifacts/board-sweeps"))
     parser.add_argument("--board-test", type=Path, default=Path("example_demo/ypcb_00338_1p1/scripts/ypcb_ddr3_board_test.py"))
+    parser.add_argument("--bitstream-name", default="ypcb_00338_1p1_ddr3_openxc7.bit")
     parser.add_argument("--poll-count", type=int, default=100)
     parser.add_argument("--poll-interval", type=float, default=0.1)
     parser.add_argument("--skip-existing", action="store_true")
@@ -120,21 +130,40 @@ def main() -> int:
         experiment_id = row["experiment_id"]
         result_json = args.out_dir / f"{experiment_id}.json"
         log_path = args.out_dir / f"{experiment_id}.log"
-        bitstream = row["bitstream_file"]
+        package = row.get("bitstream_package", "")
+        if row.get("bitstream_file"):
+            bitstream = row["bitstream_file"]
+        elif package:
+            package_ref = package if package.startswith(".#") else f".#{package}"
+            build_link = args.out_dir / f"build-{experiment_id}"
+            build_log = args.out_dir / f"build-{experiment_id}.log"
+            build_command = ["nix", "build", package_ref, "-o", str(build_link), "-L"]
+            build = subprocess.run(build_command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            build_log.write_text(build.stdout, encoding="utf-8")
+            if build.returncode != 0:
+                status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "byte_lanes": row.get("byte_lanes", "2") or "2", "bitstream": package_ref, "bitstream_sha256": "", "result_json": result_json, "log": build_log, "returncode": build.returncode, "status": "fail", "failure_class": "build", "fail_reasons": "build_failed"})
+                write_status(status_path, status_rows)
+                if not args.continue_on_fail:
+                    return build.returncode or 1
+                continue
+            bitstream = str(build_link / args.bitstream_name)
+        else:
+            raise KeyError("manifest row must include bitstream_file or bitstream_package")
+        byte_lanes = row.get("byte_lanes", "2") or "2"
         bitstream_sha256 = sha256_file(Path(bitstream))
 
         if args.skip_existing and result_json.exists():
             classification = classify_result(result_json)
-            status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": "", "status": "skipped_existing", **classification})
+            status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "byte_lanes": byte_lanes, "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": "", "status": "skipped_existing", **classification})
             write_status(status_path, status_rows)
             continue
 
-        command = ["python3", str(args.board_test), "--bitstream", bitstream, "--output", str(result_json), "--poll-count", str(args.poll_count), "--poll-interval", str(args.poll_interval)]
+        command = ["python3", str(args.board_test), "--bitstream", bitstream, "--output", str(result_json), "--poll-count", str(args.poll_count), "--poll-interval", str(args.poll_interval), "--byte-lanes", byte_lanes]
         completed = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         log_path.write_text(completed.stdout, encoding="utf-8")
         status = "pass" if completed.returncode == 0 else "fail"
         classification = classify_result(result_json)
-        status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": completed.returncode, "status": status, **classification})
+        status_rows.append({"experiment_id": experiment_id, "seed": row.get("seed", ""), "repeat": row.get("repeat", ""), "variant": row.get("variant", ""), "byte_lanes": byte_lanes, "bitstream": bitstream, "bitstream_sha256": bitstream_sha256, "result_json": result_json, "log": log_path, "returncode": completed.returncode, "status": status, **classification})
         write_status(status_path, status_rows)
         print(f"{experiment_id}: {status} rc={completed.returncode}")
         if completed.returncode != 0:

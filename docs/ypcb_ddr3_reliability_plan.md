@@ -2,7 +2,7 @@
 
 ## Goal
 
-Make the standalone YPCB DDR3 driver consistently pass at the fixed low target: 2 byte lanes and 333 MHz DDR3 clock. Do not expand width, frequency, or integration scope until this target is stable.
+Keep the standalone YPCB DDR3 driver fixed on the proven LLM2FPGA baseline: 15 row bits, 10 column bits, 3 bank bits, 1 byte lane, 4-bit AUX, BIST mode 2, no datamask BIST, no ECC, no second Wishbone, 83.333 MHz controller clock, 333 MHz DDR3 clock, and nextpnr `--freq 100`. Defer wider UberDDR3 exploration until LLM2FPGA rowstream/readback/inference passes on this profile.
 
 ## Working rules
 
@@ -23,9 +23,11 @@ Make the standalone YPCB DDR3 driver consistently pass at the fixed low target: 
 Promotion requires the staged gate:
 
 - debug stage 1: seeds 1 through 30, 3 reprograms each
-- debug held-out: seeds 31 through 60, 1 reprogram each
+- debug held-out: seeds 31 through 60, 3 reprograms each
 - production build matrix: build seeds 1 through 60 with debug disabled
-- LLM2FPGA integration soak
+- LLM2FPGA packed full-beat rowstream write/read, followed by inference selftest
+
+Do not use byte-mask or low-byte rowstream validation as acceptance gates on YPCB; the board has no byte mask routed.
 
 Use `--poll-count 200` for debug hardware sweeps unless explicitly recording a different experiment. The current board-test runner requires BSCAN debug and cannot directly validate true production bitstreams.
 
@@ -39,7 +41,7 @@ Use SDF and statistical scripts as hypothesis generators, not as signoff. Priori
 
 ## Commands
 
-Build the debug stage-1 manifest:
+Build the generic debug stage-1 manifest:
 
 ```sh
 nix build .#ypcb-ddr3-board-manifest-debug-stage1 -o result-manifest-debug-stage1
@@ -65,3 +67,35 @@ scripts/uberddr3_run_board_manifest.py \
 ```
 
 Inspect `sweep_status.csv` first. It records bitstream hash, failure class, fail reasons, attempts, calibration state, and BIST counters.
+
+Build the LLM2FPGA 1-lane stage-1 package manifest:
+
+```sh
+nix build .#ypcb-ddr3-board-package-manifest-llm2fpga-min-bist2-stage1 -o result-manifest-llm2fpga-min-bist2-stage1
+```
+
+Run it progressively, stopping on the first failure:
+
+```sh
+scripts/uberddr3_run_seed_gate.py \
+  --package-template '.#ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-{seed}' \
+  --variant llm2fpga-min-bist2 \
+  --seeds 1-30 \
+  --repeats 3 \
+  --byte-lanes 1 \
+  --poll-count 200 \
+  --out-dir local-artifacts/board-sweeps/llm2fpga-min-bist2-stage1
+```
+
+Run the held-out 1-lane gate after stage 1 passes:
+
+```sh
+scripts/uberddr3_run_seed_gate.py \
+  --package-template '.#ypcb-ddr3-bitstream-llm2fpga-min-bist2-seed-{seed}' \
+  --variant llm2fpga-min-bist2 \
+  --seeds 31-60 \
+  --repeats 3 \
+  --byte-lanes 1 \
+  --poll-count 200 \
+  --out-dir local-artifacts/board-sweeps/llm2fpga-min-bist2-heldout
+```

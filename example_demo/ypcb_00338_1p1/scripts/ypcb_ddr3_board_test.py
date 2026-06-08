@@ -25,6 +25,8 @@ TRACE_SCOPE_DEPTH = 32
 MAGIC = 0x33445244
 VERSION = 1
 DEBUG_VERSION = 2
+FULL_DEBUG_VERSIONS = {VERSION, DEBUG_VERSION, 3}
+STATUS_DEBUG_VERSION = 4
 CALIB_DONE_STATE = 23
 FTDI_VENDOR = 0x0403
 FTDI_FT232H_PRODUCT = 0x6014
@@ -224,6 +226,46 @@ def field(payload: int, offset: int, width: int) -> int:
     return (payload >> offset) & ((1 << width) - 1)
 
 
+def decode_status_fields(payload: int) -> dict[str, object]:
+    debug1 = field(payload, 28, 32)
+    bist_counts = field(payload, 448, 64)
+    correct_read_data = field(bist_counts, 0, 32)
+    wrong_read_data = field(bist_counts, 32, 32)
+    return {
+        "rst_n": bool(field(payload, 0, 1)),
+        "clk_locked": bool(field(payload, 1, 1)),
+        "bist_done": bool(field(payload, 2, 1)),
+        "calib_complete": bool(field(payload, 3, 1)),
+        "debug1": debug1,
+        "state_calibrate": debug1 & 0x1F,
+        "magic": field(payload, 60, 32),
+        "version": field(payload, 92, 8),
+        "debug8": bist_counts,
+        "bist_counts": bist_counts,
+        "correct_read_data": correct_read_data,
+        "wrong_read_data": wrong_read_data,
+        "rtl_fullbeat": {
+            "present": True,
+            "source": "debug8_bist_counters",
+            "mismatch_count": wrong_read_data,
+            "match_count": correct_read_data,
+            "pass": wrong_read_data == 0,
+        },
+    }
+
+
+def decode_minimal_status_payload(payload: int) -> dict[str, object]:
+    decoded = decode_status_fields(payload)
+    decoded.update({
+        "payload_layout": "status-debug8",
+        "calib_debug": {"present": False, "reason": "not_in_payload"},
+        "init_reset_debug": {"present": False, "reason": "not_in_payload"},
+        "init_seq_debug": {"present": False, "reason": "not_in_payload"},
+        "bist_debug": {"present": False, "reason": "not_in_payload"},
+        "panopticon_debug": {"present": False, "reason": "not_in_payload"},
+    })
+    return decoded
+
 
 def decode_calib_debug(payload: int, calib_debug_offset: int, byte_lanes: int, init_reset_debug: dict[str, object]) -> dict[str, object]:
     offset = calib_debug_offset
@@ -304,8 +346,32 @@ def decode_calib_debug(payload: int, calib_debug_offset: int, byte_lanes: int, i
 
 
 def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[str, object]:
-    debug1 = field(payload, 28, 32)
-    bist_counts = field(payload, 448, 64)
+    version = field(payload, 92, 8)
+    if version not in FULL_DEBUG_VERSIONS:
+        decoded = decode_minimal_status_payload(payload)
+        reasons: list[str] = []
+        if decoded["magic"] != MAGIC:
+            reasons.append("bad_magic")
+        if decoded["version"] != STATUS_DEBUG_VERSION:
+            reasons.append("bad_version")
+        if not decoded["clk_locked"]:
+            reasons.append("clk_unlocked")
+        if not decoded["calib_complete"]:
+            reasons.append("calib_incomplete")
+        if decoded["state_calibrate"] != CALIB_DONE_STATE:
+            reasons.append("calib_state_not_done")
+        if not decoded["bist_done"]:
+            reasons.append("bist_not_done")
+        if decoded["wrong_read_data"] != 0:
+            reasons.append("wrong_read_data_nonzero")
+        return {
+            "raw_hex": f"0x{payload:0{(bit_count + 3) // 4}x}",
+            "fields": decoded,
+            "pass": not reasons,
+            "fail_reasons": reasons,
+        }
+
+    status_fields = decode_status_fields(payload)
     init_reset_debug_offset = 512
     init_reset_debug = {
         "controller_i_rst_n": bool(field(payload, init_reset_debug_offset + 0, 1)),
@@ -457,17 +523,8 @@ def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[st
     calib_debug_offset = 100
     calib_debug = decode_calib_debug(payload, calib_debug_offset, byte_lanes, init_reset_debug)
     decoded = {
-        "rst_n": bool(field(payload, 0, 1)),
-        "clk_locked": bool(field(payload, 1, 1)),
-        "bist_done": bool(field(payload, 2, 1)),
-        "calib_complete": bool(field(payload, 3, 1)),
-        "debug1": debug1,
-        "state_calibrate": debug1 & 0x1F,
-        "magic": field(payload, 60, 32),
-        "version": field(payload, 92, 8),
-        "bist_counts": bist_counts,
-        "correct_read_data": field(bist_counts, 0, 32),
-        "wrong_read_data": field(bist_counts, 32, 32),
+        **status_fields,
+        "payload_layout": "full-debug",
         "calib_debug": calib_debug,
         "init_reset_debug": init_reset_debug,
         "init_seq_debug": init_seq_debug,
@@ -477,7 +534,7 @@ def decode_payload(payload: int, bit_count: int, byte_lanes: int = 2) -> dict[st
     reasons: list[str] = []
     if decoded["magic"] != MAGIC:
         reasons.append("bad_magic")
-    if decoded["version"] not in (VERSION, DEBUG_VERSION, 3, 4):
+    if decoded["version"] not in FULL_DEBUG_VERSIONS:
         reasons.append("bad_version")
     if not decoded["clk_locked"]:
         reasons.append("clk_unlocked")
@@ -580,7 +637,7 @@ def sha256_file(path: Path) -> str:
 
 
 def program_bitstream(programmer: Path, bitstream: Path) -> dict[str, object]:
-    command = [str(programmer), "-c", "digilent_hs3", "--bitstream", str(bitstream)]
+    command = [str(programmer), "-c", "digilent_hs3", "-m", "--file-type", "bit", str(bitstream)]
     completed = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return {"command": command, "returncode": completed.returncode, "output": completed.stdout}
 
