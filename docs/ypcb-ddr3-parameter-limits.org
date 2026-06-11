@@ -1,0 +1,77 @@
+#+title: YPCB DDR3 Parameter Limits
+
+* Assumptions
+
+This note compares the current LLM2FPGA/YPCB UberDDR3 configuration against the
+theoretical limits implied by the YPCB-00338-1P1 board and its Micron
+=MT41K256M8DA-125:K= DDR3L SDRAM.
+
+- Current profile: one byte lane, =DDR3_CLK_PERIOD=3750 ps, =CONTROLLER_CLK_PERIOD=15000 ps.
+- The Micron =-125= speed grade supports DDR3-1600, i.e. 800 MHz CK and 1600 MT/s.
+- =MT41K256M8= is a 2Gb x8 device with 15 row bits, 10 column bits, and 3 bank bits.
+- The local YPCB top exposes 64 data pins, so UberDDR3 can theoretically use 8 byte lanes in this design.
+- The board article describes each memory group as 9 x8 chips, a raw 72-bit ECC channel. This local design currently exposes 64 data bits, not the ECC byte as a separate ninth lane.
+
+Current one-byte-lane theoretical peak:
+
+#+begin_example
+266.667 MHz * 2 * 8 bits = 4.267 Gbit/s = 533.3 MB/s
+#+end_example
+
+Maximum for one =MT41K256M8DA-125:K= x8 chip:
+
+#+begin_example
+800 MHz * 2 * 8 bits = 12.8 Gbit/s = 1.6 GB/s
+#+end_example
+
+Maximum for the 64-bit data bus exposed by this local YPCB design:
+
+#+begin_example
+800 MHz * 2 * 64 bits = 102.4 Gbit/s = 12.8 GB/s
+#+end_example
+
+* Top-Level Parameters
+
+| Parameter | Current value | Theoretical max / hardware-bound value | Basis / note |
+|-----------+---------------+-----------------------------------------+--------------|
+| CONTROLLER_CLK_PERIOD | 15000 ps, 66.667 MHz | 5000 ps, 200 MHz | UberDDR3 fixed 4:1, paired with 800 MHz DDR CK |
+| DDR3_CLK_PERIOD | 3750 ps, 266.667 MHz CK, DDR3-533 | 1250 ps, 800 MHz CK, DDR3-1600 | MT41K256M8DA-125:K speed grade |
+| ROW_BITS | 15 | 15 | MT41K256M8 row A[14:0] |
+| COL_BITS | 10 | 10 | MT41K256M8 column A[9:0] |
+| BA_BITS | 3 | 3 | 8 banks, BA[2:0] |
+| BYTE_LANES | 1 | 8 for this 64-bit local design; 9 raw chips in board ECC group | Local top exposes ddr3_dq[63:0]; board group is 72-bit ECC |
+| AUX_WIDTH | 4 | Not DDR3-hardware-limited; >= 4 required by UberDDR3 | Aux/user metadata width |
+| WB2_ADDR_BITS | 7 | Not DDR3-hardware-limited | Debug Wishbone address width |
+| WB2_DATA_BITS | 32 | Not DDR3-hardware-limited | Debug Wishbone data width |
+| DUAL_RANK_DIMM | 0 | 0 for this board/channel | Local top has single CS/CKE/ODT set |
+| SPEED_BIN | 1, DDR3-1066 timing table | 3, DDR3-1600 timing table | Needed to match -125 max operation |
+| SDRAM_CAPACITY | 4 | 3 would match 2Gb tRFC literally; 4 is current internal enum | MT41K256M8 is 2Gb; current code uses 4 |
+| TRCD | 13750 ps, unused unless SPEED_BIN=0 | 13750 ps for DDR3-1600 -125 | Datasheet -125 tRCD |
+| TRP | 13750 ps, unused unless SPEED_BIN=0 | 13750 ps for DDR3-1600 -125 | Datasheet -125 tRP |
+| TRAS | 35000 ps, unused unless SPEED_BIN=0 | 35000 ps for DDR3-1600 -125 | Datasheet -125 / controller table |
+| MICRON_SIM | 0 | 0 in hardware | Simulation-only |
+| ODELAY_SUPPORTED | 0 | 1 if using FPGA ODELAYE2 path successfully | FPGA feature/config choice, not SDRAM limit |
+| SECOND_WISHBONE | 0 | 1 | Optional debug interface |
+| DLL_OFF | 0 | 0 at max speed | DLL-off is for low-frequency mode, not DDR3-1600 |
+| WB_ERROR | 0 | 1 | Optional ECC error reporting |
+| BIST_MODE | 2 | 2 | Controller max encoded BIST mode |
+| BIST_TEST_DATAMASK | 0 | 1 if DM pins/board use allow it | Local note says may be board-incompatible |
+| ECC_ENABLE | 0 | 3 | Controller supports side-band/inline ECC modes; board raw ECC byte is separate |
+| DIC | 2'b00, RZQ/6 | 2'b01 also valid, RZQ/7 | DDR3 MR1 drive strength options in controller |
+| RTT_NOM | 3'b000, disabled | 3'b011/RZQ6 or board-tuned value | Legal values include disabled, RZQ/4, RZQ/2, RZQ/6 |
+| SELF_REFRESH | 2'b00 | 2'b11 | Controller supports user, 64, 128, 256-cycle idle thresholds |
+| DQ_BITS | 8 | 8 | MT41K256M8 is x8 |
+| serdes_ratio | 4 | 4 | UberDDR3 fixed 4:1 controller |
+| wb_addr_bits | 25 | 25 for one x8 chip geometry; still 25 with 8 lanes | ROW+COL+BA-log2(8) = 15+10+3-3 |
+| wb_data_bits | 64 | 512 with BYTE_LANES=8 | 8 * BYTE_LANES * 4 * 2 |
+| wb_sel_bits | 8 | 64 with BYTE_LANES=8 | wb_data_bits / 8 |
+| wb2_sel_bits | 4 | Depends on WB2_DATA_BITS | WB2_DATA_BITS / 8 |
+| cmd_len | 22 | 22 for single-rank x8 channel | 4 commands + 3 controls + BA_BITS + ROW_BITS |
+
+* Sources
+
+- =flake.nix=: =ypcbDdr3Llm2fpgaMinBist2Variant= overrides current clock, lane, row, and BIST settings.
+- =example_demo/ypcb_00338_1p1/ypcb_00338_1p1_ddr3.v=: YPCB top-level parameters and 64-bit DDR3 data port.
+- =rtl/ddr3_top.v= and =rtl/ddr3_controller.v=: UberDDR3 top-level parameter definitions, fixed 4:1 ratio, derived Wishbone widths, and timing enums.
+- Micron =MT41K256M8DA-125K= datasheet: =-125= speed grade, DDR3-1600 timing, and x8 addressing geometry.
+- TiferKing YPCB-00338-1P1 board article: board FPGA, =MT41K256M8DA-125:K= parts, and 9-chip / 72-bit ECC memory groups.
