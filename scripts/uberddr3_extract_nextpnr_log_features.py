@@ -16,6 +16,18 @@ MAX_FREQ_RE = re.compile(r"Max frequency for clock\s+'?([^':]+)'?:\s+([0-9.]+) M
 MAX_DELAY_RE = re.compile(r"Max delay\s+(.+?):\s+([0-9.]+) ns")
 WIRELEN_RE = re.compile(r"wirelen =\s*([0-9]+)")
 CRIT_RE = re.compile(r"Critical path report for (.+):")
+SOURCE_RE = re.compile(r"\b(?:Source|src)\b\s*:?\s*(.+)", re.IGNORECASE)
+SINK_RE = re.compile(r"\b(?:Sink|dst|Destination)\b\s*:?\s*(.+)", re.IGNORECASE)
+LOGIC_ROUTING_RE = re.compile(r"([0-9.]+)\s*ns\s+logic.*?([0-9.]+)\s*ns\s+rout", re.IGNORECASE)
+ROUTING_LOGIC_RE = re.compile(r"([0-9.]+)\s*ns\s+rout.*?([0-9.]+)\s*ns\s+logic", re.IGNORECASE)
+
+CRITICAL_FAMILIES = [
+    ("controller_read_output", ("index_wb_data", "o_wb_data", "o_wb_data_q_current")),
+    ("controller_stage2_data", ("stage2_data", "stage2_dm", "stage2_data_unaligned")),
+    ("controller_stage1_anticipate", ("stage1_next", "stage1_do_pre", "stage1_do_act")),
+    ("phy_idelay", ("idelay", "cntvaluein")),
+    ("phy_dqs", ("dqs", "bitslip")),
+]
 
 
 def read_csv(path: Path) -> list[dict[str, str]]:
@@ -65,6 +77,44 @@ def section_lines(lines: list[str], start_index: int) -> list[str]:
     return out
 
 
+def truncate(value: str, limit: int = 240) -> str:
+    value = " ".join(value.split())
+    return value[:limit]
+
+
+def find_first_match(pattern: re.Pattern[str], lines: list[str]) -> str:
+    for line in lines:
+        match = pattern.search(line)
+        if match:
+            return truncate(match.group(1))
+    return ""
+
+
+def critical_family(body: list[str]) -> str:
+    lower = "\n".join(body).lower()
+    for family, needles in CRITICAL_FAMILIES:
+        if any(needle in lower for needle in needles):
+            return family
+    return "other" if body else ""
+
+
+def critical_section_matches_clock(section_name: str, clock_name: str) -> bool:
+    if not clock_name:
+        return False
+    return clock_name.lower() in section_name.lower()
+
+
+def delay_mix(body: list[str]) -> tuple[str, str]:
+    text = " ".join(body)
+    match = LOGIC_ROUTING_RE.search(text)
+    if match:
+        return match.group(1), match.group(2)
+    match = ROUTING_LOGIC_RE.search(text)
+    if match:
+        return match.group(2), match.group(1)
+    return "", ""
+
+
 def extract_features(log: str) -> dict[str, Any]:
     lines = log.splitlines()
     features: dict[str, Any] = {
@@ -94,6 +144,20 @@ def extract_features(log: str) -> dict[str, Any]:
         features[f"clock_{clock}_target_mhz"] = last[2]
         features[f"clock_{clock}_post_margin_mhz"] = round(last[0] - last[2], 6)
 
+    worst_clock_name = ""
+    if freqs:
+        post_values = [values[-1] for values in freqs.values()]
+        worst_clock_name, worst_post_values = min(
+            ((clock, values[-1]) for clock, values in freqs.items()),
+            key=lambda item: item[1][0] - item[1][2],
+        )
+        worst_post = worst_post_values
+        features["toc_worst_clock_name"] = worst_clock_name
+        features["toc_worst_clock_post_mhz"] = worst_post[0]
+        features["toc_worst_clock_status"] = worst_post[1]
+        features["toc_worst_clock_target_mhz"] = worst_post[2]
+        features["toc_timing_status"] = "pass" if all(value[1] == "PASS" for value in post_values) else "pnr_timing"
+
     delays = []
     for line in lines:
         m = MAX_DELAY_RE.search(line)
@@ -114,12 +178,17 @@ def extract_features(log: str) -> dict[str, Any]:
         features["placer_wirelen_delta"] = wirelens[-1] - wirelens[0]
 
     critical_sections = []
+    critical_bodies: list[tuple[str, list[str]]] = []
+    first_critical_body: list[str] = []
     for index, line in enumerate(lines):
         m = CRIT_RE.search(line)
         if not m:
             continue
         name = m.group(1).strip()
         body = section_lines(lines, index)
+        critical_bodies.append((name, body))
+        if not first_critical_body:
+            first_critical_body = body
         lower = "\n".join(body).lower()
         critical_sections.append(name)
         key = safe_clock(name)[:80]
@@ -130,6 +199,19 @@ def extract_features(log: str) -> dict[str, Any]:
         features[f"critical_{key}_dq_mentions"] = lower.count("dq")
     features["critical_section_count"] = len(critical_sections)
     features["critical_sections"] = ";".join(critical_sections)
+    toc_critical_body = first_critical_body
+    for name, body in critical_bodies:
+        if critical_section_matches_clock(name, worst_clock_name):
+            toc_critical_body = body
+            break
+    if toc_critical_body:
+        logic_delay, routing_delay = delay_mix(toc_critical_body)
+        features["toc_critical_family"] = critical_family(toc_critical_body)
+        features["toc_critical_source"] = find_first_match(SOURCE_RE, toc_critical_body)
+        features["toc_critical_sink"] = find_first_match(SINK_RE, toc_critical_body)
+        features["toc_critical_logic_delay_ns"] = logic_delay
+        features["toc_critical_routing_delay_ns"] = routing_delay
+        features["toc_critical_path_excerpt"] = truncate(" | ".join(toc_critical_body), 500)
     return features
 
 

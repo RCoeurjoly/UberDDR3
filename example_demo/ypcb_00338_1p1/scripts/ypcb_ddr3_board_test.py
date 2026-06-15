@@ -636,8 +636,8 @@ def sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def program_bitstream(programmer: Path, bitstream: Path) -> dict[str, object]:
-    command = [str(programmer), "-c", "digilent_hs3", "-m", "--file-type", "bit", str(bitstream)]
+def program_bitstream(programmer: Path, bitstream: Path, serial: str) -> dict[str, object]:
+    command = [str(programmer), "-c", "digilent_hs3", "--ftdi-serial", serial, str(bitstream)]
     completed = subprocess.run(command, check=False, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return {"command": command, "returncode": completed.returncode, "output": completed.stdout}
 
@@ -736,7 +736,7 @@ def main() -> int:
     if args.no_program:
         result["programming"] = {"skipped": True}
     else:
-        result["programming"] = program_bitstream(args.programmer, bitstream)
+        result["programming"] = program_bitstream(args.programmer, bitstream, args.serial)
         if result["programming"]["returncode"] != 0:
             result.update({"pass": False, "fail_reasons": ["programming_failed"]})
             write_result(args.output, result)

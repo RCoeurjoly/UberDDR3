@@ -48,19 +48,24 @@ module ypcb_rtl_init_tb;
     wire [0:0] ddr3_clk_n;
     wire calib_complete;
     wire [31:0] debug1;
-    wire [63:0] bist_counts;
+    wire [63:0] debug8;
+    wire [63:0] bist_counts = debug8;
 
     wire [4:0] instruction_address = dut.ddr3_controller_inst.instruction_address;
     wire [4:0] instruction_address_d = dut.ddr3_controller_inst.instruction_address_d;
     wire [27:0] instruction = dut.ddr3_controller_inst.instruction;
     wire [18:0] delay_counter = dut.ddr3_controller_inst.delay_counter;
     wire delay_counter_is_zero = dut.ddr3_controller_inst.delay_counter_is_zero;
-    wire init_advance_now = dut.ddr3_controller_inst.init_advance_now;
-    wire init_advance_pending = dut.ddr3_controller_inst.init_advance_pending;
-    wire init_advance_ready_q = dut.ddr3_controller_inst.init_advance_ready_q;
-    wire [1:0] init_timer_phase = dut.ddr3_controller_inst.init_timer_phase;
-    wire init_calib_start_now = dut.ddr3_controller_inst.init_calib_start_now;
-    wire init_calib_start_q = dut.ddr3_controller_inst.init_calib_start_q;
+    wire init_advance_now = 1'b0;
+    wire init_advance_pending = 1'b0;
+    wire init_advance_ready_q = 1'b0;
+    wire [1:0] init_timer_phase = 2'b00;
+    wire init_calib_start_now = 1'b0;
+    wire init_calib_start_q = 1'b0;
+    wire init_counter_reaches_two = 1'b0;
+    wire init_counter_reaches_one = 1'b0;
+    wire init_timed_counter_active = 1'b0;
+    wire init_prefetch_ready = 1'b0;
     wire reset_done = dut.ddr3_controller_inst.reset_done;
     wire sync_rst_controller = dut.ddr3_controller_inst.sync_rst_controller;
     wire o_phy_reset = dut.ddr3_controller_inst.o_phy_reset;
@@ -83,10 +88,10 @@ module ypcb_rtl_init_tb;
     wire [10:0] trace_event_delta = (trace_event_delta_wide > 32'd2047) ? 11'h7ff : trace_event_delta_wide[10:0];
     wire [63:0] init_trace_event_word = {
         trace_event_delta,
-        dut.ddr3_controller_inst.init_counter_reaches_two,
-        dut.ddr3_controller_inst.init_counter_reaches_one,
-        dut.ddr3_controller_inst.init_timed_counter_active,
-        dut.ddr3_controller_inst.init_prefetch_ready,
+        init_counter_reaches_two,
+        init_counter_reaches_one,
+        init_timed_counter_active,
+        init_prefetch_ready,
         instruction[27],
         instruction[26],
         pause_counter,
@@ -181,13 +186,7 @@ module ypcb_rtl_init_tb;
         .o_ddr3_dm(ddr3_dm),
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
-        .o_debug8(),
-        .o_bist_counts(bist_counts),
-        .o_calib_debug(),
-        .o_init_reset_debug(),
-        .o_init_seq_debug(),
-        .o_bist_debug(),
-        .o_panopticon_debug(),
+        .o_debug8(debug8),
         .i_user_self_refresh(1'b0),
         .uart_tx()
     );

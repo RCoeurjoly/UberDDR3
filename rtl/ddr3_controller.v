@@ -331,6 +331,9 @@ module ddr3_controller #(
     //Also, worscase is when the anticipated bank still has the leftover of the 
     //WRITE_TO_PRECHARGE_DELAY thus consider also this.
     localparam MARGIN_BEFORE_ANTICIPATE = PRECHARGE_TO_ACTIVATE_DELAY + ACTIVATE_TO_WRITE_DELAY + WRITE_TO_PRECHARGE_DELAY;
+    localparam SPEED_MODE_DDR3_1600 = (DDR3_CLK_PERIOD == 1_250);
+    localparam ENABLE_STAGE1_ANTICIPATE = !SPEED_MODE_DDR3_1600;
+    localparam ENABLE_SECOND_WISHBONE = SECOND_WISHBONE && !SPEED_MODE_DDR3_1600;
     // STAGE2_DATA_DEPTH is the number of controller clk cycles of delay before issuing the data after the write command
     // depends on the CWL_nCK
     /* verilator lint_off WIDTHEXPAND */
@@ -1959,8 +1962,7 @@ module ddr3_controller #(
         end //end of stage 2 pending
 
         // pending request on stage 1
-        // if DDR3_CLK_PERIOD == 1250, then remove this anticipate stage 1 to pass timing
-        if(DDR3_CLK_PERIOD != 1_250) begin
+        if(ENABLE_STAGE1_ANTICIPATE) begin
             if(stage1_pending && !((stage1_next_bank == stage2_bank) && stage2_pending)) begin
                 //stage 1 will mainly be for anticipation (if next requests need to jump to new bank then 
                 //anticipate the precharging and activate of that next bank, BUT it can also handle
@@ -2157,6 +2159,7 @@ module ddr3_controller #(
             for(index = 0; index < 2; index = index + 1) begin
                 o_wb_data_q[index] <= 0;
             end
+            o_wb_data_q_q <= 0;
             for(index = 0; index < READ_ACK_PIPE_WIDTH; index = index + 1) begin
                 shift_reg_read_pipe_q[index] <= 0;
             end
@@ -2272,6 +2275,7 @@ module ddr3_controller #(
             end
             // o_wb_ack_read_q[0][0] is also the wishbone ack (aligned with ack is the wishbone data) thus
             // after sending the wishbone data on a particular index, invert it for the next ack
+            o_wb_data_q_q <= o_wb_data_q_current;
             
             if(ECC_ENABLE != 3) begin
                 if(o_wb_ack_read_q[0][0]) begin 
@@ -2332,9 +2336,9 @@ module ddr3_controller #(
     generate
         if(ECC_ENABLE == 0) begin: ecc_disabled_wishbone_out
             always @* begin
-                o_wb_data = o_wb_data_q_current; // Wishbone data output
+                o_wb_data = o_wb_data_q_q; // Wishbone data output
                 o_aux = o_wb_ack_read_q[0][AUX_WIDTH:1]; // Aux output
-                o_wb_data_uncalibrated = o_wb_data; // wishbone data is also used when not yet done calibration
+                o_wb_data_uncalibrated = o_wb_data_q_q; // wishbone data is also used when not yet done calibration
                 o_wb_ack_uncalibrated = o_wb_ack_read_q[0][0] && !final_calibration_done; // ack used during calibration
                 o_wb_ack_q = o_wb_ack_read_q[0][0] && final_calibration_done; // ack used during normal operation
                 o_wb_err_q = 0; // no wishbone error when ECC is disabled
@@ -3677,8 +3681,7 @@ ALTERNATE_WRITE_READ: if(!o_wb_stall_calib) begin
     
     /******************************************************* Wishbone 2 (PHY) Interface *******************************************************/
     generate
-        if(SECOND_WISHBONE) begin : use_second_wishbone
-        // When running in DDR3-1600, disable SECOND_WISHBONE to pass timing
+        if(ENABLE_SECOND_WISHBONE) begin : use_second_wishbone
             always @(posedge i_controller_clk) begin
                     if(sync_rst_wb2) begin
                         wb2_stb <= 0;

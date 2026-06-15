@@ -379,17 +379,50 @@ def run(command: list[str], log_path: Path) -> int:
 
 
 def infer_byte_lanes(variant: str) -> int:
-    match = re.search(r"lanes(1|2|4|8)(?:\D|$)", variant)
+    match = re.search(r"(?:lanes|BYTE_LANES_)(1|2|4|8)(?:\D|$)", variant)
     if match:
         return int(match.group(1))
     return 2
 
 
+def parse_seed_values(seed_spec: str) -> list[str]:
+    seeds: list[str] = []
+    for part in (item.strip() for item in seed_spec.split(",")):
+        if not part:
+            continue
+        if part == "noseed":
+            seeds.append(part)
+        elif "-" in part:
+            start, end = [int(value) for value in part.split("-", 1)]
+            seeds.extend(str(value) for value in range(start, end + 1))
+        else:
+            seeds.append(str(int(part)))
+    return seeds
+
+
+def parse_freq_values(freq_spec: str, package_template: str) -> list[str]:
+    if not freq_spec:
+        return ["100"] if "{freq}" in package_template else [""]
+    freqs: list[str] = []
+    for part in (item.strip() for item in freq_spec.split(",")):
+        if not part:
+            continue
+        if "-" in part:
+            start_text, end_text = part.split("-", 1)
+            start = int(start_text)
+            end = int(end_text)
+            freqs.extend(str(value) for value in range(start, end + 1, 10))
+        else:
+            freqs.append(str(int(part)))
+    return freqs
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--variant", required=True, help="Variant label for output rows, e.g. no-tmdriv")
-    parser.add_argument("--package-template", required=True, help="Nix package template with {seed}, e.g. .#ypcb-ddr3-bitstream-no-tmdriv-seed-{seed}")
-    parser.add_argument("--seeds", default="1-30", help="Seed range like 1-30 or comma list like 1,2,5")
+    parser.add_argument("--package-template", required=True, help="Nix package template with optional {seed} and {freq}, e.g. .#ypcb-ddr3-bitstream-...-PNR_FREQ_MHZ_{freq}-seed-{seed}")
+    parser.add_argument("--seeds", default="1-30", help="Seed range/list like 1-30, 1,2,5, or noseed")
+    parser.add_argument("--freqs", default="", help="Frequency range/list like 80-200 or 80,100,120. Defaults to 100 only when {freq} is used.")
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--success-repeats", type=int, help="Stop a seed after this many passing repeats. Defaults to --repeats.")
     parser.add_argument("--failure-repeats", type=int, help="Stop a seed after this many failing repeats in one failure family. Defaults to --repeats.")
@@ -405,11 +438,8 @@ def main() -> int:
     args = parser.parse_args()
     byte_lanes = args.byte_lanes if args.byte_lanes is not None else infer_byte_lanes(args.variant)
 
-    if "-" in args.seeds and "," not in args.seeds:
-        start, end = [int(part) for part in args.seeds.split("-", 1)]
-        seeds = list(range(start, end + 1))
-    else:
-        seeds = [int(part) for part in args.seeds.split(",") if part]
+    seeds = parse_seed_values(args.seeds)
+    freqs = parse_freq_values(args.freqs, args.package_template)
 
     args.out_dir.mkdir(parents=True, exist_ok=True)
     status_path = args.out_dir / "sweep_status.csv"
@@ -419,86 +449,89 @@ def main() -> int:
     failure_repeats = args.failure_repeats if args.failure_repeats is not None else args.repeats
     max_repeats = max(args.repeats, success_repeats, failure_repeats, args.intermittent_repeats)
 
-    for seed in seeds:
-        package = args.package_template.format(seed=seed)
-        result_link = args.out_dir / f"build-seed-{seed}"
-        build_log = args.out_dir / f"build-seed-{seed}.log"
-        build_rc = run(["nix", "build", package, "-o", str(result_link)], build_log)
-        if build_rc != 0:
-            row = {
-                "experiment_id": f"{args.variant}-seed-{seed}-build",
-                "seed": seed,
-                "repeat": "",
-                "variant": args.variant,
-                "package": package,
-                "build_log": build_log,
-                "build_returncode": build_rc,
-                "status": "build_fail",
-                "failure_class": "build",
-                "coarse_family_id": "build_fail",
-                "exact_family_id": "build_fail",
-                "failure_family_id": "build_fail",
-                "stage_rank": 0,
-                "stage_name": "build",
-            }
-            rows.append(row)
-            write_status(status_path, rows)
-            print(f"seed-{seed}: build_fail rc={build_rc}")
-            final_rc = build_rc
-            if args.continue_on_fail:
-                continue
-            return build_rc
+    for freq in freqs:
+        for seed in seeds:
+            seed_id = "noseed" if seed == "noseed" else f"seed-{seed}"
+            freq_id = "" if freq == "" else f"-freq-{freq}"
+            package = args.package_template.format(seed=seed, freq=freq)
+            result_link = args.out_dir / f"build{freq_id}-{seed_id}"
+            build_log = args.out_dir / f"build{freq_id}-{seed_id}.log"
+            build_rc = run(["nix", "build", package, "-o", str(result_link)], build_log)
+            if build_rc != 0:
+                row = {
+                    "experiment_id": f"{args.variant}{freq_id}-{seed_id}-build",
+                    "seed": seed,
+                    "repeat": "",
+                    "variant": args.variant,
+                    "package": package,
+                    "build_log": build_log,
+                    "build_returncode": build_rc,
+                    "status": "build_fail",
+                    "failure_class": "build",
+                    "coarse_family_id": "build_fail",
+                    "exact_family_id": "build_fail",
+                    "failure_family_id": "build_fail",
+                    "stage_rank": 0,
+                    "stage_name": "build",
+                }
+                rows.append(row)
+                write_status(status_path, rows)
+                print(f"{seed_id}{freq_id}: build_fail rc={build_rc}")
+                final_rc = build_rc
+                if args.continue_on_fail:
+                    continue
+                return build_rc
 
-        bitstream = result_link / "ypcb_00338_1p1_ddr3_openxc7.bit"
-        seed_rows: list[dict[str, object]] = []
-        for repeat in range(1, max_repeats + 1):
-            experiment_id = f"{args.variant}-seed-{seed}-repeat-{repeat}"
-            result_json = args.out_dir / f"{experiment_id}.json"
-            test_log = args.out_dir / f"{experiment_id}.log"
-            command = [
-                "python3",
-                str(args.board_test),
-                "--bitstream",
-                str(bitstream),
-                "--output",
-                str(result_json),
-                "--poll-count",
-                str(args.poll_count),
-                "--poll-interval",
-                str(args.poll_interval),
-                "--byte-lanes",
-                str(byte_lanes),
-            ]
-            if args.stable_samples:
-                command.extend(["--stable-samples", str(args.stable_samples), "--stable-min-attempt", str(args.stable_min_attempt)])
-            test_rc = run(command, test_log)
-            status = "pass" if test_rc == 0 else "fail"
-            classification = classify_result(result_json)
-            row = {"experiment_id": experiment_id, "seed": seed, "repeat": repeat, "variant": args.variant, "package": package, "bitstream": bitstream, "result_json": result_json, "build_log": build_log, "test_log": test_log, "build_returncode": build_rc, "test_returncode": test_rc, "status": status, **classification}
-            rows.append(row)
-            seed_rows.append(row)
-            write_status(status_path, rows)
-            print(f"{experiment_id}: {status} rc={test_rc} stage={row.get('stage_name', '')} coarse={row.get('coarse_family_id', '')} exact={row.get('exact_family_id', '')}")
-            if test_rc != 0:
-                final_rc = test_rc
-                if not args.continue_on_fail:
-                    print(status_path)
-                    return final_rc
+            bitstream = result_link / "ypcb_00338_1p1_ddr3_openxc7.bit"
+            seed_rows: list[dict[str, object]] = []
+            for repeat in range(1, max_repeats + 1):
+                experiment_id = f"{args.variant}{freq_id}-{seed_id}-repeat-{repeat}"
+                result_json = args.out_dir / f"{experiment_id}.json"
+                test_log = args.out_dir / f"{experiment_id}.log"
+                command = [
+                    "python3",
+                    str(args.board_test),
+                    "--bitstream",
+                    str(bitstream),
+                    "--output",
+                    str(result_json),
+                    "--poll-count",
+                    str(args.poll_count),
+                    "--poll-interval",
+                    str(args.poll_interval),
+                    "--byte-lanes",
+                    str(byte_lanes),
+                ]
+                if args.stable_samples:
+                    command.extend(["--stable-samples", str(args.stable_samples), "--stable-min-attempt", str(args.stable_min_attempt)])
+                test_rc = run(command, test_log)
+                status = "pass" if test_rc == 0 else "fail"
+                classification = classify_result(result_json)
+                row = {"experiment_id": experiment_id, "seed": seed, "repeat": repeat, "variant": args.variant, "package": package, "bitstream": bitstream, "result_json": result_json, "build_log": build_log, "test_log": test_log, "build_returncode": build_rc, "test_returncode": test_rc, "status": status, **classification}
+                rows.append(row)
+                seed_rows.append(row)
+                write_status(status_path, rows)
+                print(f"{experiment_id}: {status} rc={test_rc} stage={row.get('stage_name', '')} coarse={row.get('coarse_family_id', '')} exact={row.get('exact_family_id', '')}")
+                if test_rc != 0:
+                    final_rc = test_rc
+                    if not args.continue_on_fail:
+                        print(status_path)
+                        return final_rc
 
-            statuses = {str(item.get("status", "")) for item in seed_rows}
-            families = {str(item.get("coarse_family_id", "")) for item in seed_rows if item.get("status") != "pass"}
-            pass_count = sum(1 for item in seed_rows if item.get("status") == "pass")
-            fail_count = sum(1 for item in seed_rows if item.get("status") != "pass")
-            if statuses == {"pass"} and pass_count >= success_repeats:
-                break
-            if fail_count and pass_count:
-                if repeat >= args.intermittent_repeats:
+                statuses = {str(item.get("status", "")) for item in seed_rows}
+                families = {str(item.get("coarse_family_id", "")) for item in seed_rows if item.get("status") != "pass"}
+                pass_count = sum(1 for item in seed_rows if item.get("status") == "pass")
+                fail_count = sum(1 for item in seed_rows if item.get("status") != "pass")
+                if statuses == {"pass"} and pass_count >= success_repeats:
                     break
-            elif fail_count and len(families) > 1:
-                if repeat >= args.intermittent_repeats:
+                if fail_count and pass_count:
+                    if repeat >= args.intermittent_repeats:
+                        break
+                elif fail_count and len(families) > 1:
+                    if repeat >= args.intermittent_repeats:
+                        break
+                elif fail_count >= failure_repeats:
                     break
-            elif fail_count >= failure_repeats:
-                break
     print(status_path)
     return final_rc
 

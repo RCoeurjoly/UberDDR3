@@ -47,7 +47,8 @@ module ypcb_rtl_bist_tb;
     wire [0:0] ddr3_clk_n;
     wire calib_complete;
     wire [31:0] debug1;
-    wire [63:0] bist_counts;
+    wire [63:0] debug8;
+    wire [63:0] bist_counts = debug8;
 
     wire bist_done = calib_complete && (debug1[4:0] == 5'd23);
 
@@ -128,8 +129,7 @@ module ypcb_rtl_bist_tb;
         .o_ddr3_dm(ddr3_dm),
         .o_calib_complete(calib_complete),
         .o_debug1(debug1),
-        .o_debug8(),
-        .o_bist_counts(bist_counts),
+        .o_debug8(debug8),
         .i_user_self_refresh(1'b0),
         .uart_tx()
     );
